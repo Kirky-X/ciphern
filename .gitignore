@@ -1,2 +1,29 @@
 /target
 docs/
+
+# Logs
+*.log
+logs/
+
+# Caches
+__pycache__/
+.cache/
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+.DS_Store
+Thumbs.db
+
+# Sensitive information
+.env
+*.key
+*.pem
+db.sqlite
