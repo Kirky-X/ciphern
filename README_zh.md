@@ -16,24 +16,28 @@
 ## ✨ 核心特性
 
 ### 🔒 安全优先
+
 - **多层防护**: 内存保护、侧信道防护、密钥隔离
 - **合规认证**: 符合国密标准 (SM2/SM3/SM4) 和 FIPS 140-3
 - **零知识审计**: 完整操作日志，不泄漏敏感数据
 - **自动密钥轮换**: 满足合规要求的密钥生命周期管理
 
 ### ⚡ 高性能
+
 - **SIMD 优化**: AES-256 吞吐量 > 3 GB/s (AVX2)
 - **硬件加速**: 支持 AES-NI、ARM Crypto Extensions
 - **零拷贝设计**: 最小化内存分配和复制
 - **智能缓存**: 密钥和算法实例复用
 
 ### 🔧 易于集成
+
 - **统一接口**: 简洁的 API，屏蔽底层复杂性
 - **多语言支持**: Rust / Java / Python / C
 - **插件化架构**: 用户可自定义加密算法
 - **丰富示例**: 涵盖常见使用场景
 
 ### 🌐 标准兼容
+
 - **国际标准**: AES-256, ECDSA-P384, SHA-256/384/512
 - **国密标准**: SM2, SM3, SM4
 - **密钥派生**: HKDF, PBKDF2, Argon2id
@@ -46,12 +50,14 @@
 ### 安装
 
 **Rust (Cargo)**
+
 ```toml
 [dependencies]
 ciphern = "0.1"
 ```
 
 **Java (Maven)**
+
 ```xml
 <dependency>
     <groupId>com.ciphern</groupId>
@@ -61,6 +67,7 @@ ciphern = "0.1"
 ```
 
 **Python (pip)**
+
 ```bash
 pip install ciphern
 ```
@@ -68,6 +75,7 @@ pip install ciphern
 ### 5 分钟示例
 
 #### 基础加密解密 (Rust)
+
 ```rust
 use ciphern::{Cipher, Algorithm, KeyManager};
 
@@ -95,6 +103,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 #### 数字签名 (Rust)
+
 ```rust
 use ciphern::{Signer, Algorithm, KeyManager};
 
@@ -122,6 +131,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 #### 国密算法 (Rust)
+
 ```rust
 use ciphern::{Cipher, Algorithm, KeyManager, Hash};
 
@@ -142,6 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 #### Java 示例
+
 ```java
 import com.ciphern.*;
 
@@ -161,6 +172,7 @@ public class Example {
 ```
 
 #### Python 示例
+
 ```python
 from ciphern import Cipher, Algorithm
 
@@ -178,17 +190,20 @@ with Cipher(Algorithm.AES256GCM) as cipher:
 ## 📚 文档
 
 ### 核心文档
+
 - **[用户指南](docs/USER_GUIDE.md)** - 详细使用说明和最佳实践
 - **[API 文档](https://docs.rs/ciphern)** - 完整 API 参考
 - **[示例代码](examples/)** - 涵盖常见场景的示例
 
 ### 高级主题
+
 - **[架构设计](docs/ARCHITECTURE.md)** - 系统架构 and 设计决策
 - **[性能优化](docs/PERFORMANCE.md)** - SIMD、硬件加速、benchmark
 - **[安全指南](docs/SECURITY.md)** - 威胁模型、安全最佳实践
 - **[多租户指南](docs/MULTI_TENANT.md)** - 密钥隔离和访问控制
 
 ### 开发者文档
+
 - **[贡献指南](CONTRIBUTING.md)** - 如何参与开发
 - **[插件开发](docs/PLUGIN_DEVELOPMENT.md)** - 自定义算法实现
 - **[FFI 指南](docs/FFI_GUIDE.md)** - C/Java/Python 绑定
@@ -198,7 +213,9 @@ with Cipher(Algorithm.AES256GCM) as cipher:
 ## 🎯 使用场景
 
 ### 数据存储加密
+
 保护数据库、文件系统中的敏感数据
+
 ```rust
 use ciphern::{Cipher, KeyManager, Algorithm};
 
@@ -212,7 +229,9 @@ db.save_encrypted_field(user.id, "ssn", &encrypted_ssn)?;
 ```
 
 ### API 通信加密
+
 保护 API 请求和响应的机密性和完整性
+
 ```rust
 use ciphern::{Signer, Algorithm, KeyManager};
 
@@ -228,7 +247,9 @@ http_request
 ```
 
 ### 密钥管理
+
 自动轮换、多租户隔离、审计日志
+
 ```rust
 use ciphern::key::{KeyLifecycleManager, KeyLifecyclePolicy, KeyManagerLifecycleExt};
 use ciphern::types::Algorithm;
@@ -253,10 +274,12 @@ let policy = KeyLifecyclePolicy {
 ## 🔧 高级功能
 
 ### FIPS 140-3 合规模式
+
 ```toml
 [dependencies]
 ciphern = { version = "0.1", features = ["fips"] }
 ```
+
 ```rust
 use ciphern::{is_fips_enabled, Algorithm, Cipher};
 
@@ -271,17 +294,20 @@ assert!(result.is_err()); // CryptoError::FipsError
 ```
 
 ### SIMD 性能优化
+
 ```toml
 [dependencies]
 ciphern = { version = "0.1", features = ["simd"] }
 ```
 
 自动检测 CPU 特性并使用最优实现：
+
 - **x86_64**: AES-NI + AVX2
 - **ARM64**: ARM Crypto Extensions
 - **Fallback**: 纯软件实现
 
 ### 审计日志与监控
+
 ```rust
 use ciphern::audit::AuditLogger;
 
@@ -292,6 +318,7 @@ AuditLogger::init();
 ```
 
 ### 自定义算法插件
+
 ```rust
 use ciphern::plugin::{Plugin, CipherPlugin};
 // 通过实现 Plugin 和 CipherPlugin trait 来扩展算法
@@ -303,21 +330,22 @@ use ciphern::plugin::{Plugin, CipherPlugin};
 
 ### 吞吐量 (x86_64, Intel i9-12900K, 单核)
 
-| 算法 | 标量实现 | SIMD (SSE) | SIMD (AVX2) |
-|------|----------|------------|-------------|
-| AES-256-GCM | 500 MB/s | 1.5 GB/s | **3.2 GB/s** |
-| SM4-GCM | 200 MB/s | 600 MB/s | **1.1 GB/s** |
-| SHA-256 | 300 MB/s | 800 MB/s | **1.5 GB/s** |
+| 算法          | 标量实现     | SIMD (SSE) | SIMD (AVX2)  |
+|-------------|----------|------------|--------------|
+| AES-256-GCM | 500 MB/s | 1.5 GB/s   | **3.2 GB/s** |
+| SM4-GCM     | 200 MB/s | 600 MB/s   | **1.1 GB/s** |
+| SHA-256     | 300 MB/s | 800 MB/s   | **1.5 GB/s** |
 
 ### 延迟 (1KB 数据)
 
-| 操作 | P50 | P99 | P99.9 |
-|------|-----|-----|-------|
-| AES-256 加密 | 2.1 μs | 3.5 μs | 8.2 μs |
+| 操作            | P50    | P99    | P99.9  |
+|---------------|--------|--------|--------|
+| AES-256 加密    | 2.1 μs | 3.5 μs | 8.2 μs |
 | ECDSA-P384 签名 | 180 μs | 250 μs | 400 μs |
 | ECDSA-P384 验证 | 280 μs | 380 μs | 600 μs |
 
 运行 benchmark:
+
 ```bash
 cargo bench
 ```
@@ -327,6 +355,7 @@ cargo bench
 ## 🔐 安全性
 
 ### 安全特性
+
 - ✅ **Constant-time 实现**: 防止时序攻击
 - ✅ **自动内存擦除**: 使用 `zeroize` 安全清理密钥
 - ✅ **内存锁定**: 防止密钥被 swap 到磁盘
@@ -334,13 +363,16 @@ cargo bench
 - ✅ **侧信道防护**: 可选的功耗分析防护
 
 ### 安全审计
+
 Ciphern 已通过以下安全测试：
+
 - ✅ NIST CAVP 测试向量验证
 - ✅ 24 小时持续 Fuzzing (无 crash)
 - ✅ Valgrind 内存检查 (无泄漏)
 - ✅ 第三方安全审计 (报告见 [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md))
 
 ### 漏洞报告
+
 如发现安全漏洞，请发送邮件至 security@ciphern.dev，我们将在 48 小时内响应。
 
 详见 [SECURITY.md](SECURITY.md)
@@ -350,11 +382,13 @@ Ciphern 已通过以下安全测试：
 ## 🛠️ 开发环境
 
 ### 前置要求
+
 - Rust 1.75+ (stable)
 - OpenSSL 3.0+ (Linux/macOS)
 - CMake 3.15+ (用于编译 C 扩展)
 
 ### 编译
+
 ```bash
 # 克隆仓库
 git clone https://github.com/Kirky-X/ciphern.git
@@ -374,6 +408,7 @@ cargo build --release --features simd
 ```
 
 ### 测试
+
 ```bash
 # 运行所有测试
 cargo test --all-features
@@ -386,6 +421,7 @@ cargo +nightly fuzz run fuzz_encrypt
 ```
 
 ### 交叉编译
+
 ```bash
 # ARM64 Linux
 cargo build --target aarch64-unknown-linux-gnu --release
@@ -402,6 +438,7 @@ cargo build --target aarch64-apple-darwin --release
 ## 🗺️ 路线图
 
 ### v0.1.0 - MVP (已完成) ✅
+
 - [x] 核心加密功能 (AES, SM4)
 - [x] 数字签名 (ECDSA, SM2)
 - [x] 哈希函数 (SHA-256/384/512, SM3)
@@ -409,18 +446,21 @@ cargo build --target aarch64-apple-darwin --release
 - [x] Rust API
 
 ### v0.2.0 - 安全增强 (进行中) 🚧
+
 - [x] 内存保护机制
 - [x] 侧信道防护
 - [x] FIPS 140-3 模式
 - [x] Java/Python 绑定
 
 ### v0.3.0 - 扩展性 (规划中) 📋
+
 - [ ] 插件系统
 - [ ] WASM 支持
 - [ ] HSM 集成 (PKCS#11)
 - [ ] TEE 支持 (Intel SGX, ARM TrustZone)
 
 ### v1.0.0 - 生产就绪 (Q2 2026) 🎯
+
 - [ ] 完整安全审计
 - [ ] FIPS 140-3 认证
 - [ ] 性能优化 (SIMD, 多核)
@@ -433,6 +473,7 @@ cargo build --target aarch64-apple-darwin --release
 我们欢迎各种形式的贡献！
 
 ### 如何贡献
+
 1. Fork 本仓库
 2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
 3. 提交更改 (`git commit -m 'Add amazing feature'`)
@@ -440,6 +481,7 @@ cargo build --target aarch64-apple-darwin --release
 5. 创建 Pull Request
 
 详见 [CONTRIBUTING.md](CONTRIBUTING.md)
+
 ```
 
 ### 贡献者
