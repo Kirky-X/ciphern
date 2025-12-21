@@ -1,0 +1,76 @@
+// Copyright (c) 2025 Kirky.X
+// 
+// Licensed under the MIT License
+// See LICENSE file in the project root for full license information.
+
+use super::{SymmetricCipher, Signer};
+use crate::types::Algorithm;
+use crate::error::{CryptoError, Result};
+use crate::cipher::aes::Aes256GcmProvider;
+use crate::cipher::aes128::Aes128GcmProvider;
+use crate::cipher::aes192::Aes192GcmProvider;
+use crate::cipher::sm4::Sm4GcmProvider;
+use crate::signer::ecdsa::EcdsaProvider;
+use crate::signer::rsa::RsaProvider;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+use lazy_static::lazy_static;
+
+pub struct ProviderRegistry {
+    symmetric: RwLock<HashMap<Algorithm, Arc<dyn SymmetricCipher>>>,
+    signers: RwLock<HashMap<Algorithm, Arc<dyn Signer>>>,
+}
+
+impl ProviderRegistry {
+    pub fn new() -> Self {
+        let mut registry = Self {
+            symmetric: RwLock::new(HashMap::new()),
+            signers: RwLock::new(HashMap::new()),
+        };
+        registry.register_defaults();
+        registry
+    }
+
+    fn register_defaults(&mut self) {
+        {
+            let mut map = self.symmetric.write().unwrap();
+            map.insert(Algorithm::AES128GCM, Arc::new(Aes128GcmProvider::new()));
+            map.insert(Algorithm::AES192GCM, Arc::new(Aes192GcmProvider::new()));
+            map.insert(Algorithm::AES256GCM, Arc::new(Aes256GcmProvider::default()));
+            map.insert(Algorithm::SM4GCM, Arc::new(Sm4GcmProvider::new()));
+        }
+
+        {
+            let mut map = self.signers.write().unwrap();
+            map.insert(Algorithm::ECDSAP256, Arc::new(EcdsaProvider::new(Algorithm::ECDSAP256)));
+            map.insert(Algorithm::ECDSAP384, Arc::new(EcdsaProvider::new(Algorithm::ECDSAP384)));
+            map.insert(Algorithm::RSA2048, Arc::new(RsaProvider::new(Algorithm::RSA2048)));
+            map.insert(Algorithm::RSA3072, Arc::new(RsaProvider::new(Algorithm::RSA3072)));
+            map.insert(Algorithm::RSA4096, Arc::new(RsaProvider::new(Algorithm::RSA4096)));
+        }
+    }
+
+    pub fn get_symmetric(&self, algo: Algorithm) -> Result<Arc<dyn SymmetricCipher>> {
+        // FIPS Check
+        crate::fips::validate_algorithm_fips(&algo)?;
+
+        let map = self.symmetric.read().map_err(|_| CryptoError::MemoryProtectionFailed("Registry Lock".into()))?;
+        map.get(&algo)
+            .cloned()
+            .ok_or_else(|| CryptoError::UnsupportedAlgorithm(format!("{:?}", algo)))
+    }
+
+    pub fn get_signer(&self, algo: Algorithm) -> Result<Arc<dyn Signer>> {
+        // FIPS Check
+        crate::fips::validate_algorithm_fips(&algo)?;
+
+        let map = self.signers.read().map_err(|_| CryptoError::MemoryProtectionFailed("Registry Lock".into()))?;
+        map.get(&algo)
+            .cloned()
+            .ok_or_else(|| CryptoError::UnsupportedAlgorithm(format!("{:?}", algo)))
+    }
+}
+
+lazy_static! {
+    pub static ref REGISTRY: ProviderRegistry = ProviderRegistry::new();
+}

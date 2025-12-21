@@ -1,0 +1,55 @@
+// Copyright (c) 2025 Kirky.X
+// 
+// Licensed under the MIT License
+// See LICENSE file in the project root for full license information.
+
+pub mod loader;
+pub mod manager;
+pub mod hot_reload;
+
+use crate::provider::SymmetricCipher;
+use crate::types::Algorithm;
+use crate::key::Key;
+use crate::error::Result;
+use std::any::Any;
+use std::sync::Arc;
+
+pub trait Plugin: Send + Sync {
+    fn name(&self) -> &str;
+    fn version(&self) -> &str;
+    fn initialize(&mut self) -> Result<()>;
+    fn shutdown(&mut self) -> Result<()>;
+    fn health_check(&self) -> Result<bool>;
+    fn as_any(&self) -> &dyn Any;
+}
+
+pub trait CipherPlugin: Plugin {
+    fn as_symmetric_cipher(&self) -> Arc<dyn SymmetricCipher>;
+    fn supported_algorithms(&self) -> Vec<Algorithm>;
+}
+
+#[derive(Debug, Clone)]
+pub struct PluginMetadata {
+    pub name: String,
+    pub version: String,
+    pub author: String,
+    pub description: String,
+    pub dependencies: Vec<String>,
+    pub checksum: String,
+}
+
+#[derive(Debug)]
+pub struct PluginLoadError {
+    pub plugin_name: String,
+    pub reason: String,
+    pub recoverable: bool,
+}
+
+impl std::fmt::Display for PluginLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Plugin '{}' load error: {} (recoverable: {})", 
+               self.plugin_name, self.reason, self.recoverable)
+    }
+}
+
+impl std::error::Error for PluginLoadError {}
