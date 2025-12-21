@@ -1,5 +1,5 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
@@ -28,14 +28,12 @@ pub struct EmbeddedPowerConfig {
     pub power_noise_strength: f32,
 }
 
-
 /// 嵌入式功耗分析防护器
 pub struct EmbeddedPowerProtector {
     pub(crate) config: EmbeddedPowerConfig,
     pub(crate) operation_counter: AtomicU32,
     pub(crate) last_operation_time: Mutex<Option<Instant>>,
 }
-
 
 /// 嵌入式功耗防护统计信息
 #[derive(Debug, Clone)]
@@ -49,7 +47,6 @@ pub struct EmbeddedPowerStats {
     /// 功耗掩码强度
     pub power_masking_strength: f32,
 }
-
 
 /// 嵌入式功耗防护构建器
 pub struct EmbeddedPowerProtectorBuilder {
