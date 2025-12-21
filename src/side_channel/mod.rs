@@ -1,5 +1,5 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
@@ -13,24 +13,24 @@
 //! - Cache-based attacks
 
 use crate::error::{CryptoError, Result};
-use std::time::{Duration, Instant};
-use std::sync::{Arc, Mutex};
 use rand::SeedableRng;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
+pub mod cache_protection;
 pub mod constant_time;
+pub mod embedded_power;
+pub mod error_injection;
 pub mod masking;
 pub mod power_analysis;
-pub mod error_injection;
-pub mod cache_protection;
-pub mod embedded_power;
 pub mod tests;
 
+pub use cache_protection::*;
 pub use constant_time::*;
+pub use embedded_power::*;
+pub use error_injection::*;
 pub use masking::*;
 pub use power_analysis::*;
-pub use error_injection::*;
-pub use cache_protection::*;
-pub use embedded_power::*;
 
 /// Configuration for side-channel protection
 #[derive(Debug, Clone)]
@@ -61,7 +61,9 @@ impl Default for SideChannelConfig {
     fn default() -> Self {
         Self {
             constant_time_enabled: true,
-            power_analysis_protection: cfg!(target_arch = "arm") || cfg!(target_arch = "riscv32") || cfg!(target_arch = "riscv64"),
+            power_analysis_protection: cfg!(target_arch = "arm")
+                || cfg!(target_arch = "riscv32")
+                || cfg!(target_arch = "riscv64"),
             error_injection_protection: true,
             cache_protection: true,
             timing_noise_enabled: true,
@@ -102,6 +104,11 @@ impl SideChannelContext {
         &self.config
     }
 
+    /// Reset the context statistics
+    pub fn reset(&mut self) {
+        self.countermeasure_stats = CountermeasureStats::default();
+    }
+
     /// Increment cache flush operations counter
     pub fn increment_cache_flush(&mut self) {
         self.countermeasure_stats.cache_flush_operations += 1;
@@ -132,16 +139,16 @@ impl SideChannelContext {
         }
 
         let start = Instant::now();
-        
+
         // Add timing noise if configured
         if self.config.timing_noise_level > 0.0 {
             add_timing_noise(self.config.timing_noise_level);
         }
 
         let result = operation();
-        
+
         let elapsed = start.elapsed();
-        
+
         // Ensure minimum execution time to prevent timing leaks
         let min_time = self.config.max_timing_deviation;
         if elapsed < min_time {
@@ -163,7 +170,7 @@ impl SideChannelContext {
 
         // Add power analysis countermeasures
         let _guard = PowerAnalysisGuard::new()?;
-        
+
         self.countermeasure_stats.masking_operations += 1;
         operation()
     }
@@ -179,12 +186,14 @@ impl SideChannelContext {
 
         // Add error detection and correction
         let detector = ErrorInjectionDetector::new();
-        
+
         let result = operation();
-        
+
         if detector.detect_fault() {
             self.countermeasure_stats.error_detection_triggers += 1;
-            return Err(CryptoError::SideChannelError("Fault injection detected".into()));
+            return Err(CryptoError::SideChannelError(
+                "Fault injection detected".into(),
+            ));
         }
 
         result
@@ -201,11 +210,11 @@ impl SideChannelContext {
 
         // Flush cache before and after operation
         flush_cpu_cache();
-        
+
         let result = operation();
-        
+
         flush_cpu_cache();
-        
+
         self.countermeasure_stats.cache_flush_operations += 1;
         result
     }
@@ -231,63 +240,60 @@ pub struct SideChannelStats {
 }
 
 /// Apply all side-channel protections to a critical operation
-pub fn protect_critical_operation<F, R>(
-    context: &mut SideChannelContext,
-    operation: F,
-) -> Result<R>
+pub fn protect_critical_operation<F, R>(context: &mut SideChannelContext, operation: F) -> Result<R>
 where
     F: FnOnce() -> Result<R>,
 {
     // Apply protections directly to the provided context, no cloning
     let config = context.config.clone();
-    
+
     // Apply cache protection before operation
     if config.cache_protection {
         flush_cpu_cache();
         context.increment_cache_flush();
     }
-    
+
     // Apply power analysis protection
-    if config.power_analysis_protection {
-        if let Ok(_guard) = PowerAnalysisGuard::new() {
-            context.increment_masking_operations();
-        }
+    if config.power_analysis_protection && PowerAnalysisGuard::new().is_ok() {
+        context.increment_masking_operations();
     }
-    
+
     // Apply timing protection
     if config.constant_time_enabled {
         let start = Instant::now();
-        
+
         // Add timing noise if configured
         if config.timing_noise_level > 0.0 {
             add_timing_noise(config.timing_noise_level);
         }
-        
+
         // Execute operation
         let result = operation();
-        
+
         let elapsed = start.elapsed();
-        
+
         // Ensure minimum execution time to prevent timing leaks
         let min_time = config.max_timing_deviation;
         if elapsed < min_time {
             std::thread::sleep(min_time - elapsed);
         }
-        
+
         context.increment_timing_protections();
         result
     } else if config.error_injection_protection {
         // Apply error injection protection
         let detector = ErrorInjectionDetector::new();
-        
+
         // Execute operation and check for faults
         let result = operation();
-        
+
         if detector.detect_fault() {
             context.increment_error_detection_triggers();
-            return Err(CryptoError::SideChannelError("Fault injection detected".into()));
+            return Err(CryptoError::SideChannelError(
+                "Fault injection detected".into(),
+            ));
         }
-        
+
         result
     } else {
         // If no special protections, just execute the operation
@@ -305,54 +311,54 @@ where
 {
     let mut context_guard = context_arc.lock().unwrap();
     let config = context_guard.config.clone();
-    
+
     // Apply cache protection before operation
     if config.cache_protection {
         flush_cpu_cache();
         context_guard.countermeasure_stats.cache_flush_operations += 1;
     }
-    
+
     // Apply power analysis protection
-    if config.power_analysis_protection {
-        if let Ok(_guard) = PowerAnalysisGuard::new() {
-            context_guard.countermeasure_stats.masking_operations += 1;
-        }
+    if config.power_analysis_protection && PowerAnalysisGuard::new().is_ok() {
+        context_guard.countermeasure_stats.masking_operations += 1;
     }
-    
+
     // Apply timing protection
     if config.constant_time_enabled {
         let start = Instant::now();
-        
+
         // Add timing noise if configured
         if config.timing_noise_level > 0.0 {
             add_timing_noise(config.timing_noise_level);
         }
-        
+
         // Execute operation
         let result = operation();
-        
+
         let elapsed = start.elapsed();
-        
+
         // Ensure minimum execution time to prevent timing leaks
         let min_time = config.max_timing_deviation;
         if elapsed < min_time {
             std::thread::sleep(min_time - elapsed);
         }
-        
+
         context_guard.countermeasure_stats.timing_protections += 1;
         result
     } else if config.error_injection_protection {
         // Apply error injection protection
         let detector = ErrorInjectionDetector::new();
-        
+
         // Execute operation and check for faults
         let result = operation();
-        
+
         if detector.detect_fault() {
             context_guard.countermeasure_stats.error_detection_triggers += 1;
-            return Err(CryptoError::SideChannelError("Fault injection detected".into()));
+            return Err(CryptoError::SideChannelError(
+                "Fault injection detected".into(),
+            ));
         }
-        
+
         result
     } else {
         // If no special protections, just execute the operation
@@ -362,26 +368,26 @@ where
 
 /// Add timing noise to prevent timing attacks
 pub fn add_timing_noise(level: f32) {
-    use std::hint::black_box;
     use rand::RngCore;
-    
+    use std::hint::black_box;
+
     // Use thread-local RNG to avoid global lock contention
     thread_local! {
         static THREAD_RNG: std::cell::RefCell<rand::rngs::SmallRng> = std::cell::RefCell::new(
             rand::rngs::SmallRng::from_entropy()
         );
     }
-    
+
     // Limit iterations to prevent excessive delays in tests
     let iterations = ((level * 100.0) as u32).min(50); // Max 50 iterations
     let mut dummy = 0u64;
-    
+
     // Add some variable delay based on thread-local RNG
     THREAD_RNG.with(|rng| {
         let mut rng = rng.borrow_mut();
-        let extra_delay = (rng.next_u32() % 10) as u32; // 0-9 extra iterations
+        let extra_delay = rng.next_u32() % 10; // 0-9 extra iterations
         let total_iterations = iterations + extra_delay;
-        
+
         for _ in 0..total_iterations {
             // Perform dummy operations that consume time
             dummy = dummy.wrapping_add(black_box(1));
@@ -394,7 +400,7 @@ pub fn add_timing_noise(level: f32) {
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub fn flush_cpu_cache() {
     use std::arch::asm;
-    
+
     unsafe {
         // CLFLUSH instruction to flush cache lines
         asm!("clflush [{0}]", in(reg) &0u8, options(nostack));
