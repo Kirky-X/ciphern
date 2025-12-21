@@ -1,5 +1,5 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
@@ -57,7 +57,15 @@ pub enum CryptoError {
 
     #[error("Plugin error: {0}")]
     PluginError(String),
+
+    #[error("Internal error: {0}")]
+    InternalError(String),
+
+    #[error("Signing failed: {0}")]
     SigningFailed(String),
+
+    #[error("Invalid algorithm: {0}")]
+    InvalidAlgorithm(String),
 }
 
 pub type Result<T> = std::result::Result<T, CryptoError>;

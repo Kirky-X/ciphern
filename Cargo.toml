@@ -1,19 +1,24 @@
 [package]
 name = "ciphern"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 authors = ["Kirky.X <Kirky-X@outlook.com>"]
 description = "Enterprise-grade cryptographic library"
 
 [dependencies]
 # Core Crypto
 ring = "0.17"
-aes-gcm = "0.10"
-argon2 = "0.5"
-pbkdf2 = { version = "0.12", features = ["simple"] }
 # Note: In a real scenario, use a specific version. 
 # For this implementation, we use libsm for SM4 support.
-libsm = "0.5" 
+libsm = "0.6"
+gm-sm4 = "0.10"
+aes-gcm = "0.10"
+ghash = "0.5"
+ctr = "0.9"
+cipher = "0.4"
+sm4 = "0.5"
+argon2 = "0.5"
+pbkdf2 = { version = "0.12", features = ["simple"] }
 
 # Memory Protection
 zeroize = { version = "1.7", features = ["derive", "zeroize_derive"] }
@@ -31,11 +36,19 @@ statistical = "1.0"
 # Cryptographic Hash Functions
 sha2 = "0.10"
 hmac = "0.12"
+rsa = "0.9"
+pkcs8 = "0.10"
+
+# JNI Support
+jni = "0.21"
+# Python Support
+pyo3 = { version = "0.20", features = ["extension-module"] }
 
 # Serialization & Logging
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
+prometheus = "0.13"
 thiserror = "1.0"
 hex = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
@@ -87,3 +100,7 @@ path = "tests/uat/audit_log_uat.rs"
 [[test]]
 name = "debug_audit_log"
 path = "tests/uat/debug_audit_log.rs"
+
+[[test]]
+name = "cavp_test"
+path = "tests/fips/cavp_test.rs"
