@@ -18,9 +18,9 @@ fn test_plugin_hot_reload_basic() {
     let plugin_dir = temp_dir.path().join("plugins");
     fs::create_dir(&plugin_dir).unwrap();
     
-    // Create mock plugin file
+    // Create test plugin file
     let plugin_path = plugin_dir.join("test_plugin.plugin");
-    fs::write(&plugin_path, b"mock plugin content").unwrap();
+    fs::write(&plugin_path, b"test plugin content").unwrap();
     
     // Test hot reload watcher
     let watcher = HotReloadWatcher::new();
@@ -58,7 +58,7 @@ fn test_plugin_hot_reload_basic() {
 fn test_plugin_fault_isolation() {
     let manager = PluginManager::new();
     
-    // Create mock plugin that fails health check
+    // Create test plugin that fails health check
     struct FailingPlugin {
         name: String,
         fail_count: std::sync::atomic::AtomicU32,
