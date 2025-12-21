@@ -20,6 +20,9 @@ use crate::{Cipher, KeyManager, Algorithm, Result, CryptoError};
 use crate::fips::{FipsContext, FipsMode};
 use crate::key::{KeyLifecycleManager, KeyLifecyclePolicy};
 
+pub mod java_jni;
+pub mod python_pyo3;
+
 /// 错误代码定义
 #[repr(C)]
 pub enum CiphernError {
@@ -172,6 +175,12 @@ pub extern "C" fn ciphern_generate_key(
             Ok(id) => id,
             Err(_) => return CiphernError::KeyLifecycleError,
         };
+
+        // 自动激活密钥
+        if let Ok(mut key) = key_manager.get_key(&key_id) {
+            let _ = key.activate(None);
+            let _ = key_manager.update_key(key);
+        }
         
         // 复制密钥ID到缓冲区
         let key_id_cstring = match CString::new(key_id) {
@@ -274,8 +283,8 @@ pub extern "C" fn ciphern_encrypt(
             Err(_) => return CiphernError::KeyNotFound,
         };
         
-        // 创建加密器（简化：假设使用AES256GCM）
-        let cipher = match Cipher::new(Algorithm::AES256GCM) {
+        // 创建加密器
+        let cipher = match Cipher::new(key.algorithm()) {
             Ok(c) => c,
             Err(_) => return CiphernError::AlgorithmNotSupported,
         };
@@ -349,8 +358,8 @@ pub extern "C" fn ciphern_decrypt(
             Err(_) => return CiphernError::KeyNotFound,
         };
         
-        // 创建解密器（简化：假设使用AES256GCM）
-        let cipher = match Cipher::new(Algorithm::AES256GCM) {
+        // 创建解密器
+        let cipher = match Cipher::new(key.algorithm()) {
             Ok(c) => c,
             Err(_) => return CiphernError::AlgorithmNotSupported,
         };
@@ -430,6 +439,9 @@ fn parse_algorithm(name: &str) -> Result<Algorithm> {
         "SHA3_512" => Ok(Algorithm::SHA3_512),
         "HKDF" => Ok(Algorithm::HKDF),
         "PBKDF2" => Ok(Algorithm::PBKDF2),
+        "SM4GCM" => Ok(Algorithm::SM4GCM),
+        "SM2" => Ok(Algorithm::SM2),
+        "ED25519" => Ok(Algorithm::ED25519),
         _ => Err(CryptoError::AlgorithmNotSupported),
     }
 }

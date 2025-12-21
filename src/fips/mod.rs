@@ -17,10 +17,10 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::collections::HashMap;
 
-mod self_test;
+pub mod self_test;
 mod validator;
 
-pub use self_test::{FipsSelfTestEngine, FipsSelfTestType, SelfTestResult};
+pub use self_test::{FipsSelfTestEngine, FipsSelfTestType, SelfTestResult, AlertHandler, Alert, AlertSeverity, AlertCategory};
 pub use validator::FipsAlgorithmValidator;
 
 /// FIPS 模式状态
@@ -63,13 +63,19 @@ pub struct FipsErrorState {
     error_count: AtomicUsize,
 }
 
-impl FipsErrorState {
-    pub fn new() -> Self {
+impl Default for FipsErrorState {
+    fn default() -> Self {
         Self {
             is_error: AtomicBool::new(false),
             error_type: Mutex::new(None),
             error_count: AtomicUsize::new(0),
         }
+    }
+}
+
+impl FipsErrorState {
+    pub fn new() -> Self {
+        Self::default()
     }
     
     pub fn set_error(&self, error: FipsError) {
