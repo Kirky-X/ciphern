@@ -4,7 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use securevault::{Algorithm, Cipher, KeyManager};
+use ciphern::{Algorithm, Cipher, KeyManager};
 
 fn bench_aes256_encrypt(c: &mut Criterion) {
     let mut group = c.benchmark_group("aes256_encrypt");
