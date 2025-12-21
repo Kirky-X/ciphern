@@ -56,6 +56,9 @@ lazy_static = "1.4"
 subtle = "2.5" # Constant-time comparison
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
 [features]
 default = ["std", "fips"]
 std = []
@@ -104,3 +107,7 @@ path = "tests/uat/debug_audit_log.rs"
 [[test]]
 name = "cavp_test"
 path = "tests/fips/cavp_test.rs"
+
+[[bench]]
+name = "cipher_bench"
+harness = false
