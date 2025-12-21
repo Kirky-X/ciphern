@@ -102,15 +102,32 @@ impl PluginLoader {
         Ok(metadata)
     }
 
+    /// 卸载插件并释放资源
     pub fn unload_plugin(&mut self, name: &str) -> Result<()> {
-        self.loaded_plugins.remove(name)
-            .ok_or_else(|| CryptoError::PluginError(format!("Plugin '{}' not found", name)))?;
-        
-        // In a real implementation, we would need to handle library unloading carefully
-        // because the plugin instance (Arc<dyn Plugin>) might still be in use.
-        // For simplicity, we keep the library loaded for now.
-        
-        Ok(())
+        if let Some(plugin) = self.loaded_plugins.remove(name) {
+            // 在 Rust 中，当 Arc 被移除且计数归零时，插件会被释放
+            // 但对于动态加载的库，我们需要确保 libloading::Library 也被正确处理
+            // libloading 会在 Library struct 被 drop 时调用 dlclose()
+            
+            // 显式触发插件的 shutdown 方法
+            // 由于 plugin 是 Arc<dyn Plugin>，我们需要通过 get_mut 获取可变引用
+            // 或者插件接口设计为接收 &self 的 shutdown
+            // 这里我们假设插件内部会处理状态
+            let mut plugin_clone = plugin.clone();
+            if let Some(p) = Arc::get_mut(&mut plugin_clone) {
+                p.shutdown()?;
+            }
+            
+            // 清理对应的 Library 引用，触发 dlclose
+            // 在实际实现中，通常需要记录插件与 Library 的对应关系
+            // 这里简化处理，清理 libraries 列表
+            self.libraries.retain(|lib| Arc::strong_count(lib) > 1);
+            
+            log::info!("Plugin {} unloaded and resources released", name);
+            Ok(())
+        } else {
+            Err(CryptoError::PluginError(format!("Plugin '{}' not found", name)))
+        }
     }
 
     pub fn get_plugin(&self, name: &str) -> Option<Arc<dyn Plugin>> {

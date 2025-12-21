@@ -48,7 +48,7 @@ impl HotReloadWatcher {
 
     pub fn check_for_changes(&self) -> Result<Vec<HotReloadEvent>> {
         let mut events = Vec::new();
-        let watched_files = self.watched_files.lock().unwrap();
+        let watched_files = self.watched_files.lock().map_err(|_| CryptoError::InternalError("Lock poisoned".into()))?;
         
         for (path, last_modified) in watched_files.iter() {
             if let Ok(metadata) = fs::metadata(path) {
