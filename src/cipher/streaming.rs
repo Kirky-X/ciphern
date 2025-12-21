@@ -9,6 +9,8 @@ use crate::key::Key;
 use crate::error::{CryptoError, Result};
 use crate::random::SecureRandom;
 use crate::side_channel::{SideChannelConfig, SideChannelContext, protect_critical_operation};
+use crate::cipher::pkcs7::Pkcs7Padding;
+use crate::cipher::mode::{CipherMode, infer_cipher_mode, get_block_size};
 use std::sync::{Arc, Mutex};
 
 /// 流式加密器 - 支持大文件分块加密
@@ -25,6 +27,10 @@ pub struct StreamingCipher {
     tag_buffer: Vec<u8>,
     /// 当前模式：true表示加密，false表示解密
     encrypt_mode: Option<bool>,
+    /// 加密模式
+    cipher_mode: CipherMode,
+    /// 是否启用PKCS#7填充
+    enable_padding: bool,
 }
 
 impl StreamingCipher {
@@ -37,6 +43,8 @@ impl StreamingCipher {
         }
 
         let context = Arc::new(Mutex::new(SideChannelContext::new(SideChannelConfig::default())));
+        let cipher_mode = infer_cipher_mode(algorithm);
+        let enable_padding = cipher_mode.requires_padding();
         
         Ok(Self {
             algorithm,
@@ -49,11 +57,13 @@ impl StreamingCipher {
             nonce: None,
             tag_buffer: Vec::new(),
             encrypt_mode: None,
+            cipher_mode,
+            enable_padding,
         })
     }
 
     /// 检查是否处于加密模式
-    fn is_encrypting(&self) -> bool {
+    pub fn is_encrypting(&self) -> bool {
         self.encrypt_mode.unwrap_or(true)
     }
 
@@ -65,6 +75,8 @@ impl StreamingCipher {
         }
 
         let context = Arc::new(Mutex::new(SideChannelContext::new(config)));
+        let cipher_mode = infer_cipher_mode(algorithm);
+        let enable_padding = cipher_mode.requires_padding();
         
         Ok(Self {
             algorithm,
@@ -77,6 +89,8 @@ impl StreamingCipher {
             nonce: None,
             tag_buffer: Vec::new(),
             encrypt_mode: None,
+            cipher_mode,
+            enable_padding,
         })
     }
 
@@ -128,7 +142,8 @@ impl StreamingCipher {
         }
 
         let context = self.context.clone();
-        let mut context_guard = context.as_ref().unwrap().lock().unwrap();
+        let context_ptr = context.as_ref().ok_or_else(|| CryptoError::InvalidState("Context not initialized".into()))?;
+        let mut context_guard = context_ptr.lock().map_err(|_| CryptoError::SideChannelError("Context lock poisoned".into()))?;
         
         protect_critical_operation(&mut context_guard, || {
             self.process_chunk(data, true)
@@ -149,7 +164,8 @@ impl StreamingCipher {
         }
 
         let context = self.context.clone();
-        let mut context_guard = context.as_ref().unwrap().lock().unwrap();
+        let context_ptr = context.as_ref().ok_or_else(|| CryptoError::InvalidState("Context not initialized".into()))?;
+        let mut context_guard = context_ptr.lock().map_err(|_| CryptoError::SideChannelError("Context lock poisoned".into()))?;
         
         protect_critical_operation(&mut context_guard, || {
             self.process_chunk(data, false)
@@ -163,38 +179,56 @@ impl StreamingCipher {
         }
 
         let context = self.context.clone();
-        let mut context_guard = context.as_ref().unwrap().lock().unwrap();
+        let context_ptr = context.as_ref().ok_or_else(|| CryptoError::InvalidState("Context not initialized".into()))?;
+        let mut context_guard = context_ptr.lock().map_err(|_| CryptoError::SideChannelError("Context lock poisoned".into()))?;
         
         protect_critical_operation(&mut context_guard, || {
-            let remaining = self.buffer.clone();
+            let mut remaining = self.buffer.clone();
             self.buffer.clear();
             
-            if remaining.is_empty() {
+            if remaining.is_empty() && !self.enable_padding {
                 self.is_initialized = false;
                 self.encrypt_mode = None;
-                Ok(Vec::new())
-            } else {
-                // 处理剩余数据
-                let result = match self.encrypt_mode {
-                    Some(true) => {
-                        // 加密模式
-                        self.process_chunk_internal(&remaining, true)?
+                return Ok(Vec::new());
+            }
+            
+            // 处理剩余数据
+            let result = match self.encrypt_mode {
+                Some(true) => {
+                    // 加密模式
+                    if self.enable_padding && !remaining.is_empty() {
+                        // 应用PKCS#7填充
+                        let block_size = get_block_size(self.algorithm);
+                        remaining = Pkcs7Padding::pad(&remaining, block_size)?;
                     }
-                    Some(false) => {
-                        // 解密模式 - 确保剩余数据包含完整的认证标签
+                    self.process_chunk_internal(&remaining, true)?
+                }
+                Some(false) => {
+                    // 解密模式
+                    if self.enable_padding {
+                        // 对于解密，确保剩余数据包含完整的认证标签
+                        if remaining.len() < 16 {
+                            return Err(CryptoError::DecryptionFailed("Incomplete authentication tag".into()));
+                        }
+                        let decrypted = self.process_chunk_internal(&remaining, false)?;
+                        // 移除PKCS#7填充
+                        let block_size = get_block_size(self.algorithm);
+                        Pkcs7Padding::unpad(&decrypted, block_size)?
+                    } else {
+                        // GCM模式 - 确保剩余数据包含完整的认证标签
                         if remaining.len() < 16 {
                             return Err(CryptoError::DecryptionFailed("Incomplete authentication tag".into()));
                         }
                         self.process_chunk_internal(&remaining, false)?
                     }
-                    None => {
-                        return Err(CryptoError::InvalidState("No encryption/decryption operation performed".into()));
-                    }
-                };
-                self.is_initialized = false;
-                self.encrypt_mode = None;
-                Ok(result)
-            }
+                }
+                None => {
+                    return Err(CryptoError::InvalidState("No encryption/decryption operation performed".into()));
+                }
+            };
+            self.is_initialized = false;
+            self.encrypt_mode = None;
+            Ok(result)
         })
     }
 
@@ -209,6 +243,12 @@ impl StreamingCipher {
         self.nonce = None;
         self.key = None;
         self.encrypt_mode = None;
+        // 重置时也清空上下文
+        if let Some(ctx) = &self.context {
+            if let Ok(mut guard) = ctx.lock() {
+                guard.reset();
+            }
+        }
         Ok(())
     }
 
@@ -218,19 +258,36 @@ impl StreamingCipher {
     }
 
     /// 获取当前nonce（用于验证）
-    pub fn nonce(&self) -> Option<&Vec<u8>> {
-        self.nonce.as_ref()
+    pub fn nonce(&self) -> Option<&[u8]> {
+        self.nonce.as_deref()
+    }
+
+    /// 设置是否启用PKCS#7填充
+    /// 注意：此设置仅在支持填充的模式下有效
+    pub fn set_padding_enabled(&mut self, enabled: bool) -> Result<()> {
+        if self.is_initialized {
+            return Err(CryptoError::InvalidState("Cannot change padding setting after initialization".to_string()));
+        }
+        
+        if enabled && !self.cipher_mode.requires_padding() {
+            return Err(CryptoError::InvalidParameter(format!(
+                "Algorithm {:?} with mode {:?} does not support PKCS#7 padding",
+                self.algorithm, self.cipher_mode
+            )));
+        }
+        
+        self.enable_padding = enabled;
+        Ok(())
+    }
+
+    /// 检查是否启用了PKCS#7填充
+    pub fn is_padding_enabled(&self) -> bool {
+        self.enable_padding
     }
 
     /// 验证密钥算法兼容性
     fn is_key_compatible(&self, key: &Key) -> bool {
-        match (self.algorithm, key.algorithm()) {
-            (Algorithm::AES128GCM, Algorithm::AES128GCM) => true,
-            (Algorithm::AES192GCM, Algorithm::AES192GCM) => true,
-            (Algorithm::AES256GCM, Algorithm::AES256GCM) => true,
-            (Algorithm::SM4GCM, Algorithm::SM4GCM) => true,
-            _ => false,
-        }
+        matches!((self.algorithm, key.algorithm()), (Algorithm::AES128GCM, Algorithm::AES128GCM) | (Algorithm::AES192GCM, Algorithm::AES192GCM) | (Algorithm::AES256GCM, Algorithm::AES256GCM) | (Algorithm::SM4GCM, Algorithm::SM4GCM))
     }
 
     /// 处理数据块（内部实现）
@@ -286,8 +343,8 @@ impl StreamingCipher {
 
     /// 内部块处理逻辑
     fn process_chunk_internal(&mut self, data: &[u8], encrypt: bool) -> Result<Vec<u8>> {
-        let key = self.key.as_ref().unwrap();
-        let nonce = self.nonce.as_ref().unwrap();
+        let key = self.key.as_ref().ok_or_else(|| CryptoError::InvalidState("Key not initialized".into()))?;
+        let nonce = self.nonce.as_ref().ok_or_else(|| CryptoError::InvalidState("Nonce not initialized".into()))?;
         
         // 创建块计数器（用于GCM模式）
         let counter = (self.total_processed / self.chunk_size) as u32;
@@ -314,10 +371,16 @@ impl StreamingCipher {
     /// 处理AES-GCM块
     fn process_aes_gcm_chunk(&self, key: &Key, data: &[u8], nonce: &[u8], encrypt: bool) -> Result<Vec<u8>> {
         // 这里使用ring库的AES-GCM实现
-        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM, AES_128_GCM};
         
+        let ring_alg = match self.algorithm {
+            Algorithm::AES128GCM => &AES_128_GCM,
+            Algorithm::AES256GCM => &AES_256_GCM,
+            _ => return Err(CryptoError::InvalidParameter(format!("Algorithm {:?} not supported by ring for streaming", self.algorithm))),
+        };
+
         let secret = key.secret_bytes()?;
-        let unbound_key = UnboundKey::new(&AES_256_GCM, secret.as_bytes())
+        let unbound_key = UnboundKey::new(ring_alg, secret.as_bytes())
             .map_err(|_| CryptoError::EncryptionFailed("Invalid key".into()))?;
         let less_safe_key = LessSafeKey::new(unbound_key);
         
@@ -345,10 +408,111 @@ impl StreamingCipher {
     }
 
     /// 处理SM4-GCM块
-    fn process_sm4_gcm_chunk(&self, _key: &Key, _data: &[u8], _nonce: &[u8], _encrypt: bool) -> Result<Vec<u8>> {
-        // SM4-GCM实现 - 这里需要集成SM4库
-        // 暂时返回错误，后续可以集成具体的SM4实现
-        Err(CryptoError::NotImplemented("SM4-GCM streaming not yet implemented".into()))
+    fn process_sm4_gcm_chunk(&self, key: &Key, data: &[u8], nonce: &[u8], encrypt: bool) -> Result<Vec<u8>> {
+        let secret = key.secret_bytes()?;
+        let key_bytes: [u8; 16] = secret.as_bytes().try_into().map_err(|_| {
+            CryptoError::KeyError("Invalid SM4 key length, must be 128 bits".into())
+        })?;
+
+        use ghash::{GHash, universal_hash::{KeyInit, UniversalHash}};
+        use sm4::cipher::{KeyIvInit, StreamCipher, BlockEncrypt};
+        use sm4::Sm4;
+        type Sm4Ctr = ctr::Ctr128BE<Sm4>;
+
+        // Compute GHASH key H = SM4(K, 0)
+        let h = [0u8; 16];
+        let mut h_block = ghash::universal_hash::generic_array::GenericArray::from(h);
+        Sm4::new(&key_bytes.into()).encrypt_block(&mut h_block);
+        let h_key = h_block;
+
+        if encrypt {
+            // 1. GHASH for data (empty AAD for chunks)
+            let mut ghash = GHash::new(&h_key);
+            
+            // 2. Encrypt with SM4-CTR
+            let mut iv = [0u8; 16];
+            iv[..12].copy_from_slice(nonce);
+            iv[15] = 2; // GCM starts counter at 2 for data
+
+            let mut ciphertext = data.to_vec();
+            let mut cipher = Sm4Ctr::new(&key_bytes.into(), &iv.into());
+            cipher.apply_keystream(&mut ciphertext);
+
+            // 3. GHASH for ciphertext
+            ghash.update_padded(&ciphertext);
+
+            // 4. GHASH for lengths (AAD length is 0, ciphertext length is data.len())
+            let mut len_block = [0u8; 16];
+            let ct_len = (ciphertext.len() as u64) * 8;
+            len_block[8..].copy_from_slice(&ct_len.to_be_bytes());
+            ghash.update_padded(&len_block);
+
+            let mut tag = ghash.finalize();
+
+            // 5. Encrypt tag mask
+            let mut j0 = [0u8; 16];
+            j0[..12].copy_from_slice(nonce);
+            j0[15] = 1;
+            let mut tag_mask = [0u8; 16];
+            let mut mask_cipher = Sm4Ctr::new(&key_bytes.into(), &j0.into());
+            mask_cipher.apply_keystream(&mut tag_mask);
+
+            for i in 0..16 {
+                tag[i] ^= tag_mask[i];
+            }
+
+            let mut result = ciphertext;
+            result.extend_from_slice(&tag);
+            Ok(result)
+        } else {
+            // Decryption
+            if data.len() < 16 {
+                return Err(CryptoError::DecryptionFailed("Chunk too short for tag".into()));
+            }
+
+            let (ciphertext, received_tag) = data.split_at(data.len() - 16);
+
+            // 1. GHASH for ciphertext
+            let mut ghash = GHash::new(&h_key);
+            ghash.update_padded(ciphertext);
+
+            // 2. GHASH for lengths
+            let mut len_block = [0u8; 16];
+            let ct_len = (ciphertext.len() as u64) * 8;
+            len_block[8..].copy_from_slice(&ct_len.to_be_bytes());
+            ghash.update_padded(&len_block);
+
+            let mut tag = ghash.finalize();
+
+            // 3. Encrypt tag mask
+            let mut j0 = [0u8; 16];
+            j0[..12].copy_from_slice(nonce);
+            j0[15] = 1;
+            let mut tag_mask = [0u8; 16];
+            let mut mask_cipher = Sm4Ctr::new(&key_bytes.into(), &j0.into());
+            mask_cipher.apply_keystream(&mut tag_mask);
+
+            for i in 0..16 {
+                tag[i] ^= tag_mask[i];
+            }
+
+            // 4. Verify tag
+            use subtle::ConstantTimeEq;
+            if tag.as_slice().ct_eq(received_tag).unwrap_u8() != 1 {
+                return Err(CryptoError::DecryptionFailed("Chunk tag mismatch".into()));
+            }
+
+            // 5. Decrypt ciphertext
+            let mut iv = [0u8; 16];
+            iv[..12].copy_from_slice(nonce);
+            iv[15] = 2;
+
+            let mut plaintext = ciphertext.to_vec();
+            let mut cipher = Sm4Ctr::new(&key_bytes.into(), &iv.into());
+            cipher.apply_keystream(&mut plaintext);
+
+            Ok(plaintext)
+        }
     }
 }
 
@@ -418,7 +582,7 @@ mod tests {
         
         // 初始化加密器
         encryptor.initialize(key.clone(), None).unwrap();
-        decryptor.initialize(key.clone(), encryptor.nonce().cloned()).unwrap();
+        decryptor.initialize(key.clone(), encryptor.nonce().map(|n| n.to_vec())).unwrap();
         
         // 测试数据 - 确保大于块大小
         let test_data = b"Hello, streaming encryption world! This is a test message that is longer than the chunk size.";
@@ -452,7 +616,7 @@ mod tests {
         let key = Key::new_active(Algorithm::AES256GCM, vec![0u8; 32]).unwrap();
         
         encryptor.initialize(key.clone(), None).unwrap();
-        decryptor.initialize(key.clone(), encryptor.nonce().cloned()).unwrap();
+        decryptor.initialize(key.clone(), encryptor.nonce().map(|n| n.to_vec())).unwrap();
         
         // 生成大数据
         let large_data = vec![0x42u8; 2048];
@@ -481,5 +645,77 @@ mod tests {
         // 验证结果
         assert_eq!(all_decrypted.len(), large_data.len());
         assert_eq!(&all_decrypted[..large_data.len()], &large_data[..]);
+    }
+
+    #[test]
+    fn test_sm4_streaming_encryption_decryption() {
+        let mut encryptor = StreamingCipher::new(Algorithm::SM4GCM, 64).unwrap();
+        let mut decryptor = StreamingCipher::new(Algorithm::SM4GCM, 64).unwrap();
+        
+        // SM4 使用 128位密钥
+        let key = Key::new_active(Algorithm::SM4GCM, vec![0x01u8; 16]).unwrap();
+        
+        encryptor.initialize(key.clone(), None).unwrap();
+        decryptor.initialize(key.clone(), encryptor.nonce().map(|n| n.to_vec())).unwrap();
+        
+        let test_data = b"SM4 streaming test message. It should work correctly across multiple chunks.";
+        
+        // 加密
+        let mut encrypted = Vec::new();
+        encrypted.extend_from_slice(&encryptor.encrypt_chunk(test_data).unwrap());
+        encrypted.extend_from_slice(&encryptor.finalize().unwrap());
+        
+        // 解密
+        let mut decrypted = Vec::new();
+        decrypted.extend_from_slice(&decryptor.decrypt_chunk(&encrypted).unwrap());
+        decrypted.extend_from_slice(&decryptor.finalize().unwrap());
+        
+        assert_eq!(decrypted, test_data);
+    }
+
+    #[test]
+    fn test_pkcs7_padding_integration() {
+        // 测试PKCS#7填充在流式加密中的集成
+        let mut encryptor = StreamingCipher::new(Algorithm::AES256GCM, 64).unwrap();
+        let mut decryptor = StreamingCipher::new(Algorithm::AES256GCM, 64).unwrap();
+        
+        let key = Key::new_active(Algorithm::AES256GCM, vec![0u8; 32]).unwrap();
+        
+        // 注意：GCM模式不需要PKCS#7填充，这个测试验证填充逻辑不会干扰GCM模式
+        assert!(!encryptor.is_padding_enabled());
+        assert!(!decryptor.is_padding_enabled());
+        
+        encryptor.initialize(key.clone(), None).unwrap();
+        decryptor.initialize(key.clone(), encryptor.nonce().map(|n| n.to_vec())).unwrap();
+        
+        // 测试数据长度不是块大小倍数的情况
+        let test_data = b"Hello, this is a test message with irregular length!";
+        
+        // 加密
+        let mut encrypted = Vec::new();
+        encrypted.extend_from_slice(&encryptor.encrypt_chunk(test_data).unwrap());
+        encrypted.extend_from_slice(&encryptor.finalize().unwrap());
+        
+        // 解密
+        let mut decrypted = Vec::new();
+        decrypted.extend_from_slice(&decryptor.decrypt_chunk(&encrypted).unwrap());
+        decrypted.extend_from_slice(&decryptor.finalize().unwrap());
+        
+        assert_eq!(decrypted, test_data);
+    }
+
+    #[test]
+    fn test_padding_configuration() {
+        let mut cipher = StreamingCipher::new(Algorithm::AES256GCM, 1024).unwrap();
+        
+        // GCM模式不支持PKCS#7填充
+        assert!(cipher.set_padding_enabled(true).is_err());
+        assert!(!cipher.is_padding_enabled());
+        
+        // 初始化后不能修改填充设置
+        let key = Key::new_active(Algorithm::AES256GCM, vec![0u8; 32]).unwrap();
+        cipher.initialize(key, None).unwrap();
+        
+        assert!(cipher.set_padding_enabled(false).is_err());
     }
 }
