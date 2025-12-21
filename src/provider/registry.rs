@@ -25,7 +25,7 @@ pub struct ProviderRegistry {
 
 impl ProviderRegistry {
     pub fn new() -> Self {
-        let mut registry = Self {
+        let registry = Self {
             symmetric: RwLock::new(HashMap::new()),
             signers: RwLock::new(HashMap::new()),
         };
@@ -41,7 +41,7 @@ impl Default for ProviderRegistry {
 }
 
 impl ProviderRegistry {
-    fn register_defaults(&mut self) {
+    fn register_defaults(&self) {
         {
             let mut map = self.symmetric.write().unwrap();
             map.insert(Algorithm::AES128GCM, Arc::new(Aes128GcmProvider::default()));

@@ -1,15 +1,15 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
 use crate::error::{CryptoError, Result};
-use zeroize::{Zeroize, ZeroizeOnDrop};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[cfg(unix)]
-use libc::{mlock, c_void};
+use libc::{c_void, mlock};
 
 /// Secure container for sensitive data with auto-zeroize and mlock
 #[derive(Zeroize, ZeroizeOnDrop)]
@@ -46,7 +46,7 @@ impl SecretBytes {
             return Ok(());
         }
         unsafe {
-            let ptr = self.inner.as_ptr() as *const c_void;
+            let ptr = self.inner.as_mut_ptr() as *mut c_void;
             let len = self.inner.len();
             if mlock(ptr, len) != 0 {
                 return Err(CryptoError::MemoryProtectionFailed("mlock failed".into()));
@@ -82,10 +82,14 @@ impl ProtectedKey {
         let mut canary = [0u8; 16];
         // In real code, use SecureRandom. Here using simple fill for structure
         getrandom::getrandom(&mut canary).unwrap_or_default();
-        
+
         let checksum = Self::compute_checksum(key.as_bytes(), &canary);
-        
-        Self { key, canary, checksum }
+
+        Self {
+            key,
+            canary,
+            checksum,
+        }
     }
 
     pub fn access(&self) -> Result<&SecretBytes> {
@@ -100,8 +104,12 @@ impl ProtectedKey {
     pub fn create_with_corrupted_checksum(key: SecretBytes, corrupted_checksum: u64) -> Self {
         let mut canary = [0u8; 16];
         getrandom::getrandom(&mut canary).unwrap_or_default();
-        
-        Self { key, canary, checksum: corrupted_checksum }
+
+        Self {
+            key,
+            canary,
+            checksum: corrupted_checksum,
+        }
     }
 
     fn compute_checksum(data: &[u8], canary: &[u8]) -> u64 {
