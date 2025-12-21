@@ -3,8 +3,8 @@
 [![Crates.io](https://img.shields.io/crates/v/ciphern.svg)](https://crates.io/crates/ciphern)
 [![Documentation](https://docs.rs/ciphern/badge.svg)](https://docs.rs/ciphern)
 [![License](https://img.shields.io/crates/l/ciphern.svg)](LICENSE)
-[![Build Status](https://github.com/yourorg/ciphern/workflows/CI/badge.svg)](https://github.com/yourorg/ciphern/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/yourorg/ciphern)](https://codecov.io/gh/yourorg/ciphern)
+[![Build Status](https://github.com/Kirky-X/ciphern/workflows/CI/badge.svg)](https://github.com/Kirky-X/ciphern/actions)
+[![Coverage](https://img.shields.io/codecov/c/github/Kirky-X/ciphern)](https://codecov.io/gh/Kirky-X/ciphern)
 [![Security Audit](https://img.shields.io/badge/security-audited-success)](docs/SECURITY_AUDIT.md)
 
 **Ciphern** is an enterprise-grade, security-first Rust cryptographic library providing cryptographic capabilities that comply with both Chinese National Standards (GuoMi) and international standards. It is designed for data storage encryption, communication encryption, and key management.
@@ -362,7 +362,7 @@ See [SECURITY.md](SECURITY.md) for more details.
 ### Build
 ```bash
 # Clone the repository
-git clone https://github.com/yourorg/ciphern.git
+git clone https://github.com/Kirky-X/ciphern.git
 cd ciphern
 
 # Default build
@@ -449,7 +449,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
 ### Contributors
 Thanks to all our contributors!
 
-[![Contributors](https://contrib.rocks/image?repo=yourorg/ciphern)](https://github.com/yourorg/ciphern/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=Kirky-X/ciphern)](https://github.com/Kirky-X/ciphern/graphs/contributors)
 
 ---
 
@@ -481,15 +481,15 @@ Special thanks to all security researchers who audited the code and provided fee
 
 - **Official Website**: https://ciphern.dev
 - **Documentation**: https://docs.ciphern.dev
-- **Issues**: https://github.com/yourorg/ciphern/issues
-- **Discussions**: https://github.com/yourorg/ciphern/discussions
+- **Issues**: https://github.com/Kirky-X/ciphern/issues
+- **Discussions**: https://github.com/Kirky-X/ciphern/discussions
 - **Email**: support@ciphern.dev
 
 ---
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourorg/ciphern&type=Date)](https://star-history.com/#yourorg/ciphern&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Kirky-X/ciphern&type=Date)](https://star-history.com/#Kirky-X/ciphern&Date)
 
 ---
 

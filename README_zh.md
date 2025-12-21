@@ -3,8 +3,8 @@
 [![Crates.io](https://img.shields.io/crates/v/ciphern.svg)](https://crates.io/crates/ciphern)
 [![Documentation](https://docs.rs/ciphern/badge.svg)](https://docs.rs/ciphern)
 [![License](https://img.shields.io/crates/l/ciphern.svg)](LICENSE)
-[![Build Status](https://github.com/yourorg/ciphern/workflows/CI/badge.svg)](https://github.com/yourorg/ciphern/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/yourorg/ciphern)](https://codecov.io/gh/yourorg/ciphern)
+[![Build Status](https://github.com/Kirky-X/ciphern/workflows/CI/badge.svg)](https://github.com/Kirky-X/ciphern/actions)
+[![Coverage](https://img.shields.io/codecov/c/github/Kirky-X/ciphern)](https://codecov.io/gh/Kirky-X/ciphern)
 [![Security Audit](https://img.shields.io/badge/security-audited-success)](docs/SECURITY_AUDIT.md)
 
 **Ciphern** 是一个企业级、安全优先的 Rust 加密库，提供符合国密标准和国际标准的密码学能力。专为数据存储加密、通信加密和密钥管理而设计。
@@ -357,7 +357,7 @@ Ciphern 已通过以下安全测试：
 ### 编译
 ```bash
 # 克隆仓库
-git clone https://github.com/yourorg/ciphern.git
+git clone https://github.com/Kirky-X/ciphern.git
 cd ciphern
 
 # 默认编译
@@ -440,11 +440,12 @@ cargo build --target aarch64-apple-darwin --release
 5. 创建 Pull Request
 
 详见 [CONTRIBUTING.md](CONTRIBUTING.md)
+```
 
 ### 贡献者
 感谢所有贡献者！
 
-[![Contributors](https://contrib.rocks/image?repo=yourorg/ciphern)](https://github.com/yourorg/ciphern/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=Kirky-X/ciphern)](https://github.com/Kirky-X/ciphern/graphs/contributors)
 
 ---
 
@@ -476,15 +477,15 @@ Ciphern 构建于以下优秀的开源项目之上：
 
 - **官方网站**: https://ciphern.dev
 - **文档**: https://docs.ciphern.dev
-- **问题反馈**: https://github.com/yourorg/ciphern/issues
-- **讨论区**: https://github.com/yourorg/ciphern/discussions
+- **问题反馈**: https://github.com/Kirky-X/ciphern/issues
+- **讨论区**: https://github.com/Kirky-X/ciphern/discussions
 - **邮件**: support@ciphern.dev
 
 ---
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourorg/ciphern&type=Date)](https://star-history.com/#yourorg/ciphern&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Kirky-X/ciphern&type=Date)](https://star-history.com/#Kirky-X/ciphern&Date)
 
 ---
 
