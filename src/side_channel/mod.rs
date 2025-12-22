@@ -77,7 +77,7 @@ impl Default for SideChannelConfig {
 }
 
 /// Global side-channel protection context
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct SideChannelContext {
     pub config: SideChannelConfig,
     pub countermeasure_stats: CountermeasureStats,

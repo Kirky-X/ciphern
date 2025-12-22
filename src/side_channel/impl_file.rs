@@ -4,14 +4,14 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::{CryptoError, Result};
+use crate::side_channel::error_injection::ErrorInjectionDetector;
+use crate::side_channel::fn_file::{add_timing_noise, flush_cpu_cache};
+use crate::side_channel::power_analysis::PowerAnalysisGuard;
 use crate::side_channel::struct_file::{
     CountermeasureStats, SideChannelConfig, SideChannelContext, SideChannelStats,
 };
-use crate::side_channel::power_analysis::PowerAnalysisGuard;
-use crate::side_channel::error_injection::ErrorInjectionDetector;
-use crate::side_channel::fn_file::{add_timing_noise, flush_cpu_cache};
-use std::time::{Instant};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 impl SideChannelContext {
     pub fn new(config: SideChannelConfig) -> Self {

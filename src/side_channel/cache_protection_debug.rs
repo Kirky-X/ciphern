@@ -5,8 +5,6 @@
 
 #[cfg(test)]
 mod debug_tests {
-    use super::*;
-
     #[test]
     fn debug_cache_partition() {
         let partition = CachePartition::new(4, 2);

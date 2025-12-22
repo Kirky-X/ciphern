@@ -222,6 +222,7 @@ impl HigherOrderMasking {
 // === Masked Lookup Table ===
 
 /// Masked lookup table for S-boxes and other lookup operations
+#[derive(Debug)]
 pub struct MaskedLookupTable {
     table: Vec<u8>,
     _input_mask: u8,
@@ -274,6 +275,7 @@ impl MaskedLookupTable {
 // === Rotating S-Box Masking ===
 
 /// Rotating S-box masking for AES
+#[derive(Debug)]
 pub struct RotatingSboxMasking {
     sboxes: Vec<MaskedLookupTable>,
     current_index: usize,
