@@ -44,7 +44,8 @@ impl SymmetricCipher for AesGcmProvider {
                 "Key algorithm mismatch".into(),
             ));
         }
-        self.base.protect_operation(|| self.encrypt_internal(key, plaintext, aad))
+        self.base
+            .protect_operation(|| self.encrypt_internal(key, plaintext, aad))
     }
 
     fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
@@ -58,7 +59,8 @@ impl SymmetricCipher for AesGcmProvider {
                 "Key algorithm mismatch".into(),
             ));
         }
-        self.base.protect_operation(|| self.decrypt_internal(key, ciphertext, aad))
+        self.base
+            .protect_operation(|| self.decrypt_internal(key, ciphertext, aad))
     }
 
     fn algorithm(&self) -> Algorithm {
@@ -95,31 +97,36 @@ impl SymmetricCipher for AesGcmProvider {
 
             match self.key_length {
                 AesKeyLength::Aes128 => {
-                    let cipher = AesGcm::<aes_gcm::aes::Aes128, U12>::new_from_slice(secret.as_bytes())
-                        .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
+                    let cipher =
+                        AesGcm::<aes_gcm::aes::Aes128, U12>::new_from_slice(secret.as_bytes())
+                            .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
                     let nonce_val = nonce.into();
-                    
-                    cipher.encrypt(
-                        nonce_val,
-                        Payload {
-                            msg: plaintext,
-                            aad: aad.unwrap_or(&[]),
-                        },
-                    ).map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
-                },
+
+                    cipher
+                        .encrypt(
+                            nonce_val,
+                            Payload {
+                                msg: plaintext,
+                                aad: aad.unwrap_or(&[]),
+                            },
+                        )
+                        .map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
+                }
                 AesKeyLength::Aes192 => {
                     let cipher = AesGcm::<Aes192, U12>::new_from_slice(secret.as_bytes())
                         .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
                     let nonce_val = nonce.into();
-                    
-                    cipher.encrypt(
-                        nonce_val,
-                        Payload {
-                            msg: plaintext,
-                            aad: aad.unwrap_or(&[]),
-                        },
-                    ).map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
-                },
+
+                    cipher
+                        .encrypt(
+                            nonce_val,
+                            Payload {
+                                msg: plaintext,
+                                aad: aad.unwrap_or(&[]),
+                            },
+                        )
+                        .map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
+                }
                 AesKeyLength::Aes256 => {
                     let unbound_key = UnboundKey::new(&AES_256_GCM, secret.as_bytes())
                         .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
@@ -128,7 +135,11 @@ impl SymmetricCipher for AesGcmProvider {
 
                     let mut in_out = plaintext.to_vec();
                     less_safe_key
-                        .seal_in_place_append_tag(nonce_val, Aad::from(aad.unwrap_or(&[])), &mut in_out)
+                        .seal_in_place_append_tag(
+                            nonce_val,
+                            Aad::from(aad.unwrap_or(&[])),
+                            &mut in_out,
+                        )
                         .map_err(|_| CryptoError::EncryptionFailed("Seal failed".into()))?;
 
                     Ok(in_out)
@@ -173,7 +184,12 @@ impl AesGcmProvider {
     }
 
     /// Core encryption logic supporting all AES key lengths
-    fn encrypt_core(&self, key_bytes: &[u8], plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    fn encrypt_core(
+        &self,
+        key_bytes: &[u8],
+        plaintext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         match self.key_length {
             AesKeyLength::Aes128 => self.encrypt_with_aes128(key_bytes, plaintext, aad),
             AesKeyLength::Aes192 => self.encrypt_with_aes192(key_bytes, plaintext, aad),
@@ -182,7 +198,12 @@ impl AesGcmProvider {
     }
 
     /// AES-128 encryption using aes-gcm crate
-    fn encrypt_with_aes128(&self, key_bytes: &[u8], plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    fn encrypt_with_aes128(
+        &self,
+        key_bytes: &[u8],
+        plaintext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         let cipher = AesGcm::<aes_gcm::aes::Aes128, U12>::new_from_slice(key_bytes)
             .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
 
@@ -205,7 +226,12 @@ impl AesGcmProvider {
     }
 
     /// AES-192 encryption using aes-gcm crate
-    fn encrypt_with_aes192(&self, key_bytes: &[u8], plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    fn encrypt_with_aes192(
+        &self,
+        key_bytes: &[u8],
+        plaintext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         let cipher = AesGcm::<Aes192, U12>::new_from_slice(key_bytes)
             .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
 
@@ -228,7 +254,12 @@ impl AesGcmProvider {
     }
 
     /// AES-256 encryption using ring crate
-    fn encrypt_with_aes256(&self, key_bytes: &[u8], plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    fn encrypt_with_aes256(
+        &self,
+        key_bytes: &[u8],
+        plaintext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         let unbound_key = UnboundKey::new(&AES_256_GCM, key_bytes)
             .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
         let less_safe_key = LessSafeKey::new(unbound_key);
@@ -246,7 +277,7 @@ impl AesGcmProvider {
         let mut result = Vec::with_capacity(12 + in_out.len());
         result.extend_from_slice(&nonce_bytes);
         result.extend_from_slice(&in_out);
-        
+
         Ok(result)
     }
 
@@ -261,7 +292,12 @@ impl AesGcmProvider {
     }
 
     /// Core decryption logic supporting all AES key lengths
-    fn decrypt_core(&self, key_bytes: &[u8], ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    fn decrypt_core(
+        &self,
+        key_bytes: &[u8],
+        ciphertext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         match self.key_length {
             AesKeyLength::Aes128 => self.decrypt_with_aes128(key_bytes, ciphertext, aad),
             AesKeyLength::Aes192 => self.decrypt_with_aes192(key_bytes, ciphertext, aad),
@@ -270,7 +306,12 @@ impl AesGcmProvider {
     }
 
     /// AES-128 decryption using aes-gcm crate
-    fn decrypt_with_aes128(&self, key_bytes: &[u8], ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    fn decrypt_with_aes128(
+        &self,
+        key_bytes: &[u8],
+        ciphertext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         let cipher = AesGcm::<aes_gcm::aes::Aes128, U12>::new_from_slice(key_bytes)
             .map_err(|_| CryptoError::DecryptionFailed("Invalid Key".into()))?;
 
@@ -293,7 +334,12 @@ impl AesGcmProvider {
     }
 
     /// AES-192 decryption using aes-gcm crate
-    fn decrypt_with_aes192(&self, key_bytes: &[u8], ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    fn decrypt_with_aes192(
+        &self,
+        key_bytes: &[u8],
+        ciphertext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         let cipher = AesGcm::<Aes192, U12>::new_from_slice(key_bytes)
             .map_err(|_| CryptoError::DecryptionFailed("Invalid Key".into()))?;
 
@@ -316,7 +362,12 @@ impl AesGcmProvider {
     }
 
     /// AES-256 decryption using ring crate
-    fn decrypt_with_aes256(&self, key_bytes: &[u8], ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+    fn decrypt_with_aes256(
+        &self,
+        key_bytes: &[u8],
+        ciphertext: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         let unbound_key = UnboundKey::new(&AES_256_GCM, key_bytes)
             .map_err(|_| CryptoError::DecryptionFailed("Invalid Key".into()))?;
         let less_safe_key = LessSafeKey::new(unbound_key);

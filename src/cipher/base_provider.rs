@@ -103,7 +103,9 @@ impl BaseCipherProvider {
                             let input = expanded_key[byte_idx + j];
                             // Use rotating S-box for side-channel protection
                             let mut sbox = sbox_masking.lock().map_err(|_| {
-                                crate::error::CryptoError::SideChannelError("S-box lock poisoned".into())
+                                crate::error::CryptoError::SideChannelError(
+                                    "S-box lock poisoned".into(),
+                                )
                             })?;
                             expanded_key[byte_idx + j] = sbox.lookup(input);
                         }
@@ -129,7 +131,7 @@ impl Default for BaseCipherProvider {
 pub trait CipherProvider: SymmetricCipher + Send + Sync {
     /// Get the base provider
     fn base_provider(&self) -> &BaseCipherProvider;
-    
+
     /// Get the algorithm this provider implements
     fn algorithm_type(&self) -> Algorithm;
 }
