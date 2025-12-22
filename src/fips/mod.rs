@@ -365,14 +365,14 @@ fn get_fips_mode() -> FipsMode {
 
 /// 验证算法是否在 FIPS 模式下被允许
 pub fn validate_algorithm_fips(_algorithm: &Algorithm) -> Result<()> {
-        #[cfg(feature = "encrypt")]
-        {
-            if is_fips_enabled() {
-                self::validator::FipsAlgorithmValidator::validate_fips_compliance(_algorithm)?;
-            }
+    #[cfg(feature = "encrypt")]
+    {
+        if is_fips_enabled() {
+            self::validator::FipsAlgorithmValidator::validate_fips_compliance(_algorithm)?;
         }
-        Ok(())
     }
+    Ok(())
+}
 
 /// 检查是否启用 FIPS 模式
 pub fn is_fips_enabled() -> bool {
@@ -381,24 +381,24 @@ pub fn is_fips_enabled() -> bool {
 
 /// 获取 FIPS 批准的算法列表
 pub fn get_fips_approved_algorithms() -> Vec<Algorithm> {
-        #[cfg(feature = "encrypt")]
-        {
-            self::validator::FipsAlgorithmValidator::get_approved_algorithms()
-        }
-        #[cfg(not(feature = "encrypt"))]
-        {
-            vec![]
-        }
+    #[cfg(feature = "encrypt")]
+    {
+        self::validator::FipsAlgorithmValidator::get_approved_algorithms()
     }
+    #[cfg(not(feature = "encrypt"))]
+    {
+        vec![]
+    }
+}
 
 /// 获取非 FIPS 批准的算法列表
 pub fn get_non_approved_algorithms() -> Vec<Algorithm> {
-        #[cfg(feature = "encrypt")]
-        {
-            self::validator::FipsAlgorithmValidator::get_non_approved_algorithms()
-        }
-        #[cfg(not(feature = "encrypt"))]
-        {
-            vec![]
-        }
+    #[cfg(feature = "encrypt")]
+    {
+        self::validator::FipsAlgorithmValidator::get_non_approved_algorithms()
     }
+    #[cfg(not(feature = "encrypt"))]
+    {
+        vec![]
+    }
+}
