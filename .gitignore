@@ -22,8 +22,16 @@ build/
 .DS_Store
 Thumbs.db
 
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
 # Sensitive information
 .env
+.env.local
 *.key
 *.pem
 db.sqlite
+secret/

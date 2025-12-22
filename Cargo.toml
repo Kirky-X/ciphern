@@ -4,6 +4,13 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Kirky.X <Kirky-X@outlook.com>"]
 description = "Enterprise-grade cryptographic library"
+license = "MIT"
+repository = "https://github.com/Kirky-X/ciphern"
+homepage = "https://github.com/Kirky-X/ciphern"
+documentation = "https://docs.rs/ciphern"
+keywords = ["cryptography", "encryption", "security", "aes", "sm4"]
+categories = ["cryptography", "no-std"]
+readme = "README.md"
 
 [dependencies]
 # Core Crypto
