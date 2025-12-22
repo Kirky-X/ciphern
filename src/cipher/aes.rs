@@ -168,7 +168,8 @@ impl AesGcmProvider {
     }
 
     fn encrypt_internal(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        self.encrypt_core(key, plaintext, aad)
+        let secret_bytes = key.secret_bytes()?;
+        self.encrypt_core(secret_bytes.as_bytes(), plaintext, aad)
     }
 
     /// Core encryption logic supporting all AES key lengths

@@ -13,9 +13,7 @@
 //! - 综合防护集成测试
 
 use super::*;
-use crate::cipher::aes::Aes256GcmProvider;
-use crate::cipher::aes128::Aes128GcmProvider;
-use crate::cipher::aes192::Aes192GcmProvider;
+use crate::cipher::aes::{AesGcmProvider, Aes256GcmProvider};
 use crate::cipher::sm4::Sm4GcmProvider;
 use crate::key::Key;
 use crate::provider::SymmetricCipher;
@@ -106,7 +104,7 @@ impl SideChannelProtectionTester {
             timing_noise_enabled: true,
             ..SideChannelConfig::default()
         };
-        let provider = Aes128GcmProvider::with_side_channel_config(config);
+        let provider = AesGcmProvider::aes128_with_config(config);
 
         let key_data = vec![0x42; 16];
         let mut key = Key::new(Algorithm::AES128GCM, key_data).unwrap();
@@ -133,7 +131,7 @@ impl SideChannelProtectionTester {
             masking_operations_enabled: true,
             ..SideChannelConfig::default()
         };
-        let provider = Aes192GcmProvider::with_side_channel_config(config);
+        let provider = AesGcmProvider::aes192_with_config(config);
 
         let key_data = vec![0x42; 24];
         let mut key = Key::new(Algorithm::AES192GCM, key_data).unwrap();
@@ -497,7 +495,7 @@ impl SideChannelProtectionTester {
 
     fn simulate_power_measurement(
         &self,
-        provider: &Aes192GcmProvider,
+        provider: &AesGcmProvider,
         key: &Key,
         plaintext: &[u8],
     ) -> f64 {

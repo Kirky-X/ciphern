@@ -4,8 +4,6 @@
 // See LICENSE file in the project root for full license information.
 
 pub mod aes;
-pub mod aes128;
-pub mod aes192;
 pub mod base_provider;
 pub mod mode;
 pub mod pkcs7;

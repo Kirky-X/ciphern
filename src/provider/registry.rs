@@ -4,9 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use super::{Signer, SymmetricCipher};
-use crate::cipher::aes::Aes256GcmProvider;
-use crate::cipher::aes128::Aes128GcmProvider;
-use crate::cipher::aes192::Aes192GcmProvider;
+use crate::cipher::aes::AesGcmProvider;
 use crate::cipher::sm4::Sm4GcmProvider;
 use crate::error::{CryptoError, Result};
 use crate::signer::ecdsa::EcdsaProvider;
@@ -44,9 +42,9 @@ impl ProviderRegistry {
     fn register_defaults(&self) {
         {
             let mut map = self.symmetric.write().unwrap();
-            map.insert(Algorithm::AES128GCM, Arc::new(Aes128GcmProvider::default()));
-            map.insert(Algorithm::AES192GCM, Arc::new(Aes192GcmProvider::default()));
-            map.insert(Algorithm::AES256GCM, Arc::new(Aes256GcmProvider::default()));
+            map.insert(Algorithm::AES128GCM, Arc::new(AesGcmProvider::aes128()));
+            map.insert(Algorithm::AES192GCM, Arc::new(AesGcmProvider::aes192()));
+            map.insert(Algorithm::AES256GCM, Arc::new(AesGcmProvider::aes256()));
             map.insert(Algorithm::SM4GCM, Arc::new(Sm4GcmProvider::default()));
         }
 
