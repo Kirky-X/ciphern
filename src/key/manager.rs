@@ -403,13 +403,16 @@ impl KeyManagerOperations for KeyManager {
 }
 
 /// 多租户密钥管理器，提供租户间的密钥隔离
+#[allow(dead_code)]
 pub struct TenantKeyManager {
     tenant_id: String,
     key_manager: KeyManager,
 }
 
+#[allow(dead_code)]
 impl TenantKeyManager {
     /// 创建新的租户密钥管理器
+    #[allow(dead_code)]
     pub fn new(tenant_id: &str) -> Result<Self> {
         Ok(Self {
             tenant_id: tenant_id.to_string(),

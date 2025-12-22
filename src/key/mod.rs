@@ -29,8 +29,8 @@ pub trait KeyManagerOperations {
     fn list_keys_operation(&self) -> Result<Vec<String>>;
 }
 
-pub use lifecycle::{KeyLifecycleManager, KeyLifecyclePolicy, KeyManagerLifecycleExt, KeyVersion};
-pub use manager::{KeyManager, TenantKeyManager};
+pub use lifecycle::{KeyLifecycleManager, KeyLifecyclePolicy, KeyManagerLifecycleExt};
+pub use manager::KeyManager;
 
 /// 密钥状态转换器
 pub struct KeyStateManager;
@@ -59,6 +59,7 @@ impl KeyStateManager {
     }
 
     /// 获取状态描述
+    #[allow(dead_code)]
     pub fn get_state_description(state: KeyState) -> &'static str {
         match state {
             KeyState::Generated => "密钥已生成，等待激活",

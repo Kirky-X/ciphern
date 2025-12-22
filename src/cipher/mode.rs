@@ -11,10 +11,13 @@ pub enum CipherMode {
     /// GCM模式 - 不需要填充
     Gcm,
     /// CBC模式 - 需要PKCS#7填充
+    #[allow(dead_code)]
     Cbc,
     /// ECB模式 - 需要PKCS#7填充
+    #[allow(dead_code)]
     Ecb,
     /// CTR模式 - 不需要填充
+    #[allow(dead_code)]
     Ctr,
 }
 
@@ -37,6 +40,7 @@ pub fn infer_cipher_mode(algorithm: Algorithm) -> CipherMode {
 }
 
 /// 获取算法的块大小
+#[allow(dead_code)]
 pub fn get_block_size(algorithm: Algorithm) -> usize {
     match algorithm {
         Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => 16,

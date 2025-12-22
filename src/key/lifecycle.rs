@@ -52,6 +52,7 @@ impl Default for KeyLifecyclePolicy {
 pub struct KeyVersion {
     pub version_id: String,
     pub key_id: String,
+    pub algorithm: Algorithm,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub is_active: bool,
@@ -111,6 +112,7 @@ impl KeyLifecycleManager {
         let version = KeyVersion {
             version_id: format!("v_{}", chrono::Utc::now().timestamp_millis()),
             key_id: key_id.clone(),
+            algorithm,
             created_at: Utc::now(),
             expires_at: Utc::now() + policy.key_lifetime,
             is_active: true,
@@ -180,10 +182,9 @@ impl KeyLifecycleManager {
             .get(key_id)
             .ok_or_else(|| CryptoError::KeyNotFound(key_id.to_string()))?;
 
-        let policy = self.get_policy(Algorithm::AES256GCM).unwrap_or_default(); // 简化：假设AES256GCM
-
         // 检查活跃版本
         if let Some(active_version) = key_versions.iter().find(|v| v.is_active) {
+            let policy = self.get_policy(active_version.algorithm).unwrap_or_default();
             let now = Utc::now();
 
             // 检查是否过期
@@ -308,16 +309,41 @@ impl KeyLifecycleManager {
         // 首先检查密钥是否存在
         key_manager.get_key_operation(key_id)?;
 
-        // 如果密钥存在但不在生命周期管理器中，创建一个默认的警告
+        // 如果密钥存在但不在生命周期管理器中，尝试获取密钥信息以确定算法
+        // 实际上 key_manager.get_key_operation(key_id) 应该返回 Key 对象，但这里我们无法访问具体类型
+        // 假设使用默认策略
         let policy = self.get_policy(Algorithm::AES256GCM).unwrap_or_default();
 
-        // 对于新创建的密钥，检查是否需要警告（简化版本）
-        // 这里我们假设密钥创建后需要轮换警告
+        // 检查密钥是否接近过期
+        // 在实际实现中，我们需要获取密钥的创建时间
+        // 由于这里只能确认密钥存在，我们只能返回一般性警告
         if policy.rotation_warning_period > Duration::zero() {
-            return Ok(Some(format!(
-                "Key {} should be monitored for rotation. Key may be expired or near expiration.",
-                key_id
-            )));
+            // 尝试从 schedule 中获取时间信息
+            let schedule = self.rotation_schedule.read().map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+            if let Some(next_rotation) = schedule.get(key_id) {
+                 let now = Utc::now();
+                 let duration = *next_rotation - now;
+                 if duration > Duration::zero() {
+                     if duration < policy.rotation_warning_period {
+                         return Ok(Some(format!(
+                            "Key {} is expiring in less than {:?}. Please rotate soon.",
+                            key_id, duration
+                        )));
+                     }
+                 } else {
+                     // 已经过期
+                     return Ok(Some(format!(
+                        "Key {} has expired. Please rotate immediately.",
+                        key_id
+                    )));
+                 }
+            } else {
+                 // 没有轮换计划，可能是新导入的密钥
+                 return Ok(Some(format!(
+                    "Key {} exists but has no rotation schedule. It may be unmanaged.",
+                    key_id
+                )));
+            }
         }
 
         Ok(None)
@@ -377,10 +403,24 @@ impl KeyLifecycleManager {
         let keys_needing_rotation = self.get_keys_needing_rotation()?;
         let mut rotated_keys = Vec::new();
 
-        for key_id in keys_needing_rotation {
-            // 简化：假设所有密钥都是 AES256GCM
-            if let Ok(new_key_id) = self.rotate_key(key_manager, &key_id, Algorithm::AES256GCM) {
-                rotated_keys.push(new_key_id);
+        // 获取所有版本信息以查找算法
+        let versions = self
+            .key_versions
+            .read()
+            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+
+        // Iterate over a clone of the keys to avoid borrowing issues or use the owned vector
+        for key_id in &keys_needing_rotation {
+            // We use key_id.as_str() to ensure we are using &str for lookup
+            // But versions is HashMap<String, Vec<KeyVersion>>
+            // So we can just use key_id directly as it is &String which coerces to &str or &String
+            if let Some(key_versions) = versions.get(key_id) {
+                if let Some(active_version) = key_versions.iter().find(|v| v.is_active) {
+                    // 使用正确的算法进行轮换
+                    if let Ok(new_key_id) = self.rotate_key(key_manager, key_id, active_version.algorithm) {
+                        rotated_keys.push(new_key_id);
+                    }
+                }
             }
         }
 
@@ -389,8 +429,10 @@ impl KeyLifecycleManager {
 }
 
 /// 密钥生命周期管理器扩展 trait
+#[allow(dead_code)]
 pub trait KeyManagerLifecycleExt: KeyManagerOperations {
     /// 使用生命周期管理创建密钥
+    #[allow(dead_code)]
     fn generate_key_with_lifecycle(
         &self,
         algorithm: Algorithm,
@@ -398,6 +440,7 @@ pub trait KeyManagerLifecycleExt: KeyManagerOperations {
     ) -> Result<String>;
 
     /// 轮换密钥
+    #[allow(dead_code)]
     fn rotate_key(
         &self,
         key_id: &str,
@@ -406,6 +449,7 @@ pub trait KeyManagerLifecycleExt: KeyManagerOperations {
     ) -> Result<String>;
 
     /// 获取密钥生命周期状态
+    #[allow(dead_code)]
     fn get_key_lifecycle_status(
         &self,
         key_id: &str,

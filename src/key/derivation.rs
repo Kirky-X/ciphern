@@ -16,6 +16,7 @@ use zeroize::Zeroize;
 pub struct Hkdf;
 
 impl Hkdf {
+    #[allow(dead_code)]
     pub fn derive(
         master_key: &Key,
         salt: &[u8],
@@ -66,6 +67,7 @@ impl Hkdf {
         )))
     }
 
+    #[allow(dead_code)]
     fn derive_32_bytes(
         master_key: &Key,
         salt: &[u8],
@@ -151,9 +153,12 @@ mod sm3_tests {
     }
 }
 
+#[allow(dead_code)]
 pub struct Pbkdf2;
 
+#[allow(dead_code)]
 impl Pbkdf2 {
+    #[allow(dead_code)]
     pub fn derive(
         password: &[u8],
         salt: &[u8],
@@ -189,9 +194,12 @@ impl Pbkdf2 {
     }
 }
 
+#[allow(dead_code)]
 pub struct Argon2id;
 
+#[allow(dead_code)]
 impl Argon2id {
+    #[allow(dead_code)]
     pub fn derive(
         password: &[u8],
         salt: &[u8],
@@ -240,9 +248,12 @@ impl Argon2id {
     }
 }
 
+#[allow(dead_code)]
 pub struct Sm3Kdf;
 
+#[allow(dead_code)]
 impl Sm3Kdf {
+    #[allow(dead_code)]
     pub fn derive(
         master_key: &Key,
         fixed_data: &[u8],

@@ -80,6 +80,7 @@ impl Pkcs7Padding {
     }
 
     /// 获取需要填充的长度
+    #[allow(dead_code)]
     pub fn get_padding_length(data_len: usize, block_size: usize) -> usize {
         if block_size == 0 {
             return 0;

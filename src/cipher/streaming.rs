@@ -23,10 +23,12 @@ pub struct StreamingCipher {
     total_processed: usize,
     nonce: Option<Vec<u8>>,
     /// 用于解密的认证标签缓冲区
+    #[allow(dead_code)]
     tag_buffer: Vec<u8>,
     /// 当前模式：true表示加密，false表示解密
     encrypt_mode: Option<bool>,
     /// 加密模式
+    #[allow(dead_code)]
     cipher_mode: CipherMode,
     /// 是否启用PKCS#7填充
     enable_padding: bool,
@@ -72,6 +74,7 @@ impl StreamingCipher {
     }
 
     /// 检查是否处于加密模式
+    #[allow(dead_code)]
     pub fn is_encrypting(&self) -> bool {
         self.encrypt_mode.unwrap_or(true)
     }
@@ -116,6 +119,7 @@ impl StreamingCipher {
     }
 
     /// 初始化加密器 - 设置密钥和nonce
+    #[allow(dead_code)]
     pub fn initialize(&mut self, key: Key, nonce: Option<Vec<u8>>) -> Result<()> {
         if self.is_initialized {
             return Err(CryptoError::InvalidState(
@@ -156,6 +160,7 @@ impl StreamingCipher {
     }
 
     /// 加密数据块
+    #[allow(dead_code)]
     pub fn encrypt_chunk(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         if !self.is_initialized {
             return Err(CryptoError::InvalidState(
@@ -184,6 +189,7 @@ impl StreamingCipher {
     }
 
     /// 解密数据块
+    #[allow(dead_code)]
     pub fn decrypt_chunk(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         if !self.is_initialized {
             return Err(CryptoError::InvalidState(
@@ -212,6 +218,7 @@ impl StreamingCipher {
     }
 
     /// 完成流式处理 - 处理剩余缓冲数据
+    #[allow(dead_code)]
     pub fn finalize(&mut self) -> Result<Vec<u8>> {
         if !self.is_initialized {
             return Err(CryptoError::InvalidState(
@@ -284,6 +291,7 @@ impl StreamingCipher {
     }
 
     /// 重置加密器状态
+    #[allow(dead_code)]
     pub fn reset(&mut self) -> Result<()> {
         self.buffer.clear();
         self.tag_buffer.clear();
@@ -302,17 +310,20 @@ impl StreamingCipher {
     }
 
     /// 获取已处理的总字节数
+    #[allow(dead_code)]
     pub fn total_processed(&self) -> usize {
         self.total_processed
     }
 
     /// 获取当前nonce（用于验证）
+    #[allow(dead_code)]
     pub fn nonce(&self) -> Option<&[u8]> {
         self.nonce.as_deref()
     }
 
     /// 设置是否启用PKCS#7填充
     /// 注意：此设置仅在支持填充的模式下有效
+    #[allow(dead_code)]
     pub fn set_padding_enabled(&mut self, enabled: bool) -> Result<()> {
         if self.is_initialized {
             return Err(CryptoError::InvalidState(
@@ -332,11 +343,13 @@ impl StreamingCipher {
     }
 
     /// 检查是否启用了PKCS#7填充
+    #[allow(dead_code)]
     pub fn is_padding_enabled(&self) -> bool {
         self.enable_padding
     }
 
     /// 验证密钥算法兼容性
+    #[allow(dead_code)]
     fn is_key_compatible(&self, key: &Key) -> bool {
         matches!(
             (self.algorithm, key.algorithm()),
@@ -599,6 +612,7 @@ impl StreamingCipher {
 }
 
 /// 流式加密构建器
+#[allow(dead_code)]
 pub struct StreamingCipherBuilder {
     algorithm: Algorithm,
     chunk_size: usize,
@@ -606,6 +620,7 @@ pub struct StreamingCipherBuilder {
 }
 
 impl StreamingCipherBuilder {
+    #[allow(dead_code)]
     pub fn new(algorithm: Algorithm) -> Self {
         Self {
             algorithm,
@@ -614,16 +629,19 @@ impl StreamingCipherBuilder {
         }
     }
 
+    #[allow(dead_code)]
     pub fn chunk_size(mut self, size: usize) -> Self {
         self.chunk_size = size;
         self
     }
 
+    #[allow(dead_code)]
     pub fn side_channel_config(mut self, config: SideChannelConfig) -> Self {
         self.side_channel_config = Some(config);
         self
     }
 
+    #[allow(dead_code)]
     pub fn build(self) -> Result<StreamingCipher> {
         match self.side_channel_config {
             Some(config) => {

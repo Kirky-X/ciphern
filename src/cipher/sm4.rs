@@ -34,6 +34,8 @@ impl Sm4GcmProvider {
         }
     }
 
+    /// Create a new SM4-GCM provider with custom side-channel configuration
+    #[allow(dead_code)]
     pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
         let side_channel_context = Some(Arc::new(Mutex::new(SideChannelContext::new(config))));
         let rotating_sbox = RotatingSboxMasking::new(4)

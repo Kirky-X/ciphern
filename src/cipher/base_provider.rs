@@ -63,16 +63,19 @@ impl BaseCipherProvider {
     }
 
     /// Get a reference to the side-channel context
+    #[allow(dead_code)]
     pub fn side_channel_context(&self) -> &Option<Arc<Mutex<SideChannelContext>>> {
         &self.side_channel_context
     }
 
     /// Get a reference to the rotating S-box
+    #[allow(dead_code)]
     pub fn rotating_sbox(&self) -> &Option<Arc<Mutex<RotatingSboxMasking>>> {
         &self.rotating_sbox
     }
 
     /// Get side-channel protection statistics
+    #[allow(dead_code)]
     pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
         self.side_channel_context
             .as_ref()
@@ -80,6 +83,7 @@ impl BaseCipherProvider {
     }
 
     /// Check if side-channel protection is enabled
+    #[allow(dead_code)]
     pub fn is_side_channel_protected(&self) -> bool {
         self.side_channel_context.is_some() && self.rotating_sbox.is_some()
     }
@@ -128,6 +132,7 @@ impl Default for BaseCipherProvider {
 }
 
 /// Trait for cipher providers that can be built from a base provider
+#[allow(dead_code)]
 pub trait CipherProvider: SymmetricCipher + Send + Sync {
     /// Get the base provider
     fn base_provider(&self) -> &BaseCipherProvider;

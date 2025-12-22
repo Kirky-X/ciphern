@@ -166,11 +166,13 @@ impl AesGcmProvider {
     }
 
     /// Create a new AES-GCM provider with custom side-channel configuration
+    #[allow(dead_code)]
     pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
         Self::with_key_length_and_config(AesKeyLength::Aes256, config)
     }
 
     /// Create a new AES-GCM provider with specified key length and side-channel configuration
+    #[allow(dead_code)]
     pub fn with_key_length_and_config(key_length: AesKeyLength, config: SideChannelConfig) -> Self {
         Self {
             base: BaseCipherProvider::with_side_channel_config(config),
@@ -432,11 +434,13 @@ impl Default for AesGcmProvider {
 
 impl Aes256GcmProvider {
     /// Get side-channel protection statistics
+    #[allow(dead_code)]
     pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
         self.base.get_side_channel_stats()
     }
 
     /// Check if side-channel protection is enabled
+    #[allow(dead_code)]
     pub fn is_side_channel_protected(&self) -> bool {
         self.base.is_side_channel_protected()
     }
@@ -638,21 +642,25 @@ impl AesGcmProvider {
     }
 
     /// Create a new AES-128 GCM provider with custom side-channel configuration
+    #[allow(dead_code)]
     pub fn aes128_with_config(config: SideChannelConfig) -> Self {
         Self::with_key_length_and_config(AesKeyLength::Aes128, config)
     }
 
     /// Create a new AES-192 GCM provider with custom side-channel configuration
+    #[allow(dead_code)]
     pub fn aes192_with_config(config: SideChannelConfig) -> Self {
         Self::with_key_length_and_config(AesKeyLength::Aes192, config)
     }
 
     /// Create a new AES-256 GCM provider with custom side-channel configuration
+    #[allow(dead_code)]
     pub fn aes256_with_config(config: SideChannelConfig) -> Self {
         Self::with_key_length_and_config(AesKeyLength::Aes256, config)
     }
 
     /// Get the key length this provider is configured for
+    #[allow(dead_code)]
     pub fn key_length(&self) -> AesKeyLength {
         self.key_length
     }
