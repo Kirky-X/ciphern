@@ -226,6 +226,7 @@ impl Hash {
 
 /// 获取全局 FIPS 上下文 (简化实现)
 #[cfg(feature = "fips")]
+#[allow(dead_code)]
 fn get_fips_context() -> Option<FipsContext> {
     if fips::is_fips_enabled() {
         FipsContext::new(fips::FipsMode::Enabled).ok()

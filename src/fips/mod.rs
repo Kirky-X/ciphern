@@ -11,7 +11,9 @@
 //! - 错误状态管理
 //! - 审计日志
 
-use crate::error::{CryptoError, Result};
+#[cfg(feature = "encrypt")]
+use crate::error::CryptoError;
+use crate::error::Result;
 use crate::types::Algorithm;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

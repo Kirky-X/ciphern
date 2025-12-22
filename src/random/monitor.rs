@@ -104,7 +104,7 @@ impl RngMonitor {
         let mut random_bytes = vec![0u8; self.config.sample_size];
 
         // 生成随机数
-        if let Err(e) =
+        if let Err(_e) =
             crate::random::SecureRandom::new().and_then(|rng| rng.fill(&mut random_bytes))
         {
             self.record_test_result(false);
@@ -112,7 +112,7 @@ impl RngMonitor {
             self.trigger_alert(
                 AlertSeverity::Critical,
                 AlertCategory::SystemMalfunction,
-                format!("RNG generation failed: {}", e),
+                format!("RNG generation failed: {}", _e),
                 Some("rng_generation".to_string()),
             );
             return Ok(false);
@@ -292,6 +292,7 @@ impl RngMonitor {
 
     /// 记录外部测试结果（用于集成）
     pub fn record_external_test_result(&self, passed: bool, test_type: &str) {
+        let _ = test_type;
         self.record_test_result(passed);
 
         #[cfg(feature = "encrypt")]
