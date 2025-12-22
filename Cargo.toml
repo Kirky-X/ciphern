@@ -78,60 +78,8 @@ encrypt = []
 kdf = ["encrypt"]
 
 [[test]]
-name = "api_communication_uat"
-path = "tests/uat/api_communication_uat.rs"
-
-[[test]]
-name = "key_rotation_uat"
-path = "tests/uat/key_rotation_uat.rs"
-
-[[test]]
-name = "multi_tenant_isolation_uat"
-path = "tests/uat/multi_tenant_isolation_uat.rs"
-
-[[test]]
-name = "countermeasure_stats_test"
-path = "tests/unit/countermeasure_stats_test.rs"
-
-[[test]]
-name = "signature_test"
-path = "tests/unit/signature_test.rs"
-
-[[test]]
-name = "key_test"
-path = "tests/unit/key_test.rs"
-
-[[test]]
-name = "memory_protection_test"
-path = "tests/unit/memory_protection_test.rs"
-
-[[test]]
-name = "api_latency_test"
-path = "tests/performance/api_latency_test.rs"
-
-[[test]]
-name = "audit_log_uat"
-path = "tests/uat/audit_log_uat.rs"
-
-[[test]]
-name = "debug_audit_log"
-path = "tests/uat/debug_audit_log.rs"
-
-[[test]]
-name = "cavp_test"
-path = "tests/fips/cavp_test.rs"
-
-[[test]]
-name = "side_channel_test"
-path = "tests/side_channel/mod.rs"
-
-[[test]]
-name = "cache_protection_debug_test"
-path = "tests/side_channel/cache_protection_debug_test.rs"
-
-[[test]]
-name = "debug_test"
-path = "tests/debug_test.rs"
+name = "all_tests"
+path = "tests/all_tests.rs"
 
 [[bench]]
 name = "cipher_bench"
