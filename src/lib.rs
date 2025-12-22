@@ -7,6 +7,7 @@
 //!
 //! Enterprise-grade, security-first Rust cryptographic library.
 
+pub mod audit;
 #[cfg(feature = "encrypt")]
 pub mod cipher;
 pub mod error;
@@ -14,8 +15,10 @@ pub mod fips;
 #[cfg(feature = "encrypt")]
 pub mod key;
 pub mod memory;
+#[cfg(feature = "encrypt")]
 pub mod provider;
 pub mod random;
+#[cfg(feature = "encrypt")]
 pub mod side_channel;
 #[cfg(feature = "encrypt")]
 pub mod signer;
@@ -40,7 +43,6 @@ pub fn init() -> Result<()> {
     }
 
     // 初始化审计日志
-    #[cfg(feature = "encrypt")]
     audit::AuditLogger::init();
 
     // 初始化 RNG 监控系统
@@ -49,8 +51,8 @@ pub fn init() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "encrypt")]
 /// High-level Cipher API
+#[cfg(feature = "encrypt")]
 pub struct Cipher {
     provider: std::sync::Arc<dyn provider::SymmetricCipher>,
     algorithm: Algorithm,
@@ -160,11 +162,13 @@ impl Cipher {
 }
 
 /// High-level Signer API
+#[cfg(feature = "encrypt")]
 pub struct Signer {
     provider: std::sync::Arc<dyn provider::Signer>,
     algorithm: Algorithm,
 }
 
+#[cfg(feature = "encrypt")]
 impl Signer {
     /// Create a new signer instance
     pub fn new(algorithm: Algorithm) -> Result<Self> {
@@ -199,8 +203,10 @@ impl Signer {
 }
 
 /// High-level Hash API
+#[cfg(feature = "hash")]
 pub struct Hash;
 
+#[cfg(feature = "hash")]
 impl Hash {
     /// Calculate SHA-256 hash
     pub fn sha256(data: &[u8]) -> Result<Vec<u8>> {

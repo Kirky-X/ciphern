@@ -60,11 +60,11 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
-default = ["std", "fips", "encrypt", "hash", "kdf"]
+default = ["std", "fips", "hash", "encrypt", "kdf"]
 std = []
 fips = []
-encrypt = []
 hash = []
+encrypt = []
 kdf = ["encrypt"]
 
 [[test]]
