@@ -33,9 +33,15 @@ lazy_static! {
 #[allow(dead_code)]
 fn register_metrics() {
     // 确保指标只被注册一次
-    let _ = REGISTRY.register(Box::new(CRYPTO_OPERATIONS_TOTAL.clone()));
-    let _ = REGISTRY.register(Box::new(CRYPTO_OPERATION_LATENCY.clone()));
-    let _ = REGISTRY.register(Box::new(SECURITY_ALERTS_TOTAL.clone()));
+    if let Err(e) = REGISTRY.register(Box::new(CRYPTO_OPERATIONS_TOTAL.clone())) {
+        eprintln!("Failed to register CRYPTO_OPERATIONS_TOTAL: {}", e);
+    }
+    if let Err(e) = REGISTRY.register(Box::new(CRYPTO_OPERATION_LATENCY.clone())) {
+        eprintln!("Failed to register CRYPTO_OPERATION_LATENCY: {}", e);
+    }
+    if let Err(e) = REGISTRY.register(Box::new(SECURITY_ALERTS_TOTAL.clone())) {
+        eprintln!("Failed to register SECURITY_ALERTS_TOTAL: {}", e);
+    }
 }
 
 // === Performance Metrics ===
@@ -826,6 +832,9 @@ mod tests {
             Some("test_key"),
             Err("test error"),
         );
+        
+        // Wait briefly for async logging to propagate
+        thread::sleep(std::time::Duration::from_millis(50));
 
         // Get logs
         let logs = AuditLogger::get_logs();
