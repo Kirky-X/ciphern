@@ -24,7 +24,7 @@
 
 ## 1. 安装与配置
 
-### 1.1 Rust 项目集成
+### 1.1 快速开始
 
 #### 添加依赖
 
@@ -45,6 +45,73 @@ ciphern = { version = "0.1", features = ["fips"] }
 | `default`   | 标准库 + FIPS 支持     | 通用场景   |
 | `std`       | 启用标准库支持          | 默认启用   |
 | `fips`      | FIPS 140-3 合规模式     | 金融、政府  |
+
+### 1.2 配置文件
+
+Ciphern 支持通过配置文件自定义行为。
+
+```toml
+# ciphern.toml
+
+[general]
+# 算法优先级 (按顺序尝试)
+algorithm_priority = ["AES256GCM", "SM4GCM"]
+
+# 线程池大小 (0 = 自动检测)
+thread_pool_size = 0
+
+[keys]
+# 默认密钥长度
+default_key_size = 32
+
+# 密钥缓存大小
+cache_size = 100
+
+# 默认轮换策略
+[keys.rotation]
+max_age_days = 90
+max_operations = 1000000
+auto_rotate = true
+
+[random]
+# 熵源配置
+entropy_source = "hardware"  # hardware, os, hybrid
+min_entropy_bits = 256
+
+[memory]
+# 内存保护
+enable_mlock = true
+enable_canary = true
+canary_check_interval_ms = 1000
+
+[audit]
+enabled = true
+log_success = false
+log_failure = true
+output = "file"  # file, syslog, siem
+
+[audit.file]
+path = "/var/log/ciphern/audit.log"
+rotation_size_mb = 100
+
+[fips]
+# FIPS 模式 (需要编译时启用 fips 特性)
+enabled = false
+strict_mode = true  # 严格模式禁止非批准算法
+```
+
+### 1.3 环境变量
+
+```bash
+# 配置文件路径
+export CIPHERN_CONFIG=/etc/ciphern/config.toml
+
+# 日志级别
+export RUST_LOG=ciphern=info
+
+# FIPS 模式
+export CIPHERN_FIPS=1
+```
 
 ---
 
@@ -144,7 +211,11 @@ fn main() -> Result<()> {
 }
 ```
 
-### 3.3 哈希计算 (SM3)
+### 3.3 消息摘要与哈希
+
+Ciphern 支持多种哈希算法，包括国际标准的 SHA 系列和国密标准的 SM3。
+
+#### 计算 SM3 哈希
 
 ```rust
 use ciphern::{Hash, Result};
@@ -157,153 +228,17 @@ fn main() -> Result<()> {
 }
 ```
 
-#### 完整示例
-
-```toml
-[dependencies]
-ciphern = { version = "0.1", features = [
-    "fips",           # FIPS 140-3 合规
-] }
-```
-
-### 1.2 配置文件
-
-Ciphern 支持通过配置文件自定义行为。
-
-```toml
-# ciphern.toml
-
-[general]
-# 算法优先级 (按顺序尝试)
-algorithm_priority = ["AES256GCM", "SM4GCM"]
-
-# 线程池大小 (0 = 自动检测)
-thread_pool_size = 0
-
-[keys]
-# 默认密钥长度
-default_key_size = 32
-
-# 密钥缓存大小
-cache_size = 100
-
-# 默认轮换策略
-[keys.rotation]
-max_age_days = 90
-max_operations = 1000000
-auto_rotate = true
-
-[random]
-# 熵源配置
-entropy_source = "hardware"  # hardware, os, hybrid
-min_entropy_bits = 256
-
-[memory]
-# 内存保护
-enable_mlock = true
-enable_canary = true
-canary_check_interval_ms = 1000
-
-[audit]
-enabled = true
-log_success = false
-log_failure = true
-output = "file"  # file, syslog, siem
-
-[audit.file]
-path = "/var/log/ciphern/audit.log"
-rotation_size_mb = 100
-
-[fips]
-# FIPS 模式 (需要编译时启用 fips 特性)
-enabled = false
-strict_mode = true  # 严格模式禁止非批准算法
-```
-
-### 1.3 环境变量
-
-```bash
-# 配置文件路径
-export CIPHERN_CONFIG=/etc/ciphern/config.toml
-
-# 日志级别
-export RUST_LOG=ciphern=info
-
-# FIPS 模式
-export CIPHERN_FIPS=1
-```
-
----
-
-## 2. 核心概念
-
-### 2.1 算法 (Algorithm)
-
-Ciphern 支持多种加密算法，分为国际标准和国密标准。
-
-#### 对称加密
-
-| 算法              | 密钥长度    | 性能 | 使用场景   |
-|-----------------|---------|----|--------|
-| **AES-256-GCM** | 256 bit | 极快 | 通用数据加密 |
-| **SM4-GCM**     | 128 bit | 快  | 国密合规场景 |
-
-#### 非对称加密与签名
-
-| 算法             | 安全级别    | 性能 | 使用场景      |
-|----------------|---------|----|-----------|
-| **ECDSA-P384** | 192 bit | 快  | 数字签名、密钥协商 |
-| **SM2**        | 128 bit | 中  | 国密数字签名    |
-| **Ed25519**    | 128 bit | 极快 | 高性能签名     |
-| **RSA-4096**   | 112 bit | 慢  | 兼容性场景     |
-
-#### 哈希函数
-
-| 算法          | 输出长度    | 性能 | 使用场景      |
-|-------------|---------|----|-----------|
-| **SHA-256** | 256 bit | 快  | 通用哈希、HMAC |
-| **SHA-384** | 384 bit | 快  | 高安全要求     |
-| **SHA-512** | 512 bit | 快  | 高安全要求     |
-| **SM3**     | 256 bit | 中  | 国密合规      |
-
-### 2.2 密钥 (Key)
-
-密钥是加密的核心，Ciphern 提供完整的密钥生命周期管理。
-
-#### 密钥状态
-
-```
-PENDING → ACTIVE → ROTATING → DEPRECATED → DESTROYED
-```
-
-- **PENDING**: 已生成但未激活
-- **ACTIVE**: 正常使用中
-- **ROTATING**: 轮换中 (新旧密钥并存)
-- **DEPRECATED**: 只能解密，不能加密
-- **DESTROYED**: 已销毁，密钥材料已擦除
-
-#### 密钥层次结构
-
-```
-Root Key (硬件保护)
-  ├─ Tenant A Master Key
-  │   ├─ App Key: database-encryption
-  │   └─ App Key: file-encryption
-  └─ Tenant B Master Key
-      └─ App Key: api-encryption
-```
-
-### 2.3 密钥派生 (KDF)
-
-从主密钥派生应用密钥，隔离风险。
+#### 计算 SHA-256 哈希
 
 ```rust
-use ciphern::Algorithm;
-use ciphern::key::manager::KeyManager;
+use ciphern::{Hash, Result};
 
-let km = KeyManager::new()?;
-let key_id = km.generate_key(Algorithm::HKDF)?;
-// 实际派生操作通常通过特定 Provider 完成
+fn main() -> Result<()> {
+    let data = b"abc";
+    let hash = Hash::sha256(data)?;
+    println!("SHA-256: {:x?}", hash);
+    Ok(())
+}
 ```
 
 ---
@@ -340,6 +275,46 @@ Ciphern 提供了多层密钥保护：
 - **内存锁定**: 防止密钥被交换到磁盘。
 - **访问控制**: 必须通过 `KeyManager` 引用 ID 访问密钥。
 
+### 4.3 密钥状态管理
+
+密钥是加密的核心，Ciphern 提供完整的密钥生命周期管理。
+
+#### 密钥状态
+
+```
+PENDING → ACTIVE → ROTATING → DEPRECATED → DESTROYED
+```
+
+- **PENDING**: 已生成但未激活
+- **ACTIVE**: 正常使用中
+- **ROTATING**: 轮换中 (新旧密钥并存)
+- **DEPRECATED**: 只能解密，不能加密
+- **DESTROYED**: 已销毁，密钥材料已擦除
+
+#### 密钥层次结构
+
+```
+Root Key (硬件保护)
+  ├─ Tenant A Master Key
+  │   ├─ App Key: database-encryption
+  │   └─ App Key: file-encryption
+  └─ Tenant B Master Key
+      └─ App Key: api-encryption
+```
+
+### 4.4 密钥派生 (KDF)
+
+从主密钥派生应用密钥，隔离风险。
+
+```rust
+use ciphern::Algorithm;
+use ciphern::key::manager::KeyManager;
+
+let km = KeyManager::new()?;
+let key_id = km.generate_key(Algorithm::HKDF)?;
+// 实际派生操作通常通过特定 Provider 完成
+```
+
 ---
 
 ## 5. 高级特性
@@ -356,6 +331,7 @@ Ciphern 提供了多层密钥保护：
 use ciphern::{fips, Result};
 
 fn main() -> Result<()> {
+    // 检查 FIPS 模式是否启用
     if fips::is_fips_enabled() {
         println!("Running in FIPS 140-3 mode");
     }
@@ -365,31 +341,32 @@ fn main() -> Result<()> {
 
 ### 5.2 侧信道防护
 
-Ciphern 实现了针对功耗分析攻击的防护（如 AES 恒定时间实现）：
+Ciphern 实现了针对侧信道攻击的防护，包括恒定时间操作以防止定时攻击。
 
 ```rust
-use ciphern::side_channel::ConstantTime;
+use ciphern::side_channel::constant_time_eq;
 
 // 示例：恒定时间比较
 let a = b"password";
 let b = b"password";
-let is_equal = ConstantTime::compare(a, b);
+let is_equal = constant_time_eq(a, b);
 ```
 
-        manager.get_key_state(old_key_id)?,
-        KeyState::Rotating
-    );
-    
-    // 新密钥进入 ACTIVE 状态
-    assert_eq!(
-        manager.get_key_state(new_key_id)?,
-        KeyState::Active
-    );
-    
-    Ok(new_key_id)
+### 5.3 密钥状态管理
 
+Ciphern 提供完整的密钥生命周期管理。
+
+```rust
+use ciphern::key::KeyState;
+
+fn check_key_state(manager: &KeyManager, key_id: &str) -> Result<()> {
+    let key = manager.get_key(key_id)?;
+    
+    // 检查密钥是否处于 ACTIVE 状态
+    assert_eq!(key.state(), KeyState::Active);
+    
+    Ok(())
 }
-
 ```
 
 #### 密钥销毁
@@ -400,7 +377,7 @@ let is_equal = ConstantTime::compare(a, b);
 // km.delete_key(key_id)?;
 ```
 
-### 4.2 多租户密钥隔离
+### 4.5 多租户密钥隔离
 
 Ciphern 通过 `KeyManager` 支持基于 ID 的密钥生成，便于在多租户环境中隔离密钥。
 
@@ -423,7 +400,7 @@ fn multi_tenant_example(km: &KeyManager) -> Result<()> {
 let key_id = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-a-key-1")?;
 ```
 
-### 4.3 密钥派生与分层
+### 4.6 密钥派生与分层
 
 #### HKDF 密钥派生
 
@@ -688,10 +665,22 @@ decrypted = cipher.decrypt(km, key_id, ciphertext)
 assert plaintext == decrypted
 ```
 
+#### 异步支持 (Asyncio)
+
+```python
+import asyncio
+from ciphern.aio import Cipher, KeyManager
+
+async def encrypt_async():
+    km = await KeyManager.new()
+    key_id = await km.generate_key(Algorithm.AES256GCM)
+    cipher = await Cipher.new(Algorithm.AES256GCM)
+    
+    plaintext = b"Async data"
+    ciphertext = await cipher.encrypt(km, key_id, plaintext)
     return ciphertext
 
 asyncio.run(encrypt_async())
-
 ```
 
 ---
@@ -855,12 +844,13 @@ enable_mlock = false
 #### 启用详细日志
 
 ```bash
+# 设置日志级别
 export RUST_LOG=ciphern=debug
+# 启用回溯
 export RUST_BACKTRACE=1
-```
 
+# 运行应用
 ./your_application
-
 ```
 
 #### 性能分析
@@ -1080,17 +1070,10 @@ CMD ["./target/release/your_app"]
 
 ### B. 示例代码索引
 
-- [基础加密](examples/basic_encryption.rs)
-- [数字签名](examples/digital_signature.rs)
-- [密钥管理](examples/key_management.rs)
-
-### C. 术语表
-
-详见 [GLOSSARY.md](GLOSSARY.md)
-
-### D. 配置参考
-
-完整配置选项见 [ciphern.toml.example](examples/ciphern.toml.example)
+- [基础加密](tests/unit/cipher_test.rs)
+- [数字签名](tests/unit/signature_test.rs)
+- [密钥管理](tests/unit/key_test.rs)
+- [端到端集成](tests/integration/end_to_end_test.rs)
 
 ------
 
