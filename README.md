@@ -22,14 +22,12 @@ encryption, communication encryption, and key management.
 - **Multi-layer Protection**: Memory protection, side-channel resistance, and key isolation.
 - **Compliance**: Compliant with Chinese National Standards (SM2/SM3/SM4) and FIPS 140-3.
 - **Zero-Knowledge Auditing**: Full operation logs without leaking sensitive data.
-- **Automatic Key Rotation**: Lifecycle management meeting compliance requirements.
 
 ### ⚡ High Performance
-
-- **SIMD Optimization**: AES-256 throughput > 3 GB/s (AVX2).
-- **Hardware Acceleration**: Supports AES-NI and ARM Crypto Extensions.
 - **Zero-Copy Design**: Minimizes memory allocation and copying.
-- **Intelligent Caching**: Reuses keys and algorithm instances.
+- **Smart Caching**: Reuses keys and algorithm instances.
+- **Pure Rust Implementation**: No external dependencies, compile-time optimizations.
+> Note: SIMD optimization and hardware acceleration features are under development
 
 ### 🔧 Easy Integration
 
@@ -37,13 +35,14 @@ encryption, communication encryption, and key management.
 - **Multi-language Support**: Rust / Java / Python / C.
 - **Pluggable Architecture**: Allows user-defined cryptographic algorithms.
 - **Rich Examples**: Covers common usage scenarios.
+> Note: JavaScript WASM bindings are under development
 
 ### 🌐 Standard Compatibility
 
-- **International Standards**: AES-256, ECDSA-P384, SHA-256/384/512.
-- **National Standards**: SM2, SM3, SM4.
-- **Key Derivation**: HKDF, PBKDF2, Argon2id.
-- **Protocol Support**: TLS 1.3, JWE, PKCS#11.
+- **International Standards**: AES-128/192/256-GCM, ECDSA-P256/P384/P521, RSA-2048/3072/4096, SHA-256/384/512, SHA3-256/384/512, Ed25519
+- **National Standards**: SM2, SM3, SM4-GCM
+- **Key Derivation**: HKDF, PBKDF2, SM3-KDF, Argon2id
+> Note: TLS 1.3, JWE, and PKCS#11 support are under development
 
 ---
 
@@ -83,6 +82,9 @@ pip install ciphern
 use ciphern::{Cipher, Algorithm, KeyManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize the library (required)
+    ciphern::init()?;
+    
     // Initialize KeyManager
     let km = KeyManager::new()?;
 
@@ -111,6 +113,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 use ciphern::{Signer, Algorithm, KeyManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize the library (required)
+    ciphern::init()?;
+    
     // Initialize KeyManager
     let km = KeyManager::new()?;
 
@@ -139,6 +144,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 use ciphern::{Cipher, Algorithm, KeyManager, Hash};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize the library (required)
+    ciphern::init()?;
+    
     let km = KeyManager::new()?;
 
     // SM4 Encryption
@@ -154,7 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-#### Java Example
+#### Java Example (Partial Implementation)
 
 ```java
 import com.ciphern.*;
@@ -177,7 +185,7 @@ public class Example {
 }
 ```
 
-#### Python Example
+#### Python Example (Partial Implementation)
 
 ```python
 from ciphern import Cipher, Algorithm, KeyManager
@@ -227,13 +235,16 @@ Protect sensitive data in databases and file systems.
 ```rust
 use ciphern::{Cipher, KeyManager, Algorithm};
 
-let km = KeyManager::new() ?;
-let key_id = km.generate_key_with_alias(Algorithm::AES256GCM, "database-encryption") ?;
-let cipher = Cipher::new(Algorithm::AES256GCM) ?;
+// Initialize the library (required)
+ciphern::init()?;
+
+let km = KeyManager::new()?;
+let key_id = km.generate_key_with_alias(Algorithm::AES256GCM, "database-encryption")?;
+let cipher = Cipher::new(Algorithm::AES256GCM)?;
 
 // Encrypt sensitive field
-let encrypted_ssn = cipher.encrypt( & km, & key_id, user.ssn.as_bytes()) ?;
-db.save_encrypted_field(user.id, "ssn", & encrypted_ssn) ?;
+let encrypted_ssn = cipher.encrypt(&km, &key_id, user.ssn.as_bytes())?;
+db.save_encrypted_field(user.id, "ssn", &encrypted_ssn)?;
 ```
 
 ### API Communication Encryption
@@ -243,38 +254,36 @@ Protect the confidentiality and integrity of API requests and responses.
 ```rust
 use ciphern::{Signer, Algorithm, KeyManager};
 
-let km = KeyManager::new() ?;
-let key_id = km.generate_key(Algorithm::ECDSAP384) ?;
-let signer = Signer::new(Algorithm::ECDSAP384) ?;
-let signature = signer.sign( & km, & key_id, & request_body) ?;
+// Initialize the library (required)
+ciphern::init()?;
+
+let km = KeyManager::new()?;
+let key_id = km.generate_key(Algorithm::ECDSAP384)?;
+let signer = Signer::new(Algorithm::ECDSAP384)?;
+let signature = signer.sign(&km, &key_id, &request_body)?;
 
 http_request
-.header("X-Signature", base64::encode( & signature))
+.header("X-Signature", base64::encode(&signature))
 .body(request_body)
-.send() ?;
+.send()?;
 ```
 
 ### Key Management
 
-Automatic rotation, multi-tenant isolation, and audit logging.
+Multi-tenant isolation and audit logging.
 
 ```rust
-use ciphern::key::{KeyLifecycleManager, KeyLifecyclePolicy, KeyManagerLifecycleExt};
-use ciphern::types::Algorithm;
-use std::sync::Arc;
+use ciphern::{KeyManager, Algorithm};
+use ciphern::audit::AuditLogger;
 
-let mut km = KeyManager::new() ?;
-let klm = Arc::new(KeyLifecycleManager::new());
-km.enable_lifecycle_management(klm);
+// Initialize the library (required)
+ciphern::init()?;
 
-let key_id = km.generate_key(Algorithm::AES256GCM) ?;
+// Initialize audit system
+AuditLogger::init();
 
-// Key lifecycle policy (example)
-let policy = KeyLifecyclePolicy {
-rotation_period_days: 90,
-grace_period_days: 7,
-..Default::default ()
-};
+let km = KeyManager::new()?;
+let key_id = km.generate_key(Algorithm::AES256GCM)?;
 ```
 
 ---
@@ -301,18 +310,19 @@ let result = Cipher::new(Algorithm::SM4GCM);
 assert!(result.is_err()); // CryptoError::FipsError
 ```
 
-### SIMD Performance Optimization
+### SIMD Performance Optimization (Under Development)
 
 ```toml
 [dependencies]
 ciphern = { version = "0.1", features = ["simd"] }
 ```
 
-Automatically detects CPU features and uses the optimal implementation:
-
+Planned features:
 - **x86_64**: AES-NI + AVX2
-- **ARM64**: ARM Crypto Extensions
+- **ARM64**: ARM Crypto Extensions  
 - **Fallback**: Pure software implementation
+
+> Note: SIMD optimization is currently under development
 
 ### Audit Logging and Monitoring
 
@@ -336,27 +346,29 @@ use ciphern::plugin::{Plugin, CipherPlugin};
 
 ## 📊 Performance Metrics
 
-### Throughput (x86_64, Intel i9-12900K, Single Core)
+Performance metrics are available through the built-in `AuditLogger` system:
 
-| Algorithm   | Scalar   | SIMD (SSE) | SIMD (AVX2)  |
-|-------------|----------|------------|--------------|
-| AES-256-GCM | 500 MB/s | 1.5 GB/s   | **3.2 GB/s** |
-| SM4-GCM     | 200 MB/s | 600 MB/s   | **1.1 GB/s** |
-| SHA-256     | 300 MB/s | 800 MB/s   | **1.5 GB/s** |
+```rust
+use ciphern::audit::{AuditLogger, PerformanceStats};
 
-### Latency (1KB Data)
+// Initialize audit system
+AuditLogger::init();
 
-| Operation         | P50    | P99    | P99.9  |
-|-------------------|--------|--------|--------|
-| AES-256 Encrypt   | 2.1 μs | 3.5 μs | 8.2 μs |
-| ECDSA-P384 Sign   | 180 μs | 250 μs | 400 μs |
-| ECDSA-P384 Verify | 280 μs | 380 μs | 600 μs |
+// Get performance statistics
+let stats = AuditLogger::get_performance_stats();
+println!("Total operations: {}", stats.total_operations);
+println!("Average latency: {} μs", stats.avg_latency_us);
+println!("Average throughput: {} ops/sec", stats.avg_throughput_ops_per_sec);
+println!("Cache hit rate: {}%", stats.avg_cache_hit_rate * 100.0);
+```
 
 Run benchmarks:
 
 ```bash
 cargo bench
 ```
+
+> Note: Detailed throughput and latency benchmarks will be available once the SIMD optimization features are implemented. Current performance metrics are tracked via the audit system.
 
 ---
 
@@ -366,18 +378,24 @@ cargo bench
 
 - ✅ **Constant-time Implementation**: Prevents timing attacks.
 - ✅ **Automatic Memory Zeroing**: Uses `zeroize` to securely clear keys.
-- ✅ **Memory Locking**: Prevents keys from being swapped to disk.
-- ✅ **Memory Tampering Detection**: Double protection with Canary + Checksum.
-- ✅ **Side-channel Protection**: Optional power analysis protection.
+- ✅ **Memory Locking**: Uses `mlock` to prevent keys from being swapped to disk (Unix systems).
+- ✅ **Memory Tampering Detection**: ProtectedKey with canary + checksum for integrity verification.
+- ✅ **Audit Logging**: Built-in operation logging and performance monitoring.
+> Note: Side-channel protection and power analysis resistance are under development
 
 ### Security Audit
 
-Ciphern has passed the following security tests:
+Ciphern includes basic security testing:
 
-- ✅ NIST CAVP test vector verification.
-- ✅ 24-hour continuous fuzzing (no crashes).
-- ✅ Valgrind memory check (no leaks).
-- ✅ Third-party security audit (report available at [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)).
+- ✅ Basic test vector verification
+- ✅ Memory safety through Rust's type system
+- ✅ Audit logging for operation tracking
+
+Planned security enhancements:
+- NIST CAVP test vector verification
+- Continuous fuzzing
+- Third-party security audit
+> Note: Security audit documentation will be available once formal audits are completed
 
 ### Vulnerability Reporting
 
@@ -392,8 +410,7 @@ See [SECURITY.md](SECURITY.md) for more details.
 ### Prerequisites
 
 - Rust 1.75+ (stable)
-- OpenSSL 3.0+ (Linux/macOS)
-- CMake 3.15+ (for compiling C extensions)
+- For Unix systems: Standard development tools (gcc, make)
 
 ### Build
 
@@ -408,12 +425,11 @@ cargo build --release
 # Enable all features
 cargo build --release --all-features
 
-# FIPS mode
+# FIPS mode (basic compliance)
 cargo build --release --features fips
-
-# SIMD optimization
-cargo build --release --features simd
 ```
+
+> Note: SIMD optimization features are under development
 
 ### Test
 
@@ -421,25 +437,28 @@ cargo build --release --features simd
 # Run all tests
 cargo test --all-features
 
-# Test coverage
-cargo tarpaulin --out Html --all-features
-
-# Fuzzing (requires nightly)
-cargo +nightly fuzz run fuzz_encrypt
+# Run specific test suites
+cargo test --test memory_protection_test
+cargo test --test signature_test
+cargo test --test key_test
 ```
+
+> Note: Test coverage and fuzzing tools will be configured in future releases
 
 ### Cross-Compilation
 
 ```bash
-# ARM64 Linux
+# ARM64 Linux (with appropriate target installed)
 cargo build --target aarch64-unknown-linux-gnu --release
 
-# Windows
+# Windows (with appropriate target installed)
 cargo build --target x86_64-pc-windows-msvc --release
 
-# macOS ARM (Apple Silicon)
+# macOS ARM (Apple Silicon, with appropriate target installed)
 cargo build --target aarch64-apple-darwin --release
 ```
+
+> Note: Cross-compilation requires installing the appropriate Rust targets and system toolchains
 
 ---
 

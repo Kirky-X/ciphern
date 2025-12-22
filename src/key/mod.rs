@@ -3,6 +3,7 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+#[cfg(feature = "kdf")]
 pub mod derivation;
 pub mod lifecycle;
 pub mod manager;

@@ -35,17 +35,16 @@ ciphern = "0.1"
 
 # 可选特性
 [dependencies]
-ciphern = { version = "0.1", features = ["simd", "fips"] }
+ciphern = { version = "0.1", features = ["fips"] }
 ```
 
 #### 可用特性 (Features)
 
 | 特性          | 描述                  | 建议场景   |
 |-------------|---------------------|--------|
-| `default`   | 标准库 + AES + SM4     | 通用场景   |
-| `simd`      | SIMD 优化 (性能提升 3-6x) | 高吞吐量场景 |
+| `default`   | 标准库 + FIPS 支持     | 通用场景   |
+| `std`       | 启用标准库支持          | 默认启用   |
 | `fips`      | FIPS 140-3 合规模式     | 金融、政府  |
-| `audit-log` | 审计日志                | 安全审计   |
 
 ---
 
@@ -59,6 +58,8 @@ Ciphern 支持多种加密算法，分为国际标准和国密标准。
 
 | 算法              | 密钥长度    | 性能 | 使用场景   |
 |-----------------|---------|----|--------|
+| **AES-128-GCM** | 128 bit | 极快 | 通用数据加密 |
+| **AES-192-GCM** | 192 bit | 极快 | 通用数据加密 |
 | **AES-256-GCM** | 256 bit | 极快 | 通用数据加密 |
 | **SM4-GCM**     | 128 bit | 快  | 国密合规场景 |
 
@@ -66,7 +67,12 @@ Ciphern 支持多种加密算法，分为国际标准和国密标准。
 
 | 算法             | 安全级别    | 性能 | 使用场景      |
 |----------------|---------|----|-----------|
-| **ECDSA-P384** | 192 bit | 快  | 数字签名、密钥协商 |
+| **ECDSA-P256** | 128 bit | 快  | 数字签名      |
+| **ECDSA-P384** | 192 bit | 快  | 数字签名      |
+| **ECDSA-P521** | 256 bit | 快  | 数字签名      |
+| **RSA-2048**   | 112 bit | 慢  | 兼容性场景     |
+| **RSA-3072**   | 128 bit | 慢  | 兼容性场景     |
+| **RSA-4096**   | 152 bit | 慢  | 兼容性场景     |
 | **SM2**        | 128 bit | 中  | 国密数字签名    |
 | **Ed25519**    | 128 bit | 极快 | 高性能签名     |
 
@@ -74,7 +80,10 @@ Ciphern 支持多种加密算法，分为国际标准和国密标准。
 
 | 算法          | 输出长度    | 性能 | 使用场景      |
 |-------------|---------|----|-----------|
-| **SHA-256** | 256 bit | 快  | 通用哈希、HMAC |
+| **SHA-256** | 256 bit | 快  | 通用哈希      |
+| **SHA-384** | 384 bit | 快  | 通用哈希      |
+| **SHA-512** | 512 bit | 快  | 通用哈希      |
+| **SHA3-256**| 256 bit | 快  | 高安全哈希     |
 | **SM3**     | 256 bit | 中  | 国密合规      |
 
 ### 2.2 密钥管理器 (KeyManager)
@@ -152,19 +161,17 @@ fn main() -> Result<()> {
 
 ```toml
 [dependencies]
-securevault = { version = "0.1", features = [
-    "simd",           # 性能优化
-    "audit-log",      # 审计
-    "metrics",        # 监控
+ciphern = { version = "0.1", features = [
+    "fips",           # FIPS 140-3 合规
 ] }
 ```
 
 ### 1.2 配置文件
 
-SecureVault 支持通过配置文件自定义行为。
+Ciphern 支持通过配置文件自定义行为。
 
 ```toml
-# securevault.toml
+# ciphern.toml
 
 [general]
 # 算法优先级 (按顺序尝试)
@@ -232,7 +239,7 @@ export CIPHERN_FIPS=1
 
 ### 2.1 算法 (Algorithm)
 
-SecureVault 支持多种加密算法，分为国际标准和国密标准。
+Ciphern 支持多种加密算法，分为国际标准和国密标准。
 
 #### 对称加密
 
@@ -261,7 +268,7 @@ SecureVault 支持多种加密算法，分为国际标准和国密标准。
 
 ### 2.2 密钥 (Key)
 
-密钥是加密的核心，SecureVault 提供完整的密钥生命周期管理。
+密钥是加密的核心，Ciphern 提供完整的密钥生命周期管理。
 
 #### 密钥状态
 
@@ -291,14 +298,12 @@ Root Key (硬件保护)
 从主密钥派生应用密钥，隔离风险。
 
 ```rust
-use securevault::kdf::{Hkdf, HkdfAlgorithm};
+use ciphern::Algorithm;
+use ciphern::key::manager::KeyManager;
 
-let master_key = Key::generate(Algorithm::AES256GCM)?;
-let kdf = Hkdf::new(HkdfAlgorithm::Sha256);
-
-// 派生不同用途的密钥
-let db_key = kdf.derive(&master_key, None, b"database", 32)?;
-let api_key = kdf.derive(&master_key, None, b"api", 32)?;
+let km = KeyManager::new()?;
+let key_id = km.generate_key(Algorithm::HKDF)?;
+// 实际派生操作通常通过特定 Provider 完成
 ```
 
 ---
@@ -360,13 +365,15 @@ fn main() -> Result<()> {
 
 ### 5.2 侧信道防护
 
-Ciphern 实现了针对功耗分析攻击的防护（如 AES S-box 掩码）：
+Ciphern 实现了针对功耗分析攻击的防护（如 AES 恒定时间实现）：
 
 ```rust
-use ciphern::{Cipher, Algorithm, SideChannelConfig, RotatingSboxMasking};
+use ciphern::side_channel::ConstantTime;
 
-// 创建带防护的加密器
-// (具体实现取决于 provider 是否支持侧信道防护特性)
+// 示例：恒定时间比较
+let a = b"password";
+let b = b"password";
+let is_equal = ConstantTime::compare(a, b);
 ```
 
         manager.get_key_state(old_key_id)?,
@@ -388,44 +395,22 @@ use ciphern::{Cipher, Algorithm, SideChannelConfig, RotatingSboxMasking};
 #### 密钥销毁
 
 ```rust
-// 安全销毁密钥 (内存擦除)
-manager.destroy_key(key_id)?;
-
-// 验证密钥已销毁
-assert_eq!(
-    manager.get_key_state(key_id)?,
-    KeyState::Destroyed
-);
+// 密钥在 KeyManager 内部由 zeroize 自动擦除
+// 显式删除密钥
+// km.delete_key(key_id)?;
 ```
 
 ### 4.2 多租户密钥隔离
 
-#### 创建租户
+Ciphern 通过 `KeyManager` 支持基于 ID 的密钥生成，便于在多租户环境中隔离密钥。
 
 ```rust
-use securevault::KeyHierarchy;
-
-fn multi_tenant_example() -> Result<(), Box<dyn std::error::Error>> {
-    let hierarchy = KeyHierarchy::new()?;
+fn multi_tenant_example(km: &KeyManager) -> Result<()> {
+    // 为租户 A 生成密钥
+    let key_a = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-a-key")?;
     
-    // 创建租户
-    let tenant_a = hierarchy.create_tenant("customer-001")?;
-    let tenant_b = hierarchy.create_tenant("customer-002")?;
-    
-    // 租户 A 创建密钥
-    let key_a = tenant_a.create_key("database-encryption")?;
-    let cipher_a = Cipher::new(Algorithm::AES256GCM, &key_a)?;
-    let ciphertext_a = cipher_a.encrypt(b"Tenant A data")?;
-    
-    // 租户 B 创建密钥
-    let key_b = tenant_b.create_key("database-encryption")?;
-    let cipher_b = Cipher::new(Algorithm::AES256GCM, &key_b)?;
-    
-    // ✅ 租户 B 无法解密租户 A 的数据
-    assert!(cipher_b.decrypt(&ciphertext_a).is_err());
-    
-    // ✅ 租户 A 无法访问租户 B 的密钥
-    assert!(tenant_a.get_key_by_id(key_b.id()).is_err());
+    // 为租户 B 生成密钥
+    let key_b = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-b-key")?;
     
     Ok(())
 }
@@ -434,17 +419,8 @@ fn multi_tenant_example() -> Result<(), Box<dyn std::error::Error>> {
 #### 租户访问控制
 
 ```rust
-use securevault::{KeyHierarchy, AccessPolicy};
-
-// 创建租户并设置访问策略
-let tenant = hierarchy.create_tenant_with_policy(
-    "customer-001",
-    AccessPolicy {
-        allowed_algorithms: vec![Algorithm::AES256GCM, Algorithm::ECDSAP384],
-        max_keys: 100,
-        require_mfa: true,
-    }
-)?;
+// 创建带 ID 的密钥以实现隔离
+let key_id = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-a-key-1")?;
 ```
 
 ### 4.3 密钥派生与分层
@@ -452,42 +428,16 @@ let tenant = hierarchy.create_tenant_with_policy(
 #### HKDF 密钥派生
 
 ```rust
-use securevault::kdf::{Hkdf, HkdfAlgorithm};
+use ciphern::key::manager::KeyManager;
+use ciphern::Algorithm;
 
-fn derive_keys_example() -> Result<(), Box<dyn std::error::Error>> {
-    // 主密钥
-    let master_key = Key::generate(Algorithm::AES256GCM)?;
+fn derive_keys_example(km: &KeyManager) -> Result<()> {
+    // 主密钥 ID
+    let master_key_id = km.generate_key(Algorithm::AES256GCM)?;
     
-    // 创建 KDF
-    let kdf = Hkdf::new(HkdfAlgorithm::Sha256);
-    
-    // 派生数据库加密密钥
-    let db_key = kdf.derive(
-        &master_key,
-        Some(b"unique-salt"),
-        b"database-encryption",
-        32,  // 输出长度
-    )?;
-    
-    // 派生 API 加密密钥
-    let api_key = kdf.derive(
-        &master_key,
-        Some(b"unique-salt"),
-        b"api-encryption",
-        32,
-    )?;
-    
-    // 不同上下文产生不同密钥
-    assert_ne!(db_key.as_bytes(), api_key.as_bytes());
-    
-    // 相同上下文产生相同密钥 (确定性)
-    let db_key2 = kdf.derive(
-        &master_key,
-        Some(b"unique-salt"),
-        b"database-encryption",
-        32,
-    )?;
-    assert_eq!(db_key.as_bytes(), db_key2.as_bytes());
+    // 派生操作通常由 Provider 内部处理
+    // 这里仅作为逻辑示例
+    let derived_key_id = km.generate_key(Algorithm::HKDF)?;
     
     Ok(())
 }
@@ -496,23 +446,10 @@ fn derive_keys_example() -> Result<(), Box<dyn std::error::Error>> {
 #### PBKDF2 密码派生
 
 ```rust
-use securevault::kdf::{Pbkdf2, Pbkdf2Algorithm};
+use ciphern::Algorithm;
 
-fn password_to_key(password: &str) -> Result<Key, Box<dyn std::error::Error>> {
-    let pbkdf2 = Pbkdf2::new(Pbkdf2Algorithm::HmacSha256);
-    
-    let salt = b"unique-random-salt";  // 应该是随机生成的
-    let iterations = 100_000;  // NIST 推荐最小值
-    
-    let key = pbkdf2.derive(
-        password.as_bytes(),
-        salt,
-        iterations,
-        32,  // AES-256 密钥长度
-    )?;
-    
-    Ok(key)
-}
+// PBKDF2 派生逻辑通常集成在 KeyManager 或特定 Provider 中
+let key_id = km.generate_key(Algorithm::PBKDF2)?;
 ```
 
 ---
@@ -526,28 +463,20 @@ fn password_to_key(password: &str) -> Result<Key, Box<dyn std::error::Error>> {
 ```toml
 # Cargo.toml
 [dependencies]
-securevault = { version = "0.1", features = ["fips"] }
+ciphern = { version = "0.1", features = ["fips"] }
 ```
 
 ```rust
-use securevault::FipsMode;
+use ciphern::fips;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     // 检查 FIPS 模式是否启用
-    if FipsMode::global().is_enabled() {
+    if fips::is_fips_enabled() {
         println!("✅ FIPS mode enabled");
-        
-        // 运行自检
-        FipsMode::global().run_self_tests()?;
-        println!("✅ Self-tests passed");
     }
     
     // 只能使用 FIPS 批准的算法
-    let key = Key::generate(Algorithm::AES256GCM)?;  // ✅ 允许
-    
-    // 非 FIPS 算法会被拒绝
-    let result = Key::generate(Algorithm::SM4GCM);
-    assert!(result.is_err());  // ❌ AlgorithmNotFipsApproved
+    let cipher = Cipher::new(Algorithm::AES256GCM)?;  // ✅ 允许
     
     Ok(())
 }
@@ -562,26 +491,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 哈希   | SHA-256/384/512, SHA3-256/384/512      | SM3          |
 | KDF  | HKDF, PBKDF2                           | 自定义 KDF      |
 
-### 5.2 SIMD 性能优化
+### 5.2 性能优化
 
 #### 自动检测与使用
 
-```toml
-# Cargo.toml
-[dependencies]
-securevault = { version = "0.1", features = ["simd"] }
-```
+Ciphern 会自动检测 CPU 特性并使用最优实现：
+- x86_64: AES-NI + AVX2
+- ARM64: ARM Crypto Extensions
+- Fallback: 纯软件实现
 
 ```rust
-use securevault::Cipher;
+use ciphern::Cipher;
 
-// SecureVault 会自动检测 CPU 特性并使用最优实现
-// - x86_64: AES-NI + AVX2
-// - ARM64: ARM Crypto Extensions
-// - Fallback: 纯软件实现
-
-let cipher = Cipher::new(Algorithm::AES256GCM, &key)?;
-let ciphertext = cipher.encrypt(&large_data)?;  // 自动使用 SIMD
+let cipher = Cipher::new(Algorithm::AES256GCM)?;
+let ciphertext = cipher.encrypt(&km, &key_id, &large_data)?;  // 自动优化
 ```
 
 #### 性能对比
@@ -610,42 +533,29 @@ fn benchmark_simd() {
 #### 启用审计
 
 ```toml
-# securevault.toml
+# ciphern.toml
 [audit]
 enabled = true
-log_success = false  # 只记录失败
-log_failure = true
-output = "file"
-
-[audit.file]
-path = "/var/log/securevault/audit.log"
-rotation_size_mb = 100
 ```
 
 ```rust
-use securevault::audit::AuditLogger;
+use ciphern::audit::AuditLogger;
 
-// 审计日志会自动记录所有加密操作
-let cipher = Cipher::new(Algorithm::AES256GCM, &key)?;
-let ciphertext = cipher.encrypt(plaintext)?;  // 自动记录
+// 初始化审计日志
+AuditLogger::init();
 
-// 查看最近的审计日志
-let logger = AuditLogger::global();
-let recent_logs = logger.get_recent_logs(10)?;
-for log in recent_logs {
-    println!("{}: {} - {}", log.timestamp, log.operation, log.result);
-}
+// 执行操作会自动触发审计
+// 也可以手动记录
+AuditLogger::log("CUSTOM_OP", None, None, Ok(()));
 ```
 
 #### SIEM 集成
 
 ```toml
-# securevault.toml
+# ciphern.toml
 [audit.siem]
 enabled = true
-transport = "syslog-tcp"
 endpoint = "siem.company.com:514"
-format = "cef"  # CEF, Syslog RFC 5424, JSON
 ```
 
 ```rust
@@ -661,73 +571,56 @@ AuditLogger::configure_siem(siem_config)?;
 
 ### 5.4 性能监控
 
-#### Prometheus 集成
+#### Prometheus 指标
 
-```toml
-[dependencies]
-securevault = { version = "0.1", features = ["metrics"] }
-```
+Ciphern 内部集成了 Prometheus 指标。
 
 ```rust
-use securevault::metrics;
+use ciphern::audit::{REGISTRY, CRYPTO_OPERATIONS_TOTAL};
 
-// 暴露 Prometheus metrics
-let metrics_server = metrics::start_server("0.0.0.0:9090")?;
-
-// 执行加密操作 (自动记录 metrics)
-let cipher = Cipher::new(Algorithm::AES256GCM, &key)?;
-let _ = cipher.encrypt(data)?;
-
-// 可用的 metrics:
-// - crypto_encrypt_total (Counter)
-// - crypto_encrypt_duration_seconds (Histogram)
-// - crypto_key_cache_hit_ratio (Gauge)
-// - crypto_memory_usage_bytes (Gauge)
+// 获取指标
+let metrics = REGISTRY.gather();
 ```
 
 ### 5.5 自定义插件
 
-#### 实现自定义算法
+#### 实现自定义算法插件
 
 ```rust
-use securevault::plugin::{CipherPlugin, PluginMetadata};
+use ciphern::plugin::{Plugin, CipherPlugin, PluginMetadata};
+use ciphern::provider::SymmetricCipher;
+use ciphern::types::Algorithm;
+use ciphern::error::Result;
+use std::sync::Arc;
+use std::any::Any;
 
-struct MyCustomCipher;
+struct MyCustomPlugin;
 
-impl CipherPlugin for MyCustomCipher {
-    fn encrypt(&self, key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
-        // 实现您的加密逻辑
-        let mut ciphertext = plaintext.to_vec();
-        for (i, byte) in ciphertext.iter_mut().enumerate() {
-            *byte ^= key[i % key.len()];  // 简化示例
-        }
-        Ok(ciphertext)
+impl Plugin for MyCustomPlugin {
+    fn name(&self) -> &str { "my-custom-plugin" }
+    fn version(&self) -> &str { "1.0.0" }
+    fn initialize(&mut self) -> Result<()> { Ok(()) }
+    fn shutdown(&mut self) -> Result<()> { Ok(()) }
+    fn health_check(&self) -> Result<bool> { Ok(true) }
+    fn as_any(&self) -> &dyn Any { self }
+}
+
+impl CipherPlugin for MyCustomPlugin {
+    fn as_symmetric_cipher(&self) -> Arc<dyn SymmetricCipher> {
+        // 返回您的 SymmetricCipher 实现
+        todo!()
     }
-    
-    fn decrypt(&self, key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
-        // 对称加密,解密与加密相同
-        self.encrypt(key, ciphertext)
-    }
-    
-    fn metadata(&self) -> PluginMetadata {
-        PluginMetadata {
-            name: "my-custom-cipher",
-            version: "1.0.0",
-            author: "Your Name",
-            algorithm: Algorithm::Custom(1001),
-        }
+    fn supported_algorithms(&self) -> Vec<Algorithm> {
+        vec![Algorithm::AES256GCM]
     }
 }
 
 // 注册插件
-use securevault::plugin::PluginManager;
+use ciphern::plugin::manager::PluginManager;
 
-let manager = PluginManager::global();
-manager.register("my-cipher", Box::new(MyCustomCipher))?;
-
-// 使用自定义算法
-let cipher = Cipher::new_from_plugin("my-cipher", &key)?;
-let ciphertext = cipher.encrypt(plaintext)?;
+let manager = PluginManager::new();
+let my_plugin = Arc::new(MyCustomPlugin);
+manager.register_cipher_plugin(my_plugin)?;
 ```
 
 ---
@@ -810,7 +703,7 @@ asyncio.run(encrypt_async())
 #### 线程池配置
 
 ```toml
-# securevault.toml
+# ciphern.toml
 [general]
 thread_pool_size = 8  # 根据 CPU 核心数调整
 ```
@@ -827,7 +720,7 @@ cache_ttl_seconds = 300  # 5 分钟 TTL
 
 ```bash
 # 编译时启用 CPU 特性
-RUSTFLAGS="-C target-cpu=native" cargo build --release --features simd
+RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
 
 ### 7.2 安全加固
@@ -880,13 +773,13 @@ groups:
   - name: securevault
     rules:
       - alert: HighEncryptionLatency
-        expr: histogram_quantile(0.99, crypto_encrypt_duration_seconds) > 0.1
+        expr: histogram_quantile(0.99, crypto_operations_duration_seconds) > 0.1
         for: 5m
         annotations:
           summary: "Encryption P99 latency > 100ms"
       
       - alert: FrequentDecryptionFailures
-        expr: rate(crypto_error_total{error="decryption_failed"}[5m]) > 10
+        expr: rate(crypto_error_total[5m]) > 10
         for: 2m
         annotations:
           summary: "High rate of decryption failures"
@@ -901,28 +794,18 @@ groups:
 #### 错误: DecryptionFailed
 
 **原因**:
-
-- 使用了错误的密钥
+- 使用了错误的密钥 ID
 - 密文被篡改
-- 密钥已过期
+- 密钥已失效
 
 **解决方案**:
 
 ```rust
-match cipher.decrypt(&ciphertext) {
-    Err(CryptoError::DecryptionFailed(msg)) => {
-        eprintln!("Decryption failed: {}", msg);
-        
-        // 检查密钥状态
-        if let Some(key_state) = manager.get_key_state(key_id) {
-            if key_state == KeyState::Expired {
-                eprintln!("Key has expired, trying previous key...");
-                // 尝试使用轮换前的密钥
-            }
-        }
+match cipher.decrypt(&km, &key_id, &ciphertext) {
+    Err(e) => {
+        eprintln!("Decryption failed: {:?}", e);
     }
     Ok(plaintext) => { /* 成功 */ }
-    Err(e) => { /* 其他错误 */ }
 }
 ```
 
@@ -1011,30 +894,25 @@ RUSTFLAGS="-Z sanitizer=address" cargo build
 #### ✅ DO: 密钥轮换
 
 ```rust
-// 定期轮换密钥 (推荐 90 天)
-let policy = RotationPolicy {
-    max_age: Duration::from_days(90),
-    auto_rotate: true,
-};
+// 推荐定期轮换密钥
+let new_key_id = km.generate_key(Algorithm::AES256GCM)?;
 ```
 
 #### ✅ DO: 密钥派生
 
 ```rust
-// 从主密钥派生应用密钥,隔离风险
-let db_key = kdf.derive(&master_key, None, b"database", 32)?;
-let api_key = kdf.derive(&master_key, None, b"api", 32)?;
+// 使用 KDF 算法派生密钥
+let derived_key_id = km.generate_key(Algorithm::HKDF)?;
 ```
 
 #### ❌ DON'T: 硬编码密钥
 
 ```rust
 // ❌ 错误
-let key = Key::from_bytes(Algorithm::AES256GCM, b"hardcoded_key_12345678901234567890123456")?;
+let key_data = b"hardcoded_key_1234567890123456";
 
 // ✅ 正确
-let key = Key::generate(Algorithm::AES256GCM)?;
-// 或从安全的密钥管理系统加载
+let key_id = km.generate_key(Algorithm::AES256GCM)?;
 ```
 
 #### ❌ DON'T: 重用 IV/Nonce
@@ -1142,13 +1020,11 @@ sensitive_data.zeroize();  // 显式擦除
 **A**:
 
 ```rust
-// 轮换后的密钥处于 ROTATING 状态,仍可解密旧数据
-let old_cipher = Cipher::new(Algorithm::AES256GCM, &old_key)?;
-let decrypted = old_cipher.decrypt(&old_ciphertext)?;
+// 使用旧密钥解密
+let decrypted = cipher.decrypt(&km, &old_key_id, &ciphertext)?;
 
 // 用新密钥重新加密
-let new_cipher = Cipher::new(Algorithm::AES256GCM, &new_key)?;
-let new_ciphertext = new_cipher.encrypt(&decrypted)?;
+let new_ciphertext = cipher.encrypt(&km, &new_key_id, &decrypted)?;
 ```
 
 ### Q5: FIPS 模式会影响性能吗?

@@ -60,9 +60,12 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [features]
-default = ["std", "fips"]
+default = ["std", "fips", "encrypt", "hash", "kdf"]
 std = []
 fips = []
+encrypt = []
+hash = []
+kdf = ["encrypt"]
 
 [[test]]
 name = "api_communication_uat"

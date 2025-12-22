@@ -7,15 +7,17 @@
 //!
 //! Enterprise-grade, security-first Rust cryptographic library.
 
-pub mod audit;
+#[cfg(feature = "encrypt")]
 pub mod cipher;
 pub mod error;
 pub mod fips;
+#[cfg(feature = "encrypt")]
 pub mod key;
 pub mod memory;
 pub mod provider;
 pub mod random;
 pub mod side_channel;
+#[cfg(feature = "encrypt")]
 pub mod signer;
 pub mod types;
 
@@ -23,6 +25,7 @@ pub mod types;
 pub use fips::{get_fips_approved_algorithms, is_fips_enabled, FipsContext, FipsError, FipsMode};
 
 pub use error::{CryptoError, Result};
+#[cfg(feature = "encrypt")]
 pub use key::manager::KeyManager;
 pub use types::Algorithm;
 
@@ -37,6 +40,7 @@ pub fn init() -> Result<()> {
     }
 
     // 初始化审计日志
+    #[cfg(feature = "encrypt")]
     audit::AuditLogger::init();
 
     // 初始化 RNG 监控系统
@@ -45,12 +49,14 @@ pub fn init() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "encrypt")]
 /// High-level Cipher API
 pub struct Cipher {
     provider: std::sync::Arc<dyn provider::SymmetricCipher>,
     algorithm: Algorithm,
 }
 
+#[cfg(feature = "encrypt")]
 impl Cipher {
     /// Create a new cipher instance
     ///

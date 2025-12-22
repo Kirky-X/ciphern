@@ -3,12 +3,15 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+#[cfg(feature = "encrypt")]
 pub mod registry;
 
 use crate::error::Result;
+#[cfg(feature = "encrypt")]
 use crate::key::Key;
 use crate::types::Algorithm;
 
+#[cfg(feature = "encrypt")]
 pub trait SymmetricCipher: Send + Sync {
     fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>>;
     fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>>;
@@ -24,6 +27,7 @@ pub trait SymmetricCipher: Send + Sync {
     ) -> Result<Vec<u8>>;
 }
 
+#[cfg(feature = "encrypt")]
 pub trait Signer: Send + Sync {
     fn sign(&self, key: &Key, message: &[u8]) -> Result<Vec<u8>>;
     fn verify(&self, key: &Key, message: &[u8], signature: &[u8]) -> Result<bool>;
