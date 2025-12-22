@@ -4,3 +4,4 @@
 // See LICENSE file in the project root for full license information.
 
 pub mod api_latency_test;
+pub mod simd_performance;
