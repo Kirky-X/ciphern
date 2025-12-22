@@ -40,11 +40,11 @@ ciphern = { version = "0.1", features = ["fips"] }
 
 #### 可用特性 (Features)
 
-| 特性          | 描述                  | 建议场景   |
-|-------------|---------------------|--------|
-| `default`   | 标准库 + FIPS 支持     | 通用场景   |
-| `std`       | 启用标准库支持          | 默认启用   |
-| `fips`      | FIPS 140-3 合规模式     | 金融、政府  |
+| 特性        | 描述              | 建议场景  |
+|-----------|-----------------|-------|
+| `default` | 标准库 + FIPS 支持   | 通用场景  |
+| `std`     | 启用标准库支持         | 默认启用  |
+| `fips`    | FIPS 140-3 合规模式 | 金融、政府 |
 
 ### 1.2 配置文件
 
@@ -132,26 +132,26 @@ Ciphern 支持多种加密算法，分为国际标准和国密标准。
 
 #### 非对称加密与签名
 
-| 算法             | 安全级别    | 性能 | 使用场景      |
-|----------------|---------|----|-----------|
-| **ECDSA-P256** | 128 bit | 快  | 数字签名      |
-| **ECDSA-P384** | 192 bit | 快  | 数字签名      |
-| **ECDSA-P521** | 256 bit | 快  | 数字签名      |
-| **RSA-2048**   | 112 bit | 慢  | 兼容性场景     |
-| **RSA-3072**   | 128 bit | 慢  | 兼容性场景     |
-| **RSA-4096**   | 152 bit | 慢  | 兼容性场景     |
-| **SM2**        | 128 bit | 中  | 国密数字签名    |
-| **Ed25519**    | 128 bit | 极快 | 高性能签名     |
+| 算法             | 安全级别    | 性能 | 使用场景   |
+|----------------|---------|----|--------|
+| **ECDSA-P256** | 128 bit | 快  | 数字签名   |
+| **ECDSA-P384** | 192 bit | 快  | 数字签名   |
+| **ECDSA-P521** | 256 bit | 快  | 数字签名   |
+| **RSA-2048**   | 112 bit | 慢  | 兼容性场景  |
+| **RSA-3072**   | 128 bit | 慢  | 兼容性场景  |
+| **RSA-4096**   | 152 bit | 慢  | 兼容性场景  |
+| **SM2**        | 128 bit | 中  | 国密数字签名 |
+| **Ed25519**    | 128 bit | 极快 | 高性能签名  |
 
 #### 哈希函数
 
-| 算法          | 输出长度    | 性能 | 使用场景      |
-|-------------|---------|----|-----------|
-| **SHA-256** | 256 bit | 快  | 通用哈希      |
-| **SHA-384** | 384 bit | 快  | 通用哈希      |
-| **SHA-512** | 512 bit | 快  | 通用哈希      |
-| **SHA3-256**| 256 bit | 快  | 高安全哈希     |
-| **SM3**     | 256 bit | 中  | 国密合规      |
+| 算法           | 输出长度    | 性能 | 使用场景  |
+|--------------|---------|----|-------|
+| **SHA-256**  | 256 bit | 快  | 通用哈希  |
+| **SHA-384**  | 384 bit | 快  | 通用哈希  |
+| **SHA-512**  | 512 bit | 快  | 通用哈希  |
+| **SHA3-256** | 256 bit | 快  | 高安全哈希 |
+| **SM3**      | 256 bit | 中  | 国密合规  |
 
 ### 2.2 密钥管理器 (KeyManager)
 
@@ -385,10 +385,10 @@ Ciphern 通过 `KeyManager` 支持基于 ID 的密钥生成，便于在多租户
 fn multi_tenant_example(km: &KeyManager) -> Result<()> {
     // 为租户 A 生成密钥
     let key_a = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-a-key")?;
-    
+
     // 为租户 B 生成密钥
     let key_b = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-b-key")?;
-    
+
     Ok(())
 }
 ```
@@ -451,10 +451,10 @@ fn main() -> Result<()> {
     if fips::is_fips_enabled() {
         println!("✅ FIPS mode enabled");
     }
-    
+
     // 只能使用 FIPS 批准的算法
     let cipher = Cipher::new(Algorithm::AES256GCM)?;  // ✅ 允许
-    
+
     Ok(())
 }
 ```
@@ -473,6 +473,7 @@ fn main() -> Result<()> {
 #### 自动检测与使用
 
 Ciphern 会自动检测 CPU 特性并使用最优实现：
+
 - x86_64: AES-NI + AVX2
 - ARM64: ARM Crypto Extensions
 - Fallback: 纯软件实现
@@ -480,8 +481,8 @@ Ciphern 会自动检测 CPU 特性并使用最优实现：
 ```rust
 use ciphern::Cipher;
 
-let cipher = Cipher::new(Algorithm::AES256GCM)?;
-let ciphertext = cipher.encrypt(&km, &key_id, &large_data)?;  // 自动优化
+let cipher = Cipher::new(Algorithm::AES256GCM) ?;
+let ciphertext = cipher.encrypt( & km, & key_id, & large_data) ?;  // 自动优化
 ```
 
 #### 性能对比
@@ -783,6 +784,7 @@ groups:
 #### 错误: DecryptionFailed
 
 **原因**:
+
 - 使用了错误的密钥 ID
 - 密文被篡改
 - 密钥已失效

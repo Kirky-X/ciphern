@@ -478,6 +478,7 @@ We welcome all forms of contribution!
 > Note: CONTRIBUTING.md documentation is being prepared.
 
 ### Contributors
+
 Thanks to all contributors!
 
 [![Contributors](https://contrib.rocks/image?repo=Kirky-X/ciphern)](https://github.com/Kirky-X/ciphern/graphs/contributors)
