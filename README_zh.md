@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/ciphern.svg)](https://crates.io/crates/ciphern)
 [![Documentation](https://docs.rs/ciphern/badge.svg)](https://docs.rs/ciphern)
-[![License](https://img.shields.io/crates/l/ciphern.svg)](LICENSE)
+[![License](https://img.shields.io/github/license/Kirky-X/ciphern)](LICENSE)
 [![Build Status](https://github.com/Kirky-X/ciphern/actions/workflows/health-check.yml/badge.svg)](https://github.com/Kirky-X/ciphern/actions/workflows/health-check.yml)
 [![Coverage](https://img.shields.io/codecov/c/github/Kirky-X/ciphern)](https://codecov.io/gh/Kirky-X/ciphern)
 [![Security Audit](https://img.shields.io/badge/security-audited-success)](docs/SECURITY_AUDIT.md)
