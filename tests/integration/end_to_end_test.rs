@@ -3,8 +3,8 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use securevault::{Cipher, Algorithm, KeyManager};
 use securevault::audit::AuditLogger;
+use securevault::{Algorithm, Cipher, KeyManager};
 
 #[test]
 fn test_end_to_end_encryption() {

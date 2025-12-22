@@ -8,9 +8,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use ciphern::{KeyManager, Algorithm};
 use ciphern::key::lifecycle::{KeyLifecycleManager, KeyLifecyclePolicy, RotationSchedule};
 use ciphern::key::manager::KeyManagerLifecycleExt;
+use ciphern::{Algorithm, KeyManager};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;

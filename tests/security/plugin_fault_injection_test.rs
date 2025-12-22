@@ -3,11 +3,11 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use ciphern::plugin::{PluginLoader, PluginManager, HotReloadWatcher, SafeReloadManager};
 use ciphern::plugin::hot_reload::HotReloadEventType;
+use ciphern::plugin::{HotReloadWatcher, PluginLoader, PluginManager, SafeReloadManager};
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::fs;
 use std::thread;
 use std::time::Duration;
 
