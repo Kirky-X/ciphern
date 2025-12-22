@@ -85,6 +85,7 @@ impl RngMonitor {
 
     /// 设置告警处理器
     #[cfg(feature = "encrypt")]
+    #[allow(dead_code)]
     pub fn set_alert_handler(&self, handler: Arc<dyn AlertHandler + Send + Sync>) {
         if let Ok(mut handler_guard) = self.alert_handler.lock() {
             *handler_guard = Some(handler);
@@ -137,7 +138,10 @@ impl RngMonitor {
         #[cfg(feature = "encrypt")]
         {
             use crate::fips::self_test::FipsSelfTestEngine;
-            // 执行 NIST 随机性测试（简化版本）
+            // 执行 NIST 随机性测试
+            // 注意: 完整的 NIST 测试需要大量样本(>1,000,000 bits)和计算资源
+            // 这里我们使用 FipsSelfTestEngine 中实现的轻量级但符合 NIST 原理的测试子集
+            // 包括: 频率测试, 块内频率测试, 游程测试, 矩阵秩测试, DFT 测试, 近似熵测试, 累加和测试, 随机游程测试
             let test_engine = FipsSelfTestEngine::new();
             let nist_result = test_engine.nist_randomness_tests(&random_bytes);
 
@@ -355,6 +359,7 @@ impl RngMonitorManager {
     }
 
     /// 获取所有监控器的健康指标
+    #[allow(dead_code)]
     pub fn get_all_health_metrics(&self) -> Vec<RngHealthMetrics> {
         self.monitors
             .lock()
@@ -368,6 +373,7 @@ impl RngMonitorManager {
     }
 
     /// 执行所有监控器的健康检查
+    #[allow(dead_code)]
     pub fn perform_all_health_checks(&self) -> Result<Vec<bool>> {
         let monitors = self.monitors.lock().unwrap();
         let mut results = Vec::new();

@@ -17,7 +17,7 @@ use crate::error::Result;
 use crate::types::Algorithm;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 pub mod self_test;
 #[cfg(feature = "encrypt")]
@@ -65,17 +65,27 @@ pub enum FipsError {
 /// FIPS 错误状态管理
 #[derive(Debug)]
 pub struct FipsErrorState {
-    is_error: AtomicBool,
-    error_type: Mutex<Option<FipsError>>,
-    error_count: AtomicUsize,
+    is_error: Arc<AtomicBool>,
+    error_type: Arc<Mutex<Option<FipsError>>>,
+    error_count: Arc<AtomicUsize>,
 }
 
 impl Default for FipsErrorState {
     fn default() -> Self {
         Self {
-            is_error: AtomicBool::new(false),
-            error_type: Mutex::new(None),
-            error_count: AtomicUsize::new(0),
+            is_error: Arc::new(AtomicBool::new(false)),
+            error_type: Arc::new(Mutex::new(None)),
+            error_count: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+}
+
+impl Clone for FipsErrorState {
+    fn clone(&self) -> Self {
+        Self {
+            is_error: self.is_error.clone(),
+            error_type: self.error_type.clone(),
+            error_count: self.error_count.clone(),
         }
     }
 }
@@ -118,6 +128,7 @@ impl FipsErrorState {
 }
 
 /// FIPS 上下文管理器
+#[derive(Clone)]
 pub struct FipsContext {
     mode: FipsMode,
     #[cfg(feature = "encrypt")]
@@ -125,14 +136,14 @@ pub struct FipsContext {
     #[cfg(feature = "encrypt")]
     self_test_engine: self::self_test::FipsSelfTestEngine,
     error_state: FipsErrorState,
-    algorithm_usage_stats: Mutex<HashMap<Algorithm, usize>>,
+    algorithm_usage_stats: Arc<Mutex<HashMap<Algorithm, usize>>>,
 }
 
 impl FipsContext {
     /// 创建新的 FIPS 上下文
     pub fn new(mode: FipsMode) -> Result<Self> {
         let error_state = FipsErrorState::new();
-        let algorithm_usage_stats = Mutex::new(HashMap::new());
+        let algorithm_usage_stats = Arc::new(Mutex::new(HashMap::new()));
 
         #[cfg(feature = "encrypt")]
         {

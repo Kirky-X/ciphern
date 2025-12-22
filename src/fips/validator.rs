@@ -7,6 +7,7 @@ use crate::error::{CryptoError, Result};
 use crate::types::Algorithm;
 
 /// FIPS 140-3 算法验证器
+#[derive(Clone)]
 pub struct FipsAlgorithmValidator;
 
 impl FipsAlgorithmValidator {
