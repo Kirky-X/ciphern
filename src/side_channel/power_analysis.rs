@@ -553,10 +553,15 @@ pub fn obfuscate_template_signatures() {
     // We introduce controlled variations to break templates
 
     let mut signature_variations = [0u8; 32 * 8]; // 32 u64s as bytes
-    SecureRandom::new()
-        .unwrap()
-        .fill(&mut signature_variations)
-        .unwrap();
+    if let Ok(rng) = SecureRandom::new() {
+        if let Err(_) = rng.fill(&mut signature_variations) {
+            // Fallback if random generation fails
+            signature_variations.fill(0xAA);
+        }
+    } else {
+        // Fallback if RNG init fails
+        signature_variations.fill(0x55);
+    }
     let signature_variations =
         unsafe { std::slice::from_raw_parts(signature_variations.as_ptr() as *const u64, 32) };
 
