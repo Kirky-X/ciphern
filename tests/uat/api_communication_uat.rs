@@ -143,7 +143,7 @@ impl ApiClient {
         let mut random_bytes = vec![0u8; 32];
         ciphern::random::SecureRandom::new()?.fill(&mut random_bytes)?;
 
-        // 检查随机性质量（简化版）
+        // 检查随机性质量（频率测试）
         let mut ones_count = 0;
         for byte in &random_bytes {
             ones_count += byte.count_ones();
@@ -152,6 +152,8 @@ impl ApiClient {
         let ones_ratio = ones_count as f64 / total_bits as f64;
 
         // 检查是否接近50%的1的比例
+        // 允许的偏差范围设为0.1，仅作为基本健康检查
+        // 完整的随机性测试由 FIPS 自检模块负责
         if (ones_ratio - 0.5).abs() > 0.1 {
             return Err(ciphern::error::CryptoError::InsufficientEntropy);
         }

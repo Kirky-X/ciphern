@@ -30,7 +30,9 @@ lazy_static! {
 }
 
 // 注册指标到注册表
+#[allow(dead_code)]
 fn register_metrics() {
+    // 确保指标只被注册一次
     let _ = REGISTRY.register(Box::new(CRYPTO_OPERATIONS_TOTAL.clone()));
     let _ = REGISTRY.register(Box::new(CRYPTO_OPERATION_LATENCY.clone()));
     let _ = REGISTRY.register(Box::new(SECURITY_ALERTS_TOTAL.clone()));
@@ -102,6 +104,7 @@ impl Default for OperationMetrics {
 }
 
 impl OperationMetrics {
+#[allow(dead_code)]
     fn update(&mut self, latency_us: u64, data_size: usize, cache_hit: bool) {
         self.total_latency_us += latency_us;
         self.min_latency_us = self.min_latency_us.min(latency_us);
@@ -115,6 +118,7 @@ impl OperationMetrics {
         }
     }
 
+#[allow(dead_code)]
     fn to_stats(&self) -> PerformanceStats {
         let avg_latency = if self.operation_count > 0 {
             self.total_latency_us as f64 / self.operation_count as f64
@@ -179,6 +183,7 @@ impl PerformanceMonitor {
     }
 
     /// Record performance metrics for an operation
+#[allow(dead_code)]
     pub fn record_operation(
         &self,
         operation: &str,
@@ -214,6 +219,7 @@ impl PerformanceMonitor {
     }
 
     /// Get performance statistics for a specific operation
+    #[allow(dead_code)]
     pub fn get_stats(&self, operation: &str, algo: Option<Algorithm>) -> Option<PerformanceStats> {
         let key = format!("{}_{:?}", operation, algo);
 
@@ -230,6 +236,7 @@ impl PerformanceMonitor {
     }
 
     /// Get all performance statistics
+    #[allow(dead_code)]
     pub fn get_all_stats(&self) -> HashMap<String, PerformanceStats> {
         // Use read lock with poison recovery
         match self.metrics.read() {
@@ -250,6 +257,7 @@ impl PerformanceMonitor {
     }
 
     /// Reset statistics for a specific operation
+    #[allow(dead_code)]
     pub fn reset_stats(&self, operation: &str, algo: Option<Algorithm>) {
         let key = format!("{}_{:?}", operation, algo);
 
@@ -268,6 +276,7 @@ impl PerformanceMonitor {
     }
 
     /// Reset all statistics
+    #[allow(dead_code)]
     pub fn reset_all_stats(&self) {
         // Use write lock with poison recovery
         match self.metrics.write() {
@@ -491,6 +500,7 @@ impl AuditLogger {
     }
 
     /// Record an authorized access
+    #[allow(dead_code)]
     pub fn log_authorized_access(
         operation: &str,
         algo: Option<Algorithm>,
@@ -554,6 +564,7 @@ impl AuditLogger {
     }
 
     /// Record a key operation
+    #[allow(dead_code)]
     pub fn log_key_operation(
         operation: &str,
         algo: Algorithm,
@@ -586,6 +597,7 @@ impl AuditLogger {
     }
 
     /// 获取审计日志缓冲区（用于测试）
+    #[allow(dead_code)]
     pub fn get_logs() -> Vec<String> {
         match LOGGER.sync_buffer.lock() {
             Ok(buffer) => {
@@ -607,6 +619,7 @@ impl AuditLogger {
     }
 
     /// 清空审计日志缓冲区（用于测试）
+    #[allow(dead_code)]
     pub fn clear_logs() {
         match LOGGER.sync_buffer.lock() {
             Ok(mut buffer) => buffer.clear(),
@@ -619,6 +632,7 @@ impl AuditLogger {
     }
 
     /// 导出 Prometheus 指标
+    #[allow(dead_code)]
     pub fn gather_metrics() -> String {
         use prometheus::Encoder;
         let encoder = prometheus::TextEncoder::new();
@@ -632,6 +646,7 @@ impl AuditLogger {
     ///
     /// # 参数
     /// * `port` - 导出器监听的端口
+    #[allow(dead_code)]
     pub fn start_exporter(port: u16) {
         use std::io::{Read, Write};
         use std::net::SocketAddr;
@@ -690,6 +705,7 @@ lazy_static! {
 }
 
 // Global performance monitoring functions
+#[allow(dead_code)]
 pub fn record_operation(
     operation: &str,
     algo: Option<Algorithm>,
@@ -699,19 +715,22 @@ pub fn record_operation(
 ) {
     PERFORMANCE_MONITOR.record_operation(operation, algo, latency_us, data_size, cache_hit);
 }
-
+#[allow(dead_code)]
 pub fn get_performance_stats(operation: &str, algo: Option<Algorithm>) -> Option<PerformanceStats> {
     PERFORMANCE_MONITOR.get_stats(operation, algo)
 }
 
+#[allow(dead_code)]
 pub fn get_all_performance_stats() -> HashMap<String, PerformanceStats> {
     PERFORMANCE_MONITOR.get_all_stats()
 }
 
+#[allow(dead_code)]
 pub fn reset_performance_stats(operation: &str, algo: Option<Algorithm>) {
     PERFORMANCE_MONITOR.reset_stats(operation, algo);
 }
 
+#[allow(dead_code)]
 pub fn reset_all_performance_stats() {
     PERFORMANCE_MONITOR.reset_all_stats();
 }

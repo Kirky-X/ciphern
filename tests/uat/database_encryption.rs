@@ -3,7 +3,7 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use securevault::{Algorithm, Cipher, KeyManager};
+use ciphern::{Algorithm, Cipher, KeyManager};
 
 struct UserData {
     id_card: String,

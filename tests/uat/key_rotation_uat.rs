@@ -217,7 +217,8 @@ fn test_rotation_audit_logging() {
         .rotate_key(&key_id, Algorithm::AES256GCM, &lifecycle_manager)
         .unwrap();
 
-    // 验证轮换事件被记录（这里简化，实际应该检查审计日志）
+    // 验证轮换事件被记录
+    // 实际系统中应查询 AuditLogger 的输出或 mock 对象，此处通过验证新旧 Key ID 不同来间接确认轮换成功
     assert_ne!(key_id, new_key_id);
     println!("密钥轮换审计日志验证完成");
 }

@@ -7,29 +7,33 @@
 //!
 //! Enterprise-grade, security-first Rust cryptographic library.
 
-pub(crate) mod audit;
+pub mod audit;
 #[cfg(feature = "encrypt")]
-pub(crate) mod cipher;
+pub mod cipher;
 pub mod error;
 pub mod fips;
 #[cfg(feature = "encrypt")]
-pub(crate) mod key;
-pub(crate) mod memory;
+pub mod provider;
 #[cfg(feature = "encrypt")]
-pub(crate) mod provider;
-pub(crate) mod random;
+pub mod key;
+pub mod memory;
+
+pub mod random;
+
 #[cfg(feature = "encrypt")]
-pub(crate) mod side_channel;
+pub mod side_channel;
 #[cfg(feature = "encrypt")]
-pub(crate) mod signer;
+pub mod signer;
 pub mod types;
 pub(crate) mod ffi;
-pub(crate) mod plugin;
+#[cfg(feature = "plugin")]
+pub mod plugin;
 
 // 重新导出 FIPS 相关类型
 pub use fips::{get_fips_approved_algorithms, is_fips_enabled, FipsContext, FipsError, FipsMode};
 
-pub use error::{CryptoError, Result};
+pub use error::CryptoError;
+pub use error::Result;
 #[cfg(feature = "encrypt")]
 pub use key::manager::KeyManager;
 pub use types::Algorithm;
@@ -226,13 +230,33 @@ impl Hash {
     }
 }
 
-/// 获取全局 FIPS 上下文 (简化实现)
+use std::sync::{Arc, Mutex, OnceLock};
+
+/// 全局 FIPS 上下文实例
+static GLOBAL_FIPS_CONTEXT: OnceLock<Arc<Mutex<Option<FipsContext>>>> = OnceLock::new();
+
+/// 获取全局 FIPS 上下文
+/// 
+/// 返回一个线程安全的全局 FIPS 上下文引用。如果启用了 FIPS 模式且上下文尚未初始化，
+/// 将会尝试初始化一个新的上下文。
 #[cfg(feature = "fips")]
 #[allow(dead_code)]
 fn get_fips_context() -> Option<FipsContext> {
-    if fips::is_fips_enabled() {
-        FipsContext::new(fips::FipsMode::Enabled).ok()
-    } else {
-        None
+    if !fips::is_fips_enabled() {
+        return None;
     }
+
+    let context_lock = GLOBAL_FIPS_CONTEXT.get_or_init(|| {
+        Arc::new(Mutex::new(None))
+    });
+
+    let mut context_guard = context_lock.lock().ok()?;
+
+    if context_guard.is_none() {
+        if let Ok(new_context) = FipsContext::new(fips::FipsMode::Enabled) {
+            *context_guard = Some(new_context);
+        }
+    }
+
+    context_guard.clone()
 }

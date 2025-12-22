@@ -119,6 +119,7 @@ impl ProtectedKey {
     }
 
     /// 测试用的方法：通过创建具有不同数据的ProtectedKey来验证篡改检测
+    #[allow(dead_code)]
     pub fn create_with_corrupted_checksum(key: SecretBytes, corrupted_checksum: u64) -> Self {
         let mut canary = [0u8; 16];
         getrandom::getrandom(&mut canary).unwrap_or_default();

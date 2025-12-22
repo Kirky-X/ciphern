@@ -4,7 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use ciphern::{Algorithm, Cipher, key::Key};
-use securevault::KeyManager;
+use ciphern::{Algorithm, Cipher, KeyManager};
 
 #[test]
 fn test_aes_gcm_vectors() {
