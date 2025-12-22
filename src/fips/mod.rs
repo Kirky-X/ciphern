@@ -329,7 +329,7 @@ impl FipsContext {
 
         #[cfg(feature = "encrypt")]
         {
-            // 运行 RNG 健康检查
+            // 1. 运行 RNG 健康检查
             let rng_test = self.self_test_engine.rng_health_test()?;
             if !rng_test.passed {
                 self.error_state.set_error(FipsError::RngHealthCheckFailed(
@@ -338,27 +338,15 @@ impl FipsContext {
                         .unwrap_or_else(|| "Unknown RNG error".to_string()),
                 ));
                 return Err(CryptoError::FipsError(
-                    "Periodic self test failed".to_string(),
+                    "Periodic self test failed: RNG health check".to_string(),
                 ));
             }
+
+            // 2. 运行自检引擎中的其他定期测试
+            self.self_test_engine.run_periodic_tests()?;
         }
 
         Ok(())
-    }
-
-    pub fn run_periodic_self_test(&self) -> Result<()> {
-        if self.mode != FipsMode::Enabled {
-            return Ok(());
-        }
-
-        #[cfg(feature = "encrypt")]
-        {
-            self.self_test_engine.run_periodic_tests()
-        }
-        #[cfg(not(feature = "encrypt"))]
-        {
-            Ok(())
-        }
     }
 }
 

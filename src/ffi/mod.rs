@@ -72,7 +72,10 @@ pub extern "C" fn ciphern_init() -> CiphernError {
         }
         
         // 创建全局上下文
-        let mut context = GLOBAL_CONTEXT.lock().unwrap();
+        let mut context = match GLOBAL_CONTEXT.lock() {
+            Ok(guard) => guard,
+            Err(_) => return CiphernError::UnknownError,
+        };
         
         // 创建密钥管理器
         match KeyManager::new() {
@@ -97,10 +100,11 @@ pub extern "C" fn ciphern_init() -> CiphernError {
 #[no_mangle]
 pub extern "C" fn ciphern_cleanup() {
     match std::panic::catch_unwind(|| {
-        let mut context = GLOBAL_CONTEXT.lock().unwrap();
-        context.key_manager = None;
-        context.lifecycle_manager = None;
-        context.fips_context = None;
+        if let Ok(mut context) = GLOBAL_CONTEXT.lock() {
+            context.key_manager = None;
+            context.lifecycle_manager = None;
+            context.fips_context = None;
+        }
     }) {
         Ok(_) => {},
         Err(_) => {
@@ -117,8 +121,11 @@ pub extern "C" fn ciphern_enable_fips() -> CiphernError {
         match FipsContext::enable() {
             Ok(_) => {
                 // 更新全局上下文
-                let mut context = GLOBAL_CONTEXT.lock().unwrap();
-                if let Some(ref km) = context.key_manager {
+                let mut context = match GLOBAL_CONTEXT.lock() {
+                    Ok(guard) => guard,
+                    Err(_) => return CiphernError::UnknownError,
+                };
+                if let Some(ref _km) = context.key_manager {
                     context.fips_context = Some(Arc::new(
                         match FipsContext::new(FipsMode::Enabled) {
                             Ok(fc) => fc,
@@ -182,12 +189,18 @@ pub extern "C" fn ciphern_generate_key(
         };
         
         // 获取密钥管理器
-        let context = GLOBAL_CONTEXT.lock().unwrap();
+        let context = match GLOBAL_CONTEXT.lock() {
+            Ok(guard) => guard,
+            Err(_) => return CiphernError::UnknownError,
+        };
         let key_manager = match context.key_manager.as_ref() {
             Some(km) => km.clone(),
             None => return CiphernError::UnknownError,
         };
-        
+
+        // 必须显式释放锁，因为后续操作可能需要再次获取锁或耗时较长
+        drop(context);
+
         // 生成密钥
         let key_id = match key_manager.generate_key(algorithm) {
             Ok(id) => id,
@@ -243,11 +256,15 @@ pub extern "C" fn ciphern_destroy_key(key_id: *const c_char) -> CiphernError {
         };
         
         // 获取密钥管理器
-        let context = GLOBAL_CONTEXT.lock().unwrap();
+        let context = match GLOBAL_CONTEXT.lock() {
+            Ok(guard) => guard,
+            Err(_) => return CiphernError::UnknownError,
+        };
         let key_manager = match context.key_manager.as_ref() {
             Some(km) => km.clone(),
             None => return CiphernError::UnknownError,
         };
+        drop(context);
         
         // 销毁密钥
         match key_manager.destroy_key(key_id_str) {

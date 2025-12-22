@@ -93,14 +93,19 @@ impl Aes256GcmProvider {
         SecureRandom::new()?.fill(&mut nonce_bytes)?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
+        // 预分配内存：nonce (12) + plaintext + tag (16)
+        // ring 的 seal_in_place_append_tag 需要 InOut 类型实现 Extend<&u8>
+        // Vec<u8> 符合要求，但我们需要直接在数据部分操作
         let mut in_out = plaintext.to_vec();
         less_safe_key
             .seal_in_place_append_tag(nonce, Aad::from(aad.unwrap_or(&[])), &mut in_out)
             .map_err(|_| CryptoError::EncryptionFailed("Seal failed".into()))?;
 
-        // Prepend Nonce
-        let mut result = nonce_bytes.to_vec();
-        result.append(&mut in_out);
+        // 组合 Nonce 和加密结果
+        let mut result = Vec::with_capacity(12 + in_out.len());
+        result.extend_from_slice(&nonce_bytes);
+        result.extend_from_slice(&in_out);
+        
         Ok(result)
     }
 
