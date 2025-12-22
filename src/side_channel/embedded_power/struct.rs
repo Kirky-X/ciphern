@@ -11,6 +11,7 @@ use std::time::Instant;
 
 /// 嵌入式功耗分析防护配置
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct EmbeddedPowerConfig {
     /// 是否启用ARM Cortex-M特定优化
     pub cortex_m_optimization: bool,
@@ -29,6 +30,7 @@ pub struct EmbeddedPowerConfig {
 }
 
 /// 嵌入式功耗分析防护器
+#[allow(dead_code)]
 pub struct EmbeddedPowerProtector {
     pub(crate) config: EmbeddedPowerConfig,
     pub(crate) operation_counter: AtomicU32,
@@ -37,6 +39,7 @@ pub struct EmbeddedPowerProtector {
 
 /// 嵌入式功耗防护统计信息
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct EmbeddedPowerStats {
     /// 总操作次数
     pub total_operations: u32,
@@ -49,6 +52,7 @@ pub struct EmbeddedPowerStats {
 }
 
 /// 嵌入式功耗防护构建器
+#[allow(dead_code)]
 pub struct EmbeddedPowerProtectorBuilder {
     pub(crate) config: EmbeddedPowerConfig,
 }

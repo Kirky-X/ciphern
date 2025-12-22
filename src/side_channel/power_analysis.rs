@@ -22,6 +22,7 @@ use std::time::Instant;
 
 /// Power analysis protection levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ProtectionLevel {
     /// Basic protection: simple masking
     Basic,
@@ -33,6 +34,7 @@ pub enum ProtectionLevel {
 
 /// Power analysis protection configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PowerAnalysisConfig {
     /// Protection level
     pub level: ProtectionLevel,
@@ -59,12 +61,14 @@ impl Default for PowerAnalysisConfig {
 }
 
 /// Power analysis protection guard
+#[allow(dead_code)]
 pub struct PowerAnalysisGuard {
     _dummy: [u8; 32], // Prevent optimization
     _config: PowerAnalysisConfig,
     _start_time: Instant,
 }
 
+#[allow(dead_code)]
 impl PowerAnalysisGuard {
     pub fn new() -> Result<Self> {
         Self::with_config(PowerAnalysisConfig::default())
@@ -140,6 +144,7 @@ impl Drop for PowerAnalysisGuard {
 }
 
 /// Mask a value using XOR masking
+#[allow(dead_code)]
 pub fn mask_value(value: u8) -> Result<(u8, u8)> {
     // Use thread-local RNG to avoid global lock contention
     thread_local! {
@@ -160,11 +165,13 @@ pub fn mask_value(value: u8) -> Result<(u8, u8)> {
 }
 
 /// Unmask a value using XOR masking
+#[allow(dead_code)]
 pub fn unmask_value(masked: u8, mask: u8) -> u8 {
     masked ^ mask
 }
 
 /// Mask a 32-bit value
+#[allow(dead_code)]
 pub fn mask_u32(value: u32) -> Result<(u32, u32)> {
     // Use thread-local RNG to avoid global lock contention
     thread_local! {
@@ -185,11 +192,13 @@ pub fn mask_u32(value: u32) -> Result<(u32, u32)> {
 }
 
 /// Unmask a 32-bit value
+#[allow(dead_code)]
 pub fn unmask_u32(masked: u32, mask: u32) -> u32 {
     masked ^ mask
 }
 
 /// Mask a byte array
+#[allow(dead_code)]
 pub fn mask_bytes(values: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut masks = vec![0u8; values.len()];
     SecureRandom::new()?.fill(&mut masks)?;
@@ -204,6 +213,7 @@ pub fn mask_bytes(values: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
 }
 
 /// Unmask a byte array
+#[allow(dead_code)]
 pub fn unmask_bytes(masked: &[u8], masks: &[u8]) -> Vec<u8> {
     masked
         .iter()
@@ -213,6 +223,7 @@ pub fn unmask_bytes(masked: &[u8], masks: &[u8]) -> Vec<u8> {
 }
 
 /// Add power consumption randomization
+#[allow(dead_code)]
 pub fn randomize_power_consumption(iterations: usize) {
     use std::hint::black_box;
 
@@ -229,11 +240,14 @@ pub fn randomize_power_consumption(iterations: usize) {
 }
 
 /// Multiplicative masking for arithmetic operations
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MultiplicativeMask {
     mask: u32,
     inverse: u32,
 }
 
+#[allow(dead_code)]
 impl MultiplicativeMask {
     pub fn new() -> Result<Self> {
         // Generate a random odd mask (odd numbers have modular inverses mod 2^32)
@@ -257,6 +271,7 @@ impl MultiplicativeMask {
 }
 
 /// Compute modular inverse using extended Euclidean algorithm
+#[allow(dead_code)]
 fn mod_inverse(a: u32, modulus: u64) -> u64 {
     let mut t = 0i64;
     let mut newt = 1i64;
@@ -277,10 +292,13 @@ fn mod_inverse(a: u32, modulus: u64) -> u64 {
 }
 
 /// Boolean masking for logical operations
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct BooleanMask {
     masks: Vec<bool>,
 }
 
+#[allow(dead_code)]
 impl BooleanMask {
     pub fn new(size: usize) -> Result<Self> {
         let mut mask_bytes = vec![0u8; size.div_ceil(8)];
@@ -314,6 +332,7 @@ impl BooleanMask {
 
 /// Power analysis statistics for monitoring
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PowerAnalysisStats {
     /// Number of masking operations performed
     pub masking_operations: u64,
@@ -327,6 +346,7 @@ pub struct PowerAnalysisStats {
     pub protection_level: ProtectionLevel,
 }
 
+#[allow(dead_code)]
 impl PowerAnalysisStats {
     pub fn new() -> Self {
         Self {
@@ -346,6 +366,7 @@ impl Default for PowerAnalysisStats {
 }
 
 /// Power analysis resistant AES S-box with enhanced protection
+#[allow(dead_code)]
 pub fn masked_aes_sbox(input: u8, mask: u8) -> Result<u8> {
     // Apply input mask
     let masked_input = input ^ mask;
@@ -367,11 +388,13 @@ pub fn masked_aes_sbox(input: u8, mask: u8) -> Result<u8> {
 }
 
 /// Power analysis protection manager
+#[allow(dead_code)]
 pub struct PowerAnalysisManager {
     config: PowerAnalysisConfig,
     stats: PowerAnalysisStats,
 }
 
+#[allow(dead_code)]
 impl PowerAnalysisManager {
     pub fn new(config: PowerAnalysisConfig) -> Self {
         let mut stats = PowerAnalysisStats::new();

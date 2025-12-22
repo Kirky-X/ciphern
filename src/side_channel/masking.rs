@@ -14,10 +14,12 @@ use crate::random::SecureRandom;
 // === Boolean Masking ===
 
 /// Boolean masking for boolean values
+#[allow(dead_code)]
 pub struct BooleanMasking {
     masks: Vec<bool>,
 }
 
+#[allow(dead_code)]
 impl BooleanMasking {
     pub fn new(size: usize) -> Result<Self> {
         let mut mask_bytes = vec![0u8; size.div_ceil(8)];
@@ -29,6 +31,7 @@ impl BooleanMasking {
     }
 
     /// Mask a boolean value
+    #[allow(dead_code)]
     pub fn mask_bool(&self, index: usize, value: bool) -> bool {
         if index < self.masks.len() {
             value ^ self.masks[index]
@@ -46,10 +49,13 @@ impl BooleanMasking {
 // === Arithmetic Masking ===
 
 /// Arithmetic masking for arithmetic operations
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ArithmeticMasking {
     mask: u32,
 }
 
+#[allow(dead_code)]
 impl ArithmeticMasking {
     pub fn new() -> Result<Self> {
         let mut mask_bytes = [0u8; 4];
@@ -80,11 +86,14 @@ impl ArithmeticMasking {
 // === Multiplicative Masking ===
 
 /// Multiplicative masking for multiplicative operations
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MultiplicativeMasking {
     mask: u32,
     inverse: u32,
 }
 
+#[allow(dead_code)]
 impl MultiplicativeMasking {
     pub fn new() -> Result<Self> {
         // Generate odd mask (has modular inverse mod 2^32)
@@ -112,10 +121,13 @@ impl MultiplicativeMasking {
 // === XOR Masking ===
 
 /// XOR masking for bitwise operations
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct XorMasking {
     masks: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl XorMasking {
     pub fn new(size: usize) -> Result<Self> {
         let mut masks = vec![0u8; size];
@@ -125,6 +137,7 @@ impl XorMasking {
     }
 
     /// Mask a byte array using XOR
+    #[allow(dead_code)]
     pub fn mask(&self, values: &[u8]) -> Vec<u8> {
         values
             .iter()
@@ -142,11 +155,14 @@ impl XorMasking {
 // === Higher-Order Masking ===
 
 /// Higher-order masking using multiple shares
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct HigherOrderMasking {
     order: usize,
     shares: Vec<Vec<u8>>,
 }
 
+#[allow(dead_code)]
 impl HigherOrderMasking {
     pub fn new(order: usize, data_size: usize) -> Result<Self> {
         let mut shares = Vec::with_capacity(order + 1);
@@ -182,6 +198,7 @@ impl HigherOrderMasking {
     }
 
     /// Unmask data by XORing all shares
+    #[allow(dead_code)]
     pub fn unmask(&self) -> Result<Vec<u8>> {
         if self.shares.len() != self.order + 1 {
             return Err(CryptoError::InvalidParameter(
@@ -223,6 +240,7 @@ impl HigherOrderMasking {
 
 /// Masked lookup table for S-boxes and other lookup operations
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MaskedLookupTable {
     table: Vec<u8>,
     _input_mask: u8,
@@ -230,6 +248,7 @@ pub struct MaskedLookupTable {
     _table_size: usize,
 }
 
+#[allow(dead_code)]
 impl MaskedLookupTable {
     pub fn new(original_table: &[u8]) -> Result<Self> {
         let mut input_mask = [0u8; 1];
@@ -276,11 +295,13 @@ impl MaskedLookupTable {
 
 /// Rotating S-box masking for AES
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RotatingSboxMasking {
     sboxes: Vec<MaskedLookupTable>,
     current_index: usize,
 }
 
+#[allow(dead_code)]
 impl RotatingSboxMasking {
     pub fn new(rotation_count: usize) -> Result<Self> {
         const AES_SBOX: [u8; 256] = [
@@ -318,6 +339,7 @@ impl RotatingSboxMasking {
     }
 
     /// Perform lookup with rotating masks
+    #[allow(dead_code)]
     pub fn lookup(&mut self, masked_input: u8) -> u8 {
         let result = self.sboxes[self.current_index].lookup(masked_input);
 
@@ -331,6 +353,7 @@ impl RotatingSboxMasking {
 // === Utility Functions ===
 
 /// Compute modular inverse for 32-bit values
+#[allow(dead_code)]
 fn mod_inverse_u32(a: u32) -> u32 {
     let mut t = 0i64;
     let mut newt = 1i64;

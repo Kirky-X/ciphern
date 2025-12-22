@@ -11,16 +11,15 @@
 use std::hint::black_box;
 
 /// Constant-time comparison of two byte arrays
+#[allow(dead_code)]
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-
     let mut result = 0u8;
     for i in 0..a.len() {
         result |= a[i] ^ b[i];
     }
-
     black_box(result) == 0
 }
 
@@ -31,6 +30,7 @@ pub fn constant_time_select(condition: bool, a: u8, b: u8) -> u8 {
 }
 
 /// Constant-time byte array copy with conditional execution
+#[allow(dead_code)]
 pub fn constant_time_copy(condition: bool, dest: &mut [u8], src: &[u8]) {
     if dest.len() != src.len() {
         return;
@@ -66,16 +66,19 @@ fn constant_time_eq_u8(a: u8, b: u8) -> bool {
 }
 
 /// Constant-time comparison of two u32 values
+#[allow(dead_code)]
 pub fn constant_time_eq_u32(a: u32, b: u32) -> bool {
     black_box(a ^ b) == 0
 }
 
 /// Constant-time comparison of two u64 values
+#[allow(dead_code)]
 pub fn constant_time_eq_u64(a: u64, b: u64) -> bool {
     black_box(a ^ b) == 0
 }
 
 /// Constant-time conditional swap
+#[allow(dead_code)]
 pub fn constant_time_swap(condition: bool, a: &mut [u8], b: &mut [u8]) {
     if a.len() != b.len() {
         return;
@@ -91,14 +94,17 @@ pub fn constant_time_swap(condition: bool, a: &mut [u8], b: &mut [u8]) {
     }
 }
 
-/// Constant-time integer comparison (returns -1, 0, or 1)
+/// Constant-time comparison for u32
+/// Returns -1 if a < b, 0 if a == b, 1 if a > b
+#[allow(dead_code)]
 pub fn constant_time_cmp_u32(a: u32, b: u32) -> i32 {
-    let gt = (a > b) as i32;
-    let lt = (a < b) as i32;
+    let gt = (b.wrapping_sub(a) >> 31) as i32;
+    let lt = (a.wrapping_sub(b) >> 31) as i32;
     gt - lt
 }
 
 /// Constant-time modular reduction
+#[allow(dead_code)]
 pub fn constant_time_mod_u32(value: u32, modulus: u32) -> u32 {
     if modulus == 0 {
         return value;
@@ -146,11 +152,13 @@ pub fn constant_time_aes_sbox(input: u8) -> u8 {
 }
 
 /// Constant-time conditional increment
+#[allow(dead_code)]
 pub fn constant_time_inc(condition: bool, value: u32) -> u32 {
     value + (condition as u32)
 }
 
 /// Constant-time conditional decrement
+#[allow(dead_code)]
 pub fn constant_time_dec(condition: bool, value: u32) -> u32 {
     value - (condition as u32)
 }

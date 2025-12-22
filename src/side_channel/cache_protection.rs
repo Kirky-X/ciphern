@@ -46,6 +46,7 @@ pub struct CacheProtectionGuard {
     _dummy_data: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl CacheProtectionGuard {
     pub fn new(config: CacheProtectionConfig) -> Self {
         let dummy_data = vec![0u8; config.dummy_access_count * 64]; // 64 bytes per cache line
@@ -167,11 +168,13 @@ pub fn prefetch_cache_line(ptr: *const u8) {
 }
 
 /// Memory access pattern randomization
+#[allow(dead_code)]
 pub struct AccessPatternRandomizer {
     stride: usize,
     mask: usize,
 }
 
+#[allow(dead_code)]
 impl AccessPatternRandomizer {
     pub fn new(data_size: usize) -> Result<Self> {
         // Use thread-local RNG to avoid global lock contention
@@ -208,12 +211,14 @@ impl AccessPatternRandomizer {
 }
 
 /// Cache partitioning to isolate sensitive data
+#[allow(dead_code)]
 pub struct CachePartition {
     partition_size: usize,
     partition_index: usize,
 }
 
 impl CachePartition {
+    #[allow(dead_code)]
     pub fn new(partition_size: usize, partition_index: usize) -> Self {
         Self {
             partition_size,
@@ -222,6 +227,7 @@ impl CachePartition {
     }
 
     /// Allocate memory in specific cache partition
+    #[allow(dead_code)]
     pub fn allocate_in_partition(&self, size: usize) -> Vec<u8> {
         let total_size = size * self.partition_size * 64; // Each element is 64 bytes (cache line)
         let mut data = vec![0u8; total_size];
@@ -239,12 +245,15 @@ impl CachePartition {
 }
 
 /// Cache timing measurement for detection
+#[allow(dead_code)]
 pub struct CacheTimingMeasurer {
     measurements: Vec<Duration>,
     threshold: Duration,
 }
 
+#[allow(dead_code)]
 impl CacheTimingMeasurer {
+    #[allow(dead_code)]
     pub fn new(threshold: Duration) -> Self {
         Self {
             measurements: Vec::new(),
@@ -253,6 +262,7 @@ impl CacheTimingMeasurer {
     }
 
     /// Measure cache access time
+    #[allow(dead_code)]
     pub fn measure_access_time<F>(&mut self, operation: F) -> Result<Duration>
     where
         F: FnOnce(),
@@ -309,6 +319,7 @@ impl CacheTimingMeasurer {
 }
 
 /// Flush entire CPU cache
+#[allow(dead_code)]
 pub fn flush_entire_cache() -> Result<()> {
     // Allocate large buffer to flush cache
     let size = 1024 * 1024; // 1MB
@@ -326,6 +337,7 @@ pub fn flush_entire_cache() -> Result<()> {
 }
 
 /// Non-temporal memory access to bypass cache
+#[allow(dead_code)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub fn non_temporal_store(data: &[u8], dest: &mut [u8]) -> Result<()> {
     if data.len() != dest.len() {
@@ -349,6 +361,7 @@ pub fn non_temporal_store(data: &[u8], dest: &mut [u8]) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
 pub fn non_temporal_store(data: &[u8], dest: &mut [u8]) -> Result<()> {
     // Fallback for non-x86 architectures

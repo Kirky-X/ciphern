@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 // === Error Injection Detector ===
 
 /// Error injection detector
+#[allow(dead_code)]
 pub struct ErrorInjectionDetector {
     start_time: Instant,
     checksum: AtomicU64,
@@ -25,6 +26,7 @@ pub struct ErrorInjectionDetector {
 
 /// Redundancy check for fault detection
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RedundancyCheck {
     _name: String,
     _expected_value: u64,
@@ -42,6 +44,7 @@ impl Default for ErrorInjectionDetector {
     }
 }
 
+#[allow(dead_code)]
 impl ErrorInjectionDetector {
     pub fn new() -> Self {
         Self::default()
@@ -116,13 +119,14 @@ impl ErrorInjectionDetector {
 
 // === Triple Modular Redundancy ===
 
-/// Triple modular redundancy for fault tolerance
+/// Triple modular redundancy for fault tolerance#[allow(dead_code)]
 pub struct TripleModularRedundancy<T> {
     value1: T,
     value2: T,
     value3: T,
 }
 
+#[allow(dead_code)]
 impl<T: Clone + PartialEq> TripleModularRedundancy<T> {
     pub fn new(value: T) -> Self {
         Self {
@@ -159,6 +163,7 @@ pub struct ErrorCorrectionCode {
     parity: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl ErrorCorrectionCode {
     pub fn new(data: Vec<u8>) -> Self {
         let parity = Self::calculate_parity(&data);
@@ -262,6 +267,7 @@ pub struct ClockGlitchDetector {
 }
 
 impl ClockGlitchDetector {
+    #[allow(dead_code)]
     pub fn new(threshold: Duration) -> Self {
         Self {
             timestamps: VecDeque::with_capacity(10),
@@ -269,6 +275,7 @@ impl ClockGlitchDetector {
         }
     }
 
+    #[allow(dead_code)]
     pub fn check(&mut self) -> Result<()> {
         let now = Instant::now();
 
@@ -303,12 +310,14 @@ impl ClockGlitchDetector {
 // === Voltage Fault Detector ===
 
 /// Voltage fault detector
+#[allow(dead_code)]
 pub struct VoltageFaultDetector {
     sensor_readings: VecDeque<u16>,
     baseline: u16,
     tolerance: u16,
 }
 
+#[allow(dead_code)]
 impl VoltageFaultDetector {
     pub fn new(baseline: u16, tolerance: u16) -> Self {
         Self {
@@ -337,11 +346,13 @@ impl VoltageFaultDetector {
 // === Electromagnetic Pulse Detector ===
 
 /// Electromagnetic pulse detector
+#[allow(dead_code)]
 pub struct ElectromagneticPulseDetector {
     em_readings: VecDeque<u32>,
     threshold: u32,
 }
 
+#[allow(dead_code)]
 impl ElectromagneticPulseDetector {
     pub fn new(threshold: u32) -> Self {
         Self {
@@ -372,6 +383,7 @@ impl ElectromagneticPulseDetector {
 // === Fault Injection Shield ===
 
 /// Comprehensive fault injection protection
+#[allow(dead_code)]
 pub struct FaultInjectionShield {
     error_detector: ErrorInjectionDetector,
     clock_detector: ClockGlitchDetector,
@@ -392,22 +404,27 @@ impl Default for FaultInjectionShield {
     }
 }
 
+#[allow(dead_code)]
 impl FaultInjectionShield {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Enable voltage detection
+    #[allow(dead_code)]
     pub fn enable_voltage_detection(&mut self, baseline: u16, tolerance: u16) {
         self.voltage_detector = Some(VoltageFaultDetector::new(baseline, tolerance));
     }
 
     /// Enable EM pulse detection
+    #[allow(dead_code)]
     pub fn enable_em_detection(&mut self, threshold: u32) {
         self.em_detector = Some(ElectromagneticPulseDetector::new(threshold));
     }
 
     /// Check all fault injection protections
+    #[allow(dead_code)]
     pub fn check_all(&mut self) -> Result<()> {
         // Check clock glitches
         self.clock_detector.check()?;
@@ -441,6 +458,7 @@ impl FaultInjectionShield {
     }
 
     /// Add sensor reading from hardware
+    #[allow(dead_code)]
     pub fn add_sensor_reading(&mut self, sensor_type: SensorType, reading: u32) -> Result<()> {
         match sensor_type {
             SensorType::Voltage => {
@@ -464,6 +482,7 @@ impl FaultInjectionShield {
 
 /// Types of sensors for fault injection detection
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum SensorType {
     Voltage,
     Electromagnetic,

@@ -44,6 +44,7 @@ impl EmbeddedPowerProtector {
     }
 
     /// 执行功耗分析防护操作
+    #[allow(dead_code)]
     pub fn protect_operation<F, R>(&self, operation: F) -> Result<R>
     where
         F: FnOnce() -> Result<R>,
@@ -77,6 +78,7 @@ impl EmbeddedPowerProtector {
     }
 
     /// 获取统计信息
+    #[allow(dead_code)]
     pub fn stats(&self) -> EmbeddedPowerStats {
         let operation_count = self.operation_counter.load(Ordering::SeqCst);
         let last_time = *self.last_operation_time.lock().unwrap();
@@ -90,6 +92,7 @@ impl EmbeddedPowerProtector {
     }
 
     /// 更新配置
+    #[allow(dead_code)]
     pub fn set_config(&mut self, config: EmbeddedPowerConfig) {
         self.config = config;
     }
@@ -288,24 +291,28 @@ impl EmbeddedPowerProtectorBuilder {
     }
 
     /// 设置Cortex-M优化
+    #[allow(dead_code)]
     pub fn cortex_m_optimization(mut self, enabled: bool) -> Self {
         self.config.cortex_m_optimization = enabled;
         self
     }
 
     /// 设置功耗掩码强度
+    #[allow(dead_code)]
     pub fn power_masking_strength(mut self, strength: f32) -> Self {
         self.config.power_masking_strength = strength.clamp(0.0, 1.0);
         self
     }
 
     /// 设置随机延迟范围
+    #[allow(dead_code)]
     pub fn random_delay_range(mut self, min_us: u32, max_us: u32) -> Self {
         self.config.random_delay_range_us = (min_us, max_us);
         self
     }
 
     /// 设置时钟抖动
+    #[allow(dead_code)]
     pub fn clock_jitter(mut self, enabled: bool, strength: f32) -> Self {
         self.config.clock_jitter_enabled = enabled;
         self.config.clock_jitter_strength = strength.clamp(0.0, 1.0);
@@ -313,6 +320,7 @@ impl EmbeddedPowerProtectorBuilder {
     }
 
     /// 设置功耗噪声
+    #[allow(dead_code)]
     pub fn power_noise(mut self, enabled: bool, strength: f32) -> Self {
         self.config.power_noise_injection = enabled;
         self.config.power_noise_strength = strength.clamp(0.0, 1.0);
@@ -320,11 +328,13 @@ impl EmbeddedPowerProtectorBuilder {
     }
 
     /// 构建防护器
+    #[allow(dead_code)]
     pub fn build(self) -> EmbeddedPowerProtector {
         EmbeddedPowerProtector::new(self.config)
     }
 }
 
+#[allow(dead_code)]
 impl Default for EmbeddedPowerProtectorBuilder {
     fn default() -> Self {
         Self::new()

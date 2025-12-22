@@ -6,16 +6,15 @@
 mod r#impl;
 mod r#struct;
 
-pub use self::r#struct::{
-    EmbeddedPowerConfig, EmbeddedPowerProtector, EmbeddedPowerProtectorBuilder, EmbeddedPowerStats,
-};
 
 // === Tests ===
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::error::CryptoError;
+    use super::r#struct::{
+        EmbeddedPowerConfig, EmbeddedPowerProtector, EmbeddedPowerProtectorBuilder,
+    };
 
     #[test]
     fn test_embedded_power_protector_creation() {

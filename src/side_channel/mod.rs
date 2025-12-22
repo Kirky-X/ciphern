@@ -24,15 +24,13 @@ pub mod error_injection;
 pub mod masking;
 pub mod power_analysis;
 
-pub use cache_protection::*;
-pub use constant_time::*;
-pub use embedded_power::*;
 pub use error_injection::*;
 pub use masking::*;
 pub use power_analysis::*;
 
 /// Configuration for side-channel protection
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SideChannelConfig {
     /// Enable constant-time operations
     pub constant_time_enabled: bool,
@@ -99,11 +97,13 @@ impl SideChannelContext {
     }
 
     /// Get the configuration
+    #[allow(dead_code)]
     pub fn config(&self) -> &SideChannelConfig {
         &self.config
     }
 
     /// Reset the context statistics
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.countermeasure_stats = CountermeasureStats::default();
     }
@@ -129,6 +129,7 @@ impl SideChannelContext {
     }
 
     /// Apply timing protection to a closure
+    #[allow(dead_code)]
     pub fn protect_timing<F, R>(&mut self, operation: F) -> Result<R>
     where
         F: FnOnce() -> Result<R>,
@@ -159,6 +160,7 @@ impl SideChannelContext {
     }
 
     /// Apply power analysis protection
+    #[allow(dead_code)]
     pub fn protect_power_analysis<F, R>(&mut self, operation: F) -> Result<R>
     where
         F: FnOnce() -> Result<R>,
@@ -175,6 +177,7 @@ impl SideChannelContext {
     }
 
     /// Apply error injection protection
+    #[allow(dead_code)]
     pub fn protect_error_injection<F, R>(&mut self, operation: F) -> Result<R>
     where
         F: FnOnce() -> Result<R>,
@@ -199,6 +202,7 @@ impl SideChannelContext {
     }
 
     /// Apply cache protection
+    #[allow(dead_code)]
     pub fn protect_cache_access<F, R>(&mut self, operation: F) -> Result<R>
     where
         F: FnOnce() -> Result<R>,
@@ -230,11 +234,16 @@ impl SideChannelContext {
 }
 
 /// Side-channel protection statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct SideChannelStats {
+    #[allow(dead_code)]
     pub timing_protections: u64,
+    #[allow(dead_code)]
     pub masking_operations: u64,
+    #[allow(dead_code)]
     pub error_detection_triggers: u64,
+    #[allow(dead_code)]
     pub cache_flush_operations: u64,
 }
 
@@ -301,6 +310,7 @@ where
 }
 
 /// Apply all side-channel protections to a critical operation using a cloned context
+#[allow(dead_code)]
 pub fn protect_critical_operation_with_context<F, R>(
     context_arc: Arc<Mutex<SideChannelContext>>,
     operation: F,
