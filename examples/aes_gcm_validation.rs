@@ -1,4 +1,9 @@
-use ciphern::cipher::aes128::Aes128GcmProvider;
+// Copyright (c) 2025 Kirky.X
+// 
+// Licensed under the MIT License
+// See LICENSE file in the project root for full license information.
+
+use ciphern::cipher::aes::AesGcmProvider;
 use ciphern::key::Key;
 use ciphern::provider::SymmetricCipher;
 use ciphern::types::Algorithm;
@@ -26,7 +31,7 @@ fn test_vector_1() {
     let expected_ct = hex::decode(ct_hex).unwrap();
     let expected_tag = hex::decode(tag_hex).unwrap();
 
-    let provider = Aes128GcmProvider::new();
+    let provider = AesGcmProvider::aes128();
     let key = Key::new_active(Algorithm::AES128GCM, key_bytes).unwrap();
     let result = provider
         .encrypt_with_nonce(&key, &pt_bytes, &iv_bytes, Some(&aad_bytes))
@@ -71,7 +76,7 @@ fn test_nist_vector_detailed() {
     let expected_ct = hex::decode(ct_hex).unwrap();
     let expected_tag = hex::decode(tag_hex).unwrap();
 
-    let provider = Aes128GcmProvider::new();
+    let provider = AesGcmProvider::aes128();
     let key = Key::new_active(Algorithm::AES128GCM, key_bytes).unwrap();
     let result = provider
         .encrypt_with_nonce(&key, &pt_bytes, &iv_bytes, Some(&aad_bytes))
