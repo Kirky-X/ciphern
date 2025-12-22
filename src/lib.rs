@@ -7,22 +7,24 @@
 //!
 //! Enterprise-grade, security-first Rust cryptographic library.
 
-pub mod audit;
+pub(crate) mod audit;
 #[cfg(feature = "encrypt")]
-pub mod cipher;
+pub(crate) mod cipher;
 pub mod error;
 pub mod fips;
 #[cfg(feature = "encrypt")]
-pub mod key;
-pub mod memory;
+pub(crate) mod key;
+pub(crate) mod memory;
 #[cfg(feature = "encrypt")]
-pub mod provider;
-pub mod random;
+pub(crate) mod provider;
+pub(crate) mod random;
 #[cfg(feature = "encrypt")]
-pub mod side_channel;
+pub(crate) mod side_channel;
 #[cfg(feature = "encrypt")]
-pub mod signer;
+pub(crate) mod signer;
 pub mod types;
+pub(crate) mod ffi;
+pub(crate) mod plugin;
 
 // 重新导出 FIPS 相关类型
 pub use fips::{get_fips_approved_algorithms, is_fips_enabled, FipsContext, FipsError, FipsMode};

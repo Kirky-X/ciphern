@@ -165,9 +165,10 @@ impl RngMonitor {
                     0.5_f64.powi(metrics.consecutive_failures as i32)
                 };
 
-                metrics.health_score =
-                    (entropy_score * 0.4 + failure_rate_score * 0.4 + consecutive_failures_score * 0.2)
-                        .min(1.0);
+                metrics.health_score = (entropy_score * 0.4
+                    + failure_rate_score * 0.4
+                    + consecutive_failures_score * 0.2)
+                    .min(1.0);
             }
 
             // 检查是否需要触发告警

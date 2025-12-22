@@ -233,12 +233,10 @@ impl PerformanceMonitor {
     pub fn get_all_stats(&self) -> HashMap<String, PerformanceStats> {
         // Use read lock with poison recovery
         match self.metrics.read() {
-            Ok(metrics) => {
-                metrics
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.to_stats()))
-                    .collect()
-            }
+            Ok(metrics) => metrics
+                .iter()
+                .map(|(k, v)| (k.clone(), v.to_stats()))
+                .collect(),
             Err(poisoned) => {
                 // Log the poisoning incident and recover the data
                 log::warn!("Performance monitor read lock poisoned, recovering data");
@@ -314,7 +312,7 @@ pub struct AuditLogger {
     sender: Arc<Mutex<Sender<String>>>,
     sync_buffer: Arc<Mutex<Vec<String>>>,
     _handle: Option<thread::JoinHandle<()>>, // Keep the handle to prevent thread from being dropped
-    fallback_enabled: Arc<Mutex<bool>>, // Graceful degradation flag
+    fallback_enabled: Arc<Mutex<bool>>,      // Graceful degradation flag
 }
 
 impl Default for AuditLogger {
@@ -412,16 +410,34 @@ impl AuditLogger {
         access_type: &str,
     ) {
         debug_assert!(!operation.is_empty(), "Operation should not be empty");
-        debug_assert!(operation.len() <= 100, "Operation should not exceed 100 characters");
+        debug_assert!(
+            operation.len() <= 100,
+            "Operation should not exceed 100 characters"
+        );
         debug_assert!(!access_type.is_empty(), "Access type should not be empty");
-        debug_assert!(access_type.len() <= 50, "Access type should not exceed 50 characters");
+        debug_assert!(
+            access_type.len() <= 50,
+            "Access type should not exceed 50 characters"
+        );
         if let Some(key_id) = key_id {
-            debug_assert!(!key_id.is_empty(), "Key ID should not be empty when provided");
-            debug_assert!(key_id.len() <= 256, "Key ID should not exceed 256 characters");
+            debug_assert!(
+                !key_id.is_empty(),
+                "Key ID should not be empty when provided"
+            );
+            debug_assert!(
+                key_id.len() <= 256,
+                "Key ID should not exceed 256 characters"
+            );
         }
         if let Some(tenant_id) = tenant_id {
-            debug_assert!(!tenant_id.is_empty(), "Tenant ID should not be empty when provided");
-            debug_assert!(tenant_id.len() <= 128, "Tenant ID should not exceed 128 characters");
+            debug_assert!(
+                !tenant_id.is_empty(),
+                "Tenant ID should not be empty when provided"
+            );
+            debug_assert!(
+                tenant_id.len() <= 128,
+                "Tenant ID should not exceed 128 characters"
+            );
         }
 
         let entry = AuditLog {
