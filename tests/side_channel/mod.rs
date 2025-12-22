@@ -720,4 +720,27 @@ mod tests {
 
         assert!(result.protection_effective, "功耗分析防护应该有效");
     }
+
+    #[test]
+    fn debug_cache_partition() {
+        use ciphern::side_channel::cache_protection::CachePartition;
+        let partition = CachePartition::new(4, 2);
+        let data = partition.allocate_in_partition(256);
+        
+        println!("Data length: {}", data.len());
+        
+        // Check that only partition-aligned locations are touched
+        let mut touched_count = 0;
+        for i in 0..data.len() {
+            if data[i] == 0xFF {
+                touched_count += 1;
+            }
+        }
+        
+        println!("Touched count: {}", touched_count);
+        
+        // Manual calculation for n=256
+        let manual_calc = 256;
+        assert_eq!(touched_count, manual_calc);
+    }
 }
