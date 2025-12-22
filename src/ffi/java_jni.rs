@@ -10,8 +10,9 @@
 use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::{jboolean, jint, jlong};
 use jni::JNIEnv;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 
+use crate::ffi::jni_utils::{JniBuffer, JniEnv, JniInitializer};
 use crate::ffi::{ciphern_cleanup, ciphern_decrypt, ciphern_encrypt, ciphern_generate_key, ciphern_init, CiphernError};
 
 #[no_mangle]
@@ -19,7 +20,7 @@ pub extern "system" fn Java_com_ciphern_Ciphern_init(
     _env: JNIEnv,
     _class: JClass,
 ) -> jint {
-    ciphern_init() as jint
+    JniInitializer::init()
 }
 
 #[no_mangle]
@@ -27,7 +28,7 @@ pub extern "system" fn Java_com_ciphern_Ciphern_cleanup(
     _env: JNIEnv,
     _class: JClass,
 ) {
-    ciphern_cleanup();
+    JniInitializer::cleanup();
 }
 
 #[no_mangle]
@@ -36,23 +37,35 @@ pub extern "system" fn Java_com_ciphern_Ciphern_generateKey(
     _class: JClass,
     algorithm: JString,
 ) -> JString {
-    let algo_str: String = env.get_string(&algorithm).expect("Couldn't get java string!").into();
-    let algo_cstring = CString::new(algo_str).unwrap();
-    
+    let mut jni_env = JniEnv::new(env);
+
+    // 获取算法名称
+    let algo_cstring = match jni_env.get_cstring(&algorithm) {
+        Ok(cstring) => cstring,
+        Err(_) => return jni_env.new_string("").unwrap_or_else(|_| std::ptr::null_mut() as JString),
+    };
+
+    // 生成密钥
     let mut key_id_buffer = [0u8; 256];
     let result = ciphern_generate_key(
         algo_cstring.as_ptr(),
         key_id_buffer.as_mut_ptr() as *mut i8,
         key_id_buffer.len(),
     );
-    
-    if result == CiphernError::Success {
-        let key_id = unsafe { CStr::from_ptr(key_id_buffer.as_ptr() as *const i8).to_string_lossy().into_owned() };
-        env.new_string(key_id).expect("Couldn't create java string!")
-    } else {
-        let msg = format!("Failed to generate key: {:?}", result);
-        let _ = env.throw_new("com/ciphern/CiphernException", msg);
-        env.new_string("").expect("Couldn't create java string!")
+
+    match result {
+        CiphernError::Success => {
+            let key_id = unsafe {
+                CStr::from_ptr(key_id_buffer.as_ptr() as *const i8)
+                    .to_string_lossy()
+                    .into_owned()
+            };
+            jni_env.new_string(&key_id).unwrap_or_else(|_| std::ptr::null_mut() as JString)
+        }
+        error => {
+            let _ = jni_env.handle_ciphern_error(error);
+            jni_env.new_string("").unwrap_or_else(|_| std::ptr::null_mut() as JString)
+        }
     }
 }
 
@@ -63,12 +76,21 @@ pub extern "system" fn Java_com_ciphern_Ciphern_encrypt(
     key_id: JString,
     plaintext: JByteArray,
 ) -> JByteArray {
-    let key_id_str: String = env.get_string(&key_id).expect("Couldn't get java string!").into();
-    let key_id_cstring = CString::new(key_id_str).unwrap();
-    
-    let plaintext_bytes = env.convert_byte_array(&plaintext).expect("Couldn't get byte array!");
-    
-    let mut ciphertext_buffer = vec![0u8; plaintext_bytes.len() + 256]; // 预留空间
+    let mut jni_env = JniEnv::new(env);
+
+    // 获取参数
+    let key_id_cstring = match jni_env.get_cstring(&key_id) {
+        Ok(cstring) => cstring,
+        Err(_) => return jni_env.new_byte_array(&[]).unwrap_or_else(|_| std::ptr::null_mut() as JByteArray),
+    };
+
+    let plaintext_bytes = match jni_env.get_bytes(&plaintext) {
+        Ok(bytes) => bytes,
+        Err(_) => return jni_env.new_byte_array(&[]).unwrap_or_else(|_| std::ptr::null_mut() as JByteArray),
+    };
+
+    // 执行加密
+    let mut ciphertext_buffer = JniBuffer::create_encrypt_buffer(plaintext_bytes.len());
     let mut ciphertext_len: usize = 0;
     
     let result = ciphern_encrypt(
@@ -79,14 +101,16 @@ pub extern "system" fn Java_com_ciphern_Ciphern_encrypt(
         ciphertext_buffer.len(),
         &mut ciphertext_len as *mut usize,
     );
-    
-    if result == CiphernError::Success {
-        ciphertext_buffer.truncate(ciphertext_len);
-        env.byte_array_from_slice(&ciphertext_buffer).expect("Couldn't create byte array!")
-    } else {
-        let msg = format!("Encryption failed: {:?}", result);
-        let _ = env.throw_new("com/ciphern/CiphernException", msg);
-        env.new_byte_array(0).expect("Couldn't create byte array!")
+
+    match result {
+        CiphernError::Success => {
+            JniBuffer::truncate_buffer(&mut ciphertext_buffer, ciphertext_len);
+            jni_env.new_byte_array(&ciphertext_buffer).unwrap_or_else(|_| std::ptr::null_mut() as JByteArray)
+        }
+        error => {
+            let _ = jni_env.handle_ciphern_error(error);
+            jni_env.new_byte_array(&[]).unwrap_or_else(|_| std::ptr::null_mut() as JByteArray)
+        }
     }
 }
 
@@ -97,12 +121,21 @@ pub extern "system" fn Java_com_ciphern_Ciphern_decrypt(
     key_id: JString,
     ciphertext: JByteArray,
 ) -> JByteArray {
-    let key_id_str: String = env.get_string(&key_id).expect("Couldn't get java string!").into();
-    let key_id_cstring = CString::new(key_id_str).unwrap();
-    
-    let ciphertext_bytes = env.convert_byte_array(&ciphertext).expect("Couldn't get byte array!");
-    
-    let mut plaintext_buffer = vec![0u8; ciphertext_bytes.len()];
+    let mut jni_env = JniEnv::new(env);
+
+    // 获取参数
+    let key_id_cstring = match jni_env.get_cstring(&key_id) {
+        Ok(cstring) => cstring,
+        Err(_) => return jni_env.new_byte_array(&[]).unwrap_or_else(|_| std::ptr::null_mut() as JByteArray),
+    };
+
+    let ciphertext_bytes = match jni_env.get_bytes(&ciphertext) {
+        Ok(bytes) => bytes,
+        Err(_) => return jni_env.new_byte_array(&[]).unwrap_or_else(|_| std::ptr::null_mut() as JByteArray),
+    };
+
+    // 执行解密
+    let mut plaintext_buffer = JniBuffer::create_decrypt_buffer(ciphertext_bytes.len());
     let mut plaintext_len: usize = 0;
     
     let result = ciphern_decrypt(
@@ -113,13 +146,15 @@ pub extern "system" fn Java_com_ciphern_Ciphern_decrypt(
         plaintext_buffer.len(),
         &mut plaintext_len as *mut usize,
     );
-    
-    if result == CiphernError::Success {
-        plaintext_buffer.truncate(plaintext_len);
-        env.byte_array_from_slice(&plaintext_buffer).expect("Couldn't create byte array!")
-    } else {
-        let msg = format!("Decryption failed: {:?}", result);
-        let _ = env.throw_new("com/ciphern/CiphernException", msg);
-        env.new_byte_array(0).expect("Couldn't create byte array!")
+
+    match result {
+        CiphernError::Success => {
+            JniBuffer::truncate_buffer(&mut plaintext_buffer, plaintext_len);
+            jni_env.new_byte_array(&plaintext_buffer).unwrap_or_else(|_| std::ptr::null_mut() as JByteArray)
+        }
+        error => {
+            let _ = jni_env.handle_ciphern_error(error);
+            jni_env.new_byte_array(&[]).unwrap_or_else(|_| std::ptr::null_mut() as JByteArray)
+        }
     }
 }

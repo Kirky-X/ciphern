@@ -8,91 +8,36 @@
 //! 提供 C 语言兼容的 API，支持跨语言调用
 //! 遵循 Rust FFI 安全最佳实践
 
-use once_cell::sync::LazyStatic;
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char, c_int};
 use std::ptr;
 use std::slice;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::thread;
+
+use crate::{Algorithm, Cipher, CryptoError};
 use zeroize::Zeroize;
 
-use crate::fips::{FipsContext, FipsMode};
-use crate::key::{KeyLifecycleManager, KeyLifecyclePolicy};
-use crate::{Algorithm, Cipher, CryptoError, KeyManager, Result};
-
+pub mod context;
+pub mod interface;
 pub mod java_jni;
 pub mod python_pyo3;
+pub mod jni_utils;
 
-/// 错误代码定义
-#[repr(C)]
-pub enum CiphernError {
-    Success = 0,
-    InvalidParameter = -1,
-    MemoryAllocationFailed = -2,
-    KeyNotFound = -3,
-    AlgorithmNotSupported = -4,
-    EncryptionFailed = -5,
-    DecryptionFailed = -6,
-    FipsError = -7,
-    KeyLifecycleError = -8,
-    BufferTooSmall = -9,
-    InvalidKeySize = -10,
-    UnknownError = -999,
-}
-
-/// 全局上下文管理器
-struct GlobalContext {
-    key_manager: Option<Arc<KeyManager>>,
-    lifecycle_manager: Option<Arc<KeyLifecycleManager>>,
-    fips_context: Option<Arc<FipsContext>>,
-}
-
-impl GlobalContext {
-    fn new() -> Self {
-        Self {
-            key_manager: None,
-            lifecycle_manager: None,
-            fips_context: None,
-        }
-    }
-}
-
-static GLOBAL_CONTEXT: LazyStatic<Mutex<GlobalContext>> = LazyStatic::new(|| {
-    Mutex::new(GlobalContext::new())
-});
+pub use context::{cleanup_context, initialize_context, is_context_ready, with_context};
+// 重新导出统一的接口定义
+pub use interface::{CiphernBuffer, CiphernError, CiphernString};
 
 /// 初始化库
 #[no_mangle]
 pub extern "C" fn ciphern_init() -> CiphernError {
     match std::panic::catch_unwind(|| {
-        // 初始化 Rust 库
-        if let Err(e) = crate::init() {
-            return CiphernError::UnknownError;
-        }
-        
-        // 创建全局上下文
-        let mut context = match GLOBAL_CONTEXT.lock() {
-            Ok(guard) => guard,
-            Err(_) => return CiphernError::UnknownError,
-        };
-        
-        // 创建密钥管理器
-        match KeyManager::new() {
-            Ok(km) => context.key_manager = Some(Arc::new(km)),
-            Err(_) => return CiphernError::MemoryAllocationFailed,
-        }
-        
-        // 创建生命周期管理器
-        match KeyLifecycleManager::new() {
-            Ok(lm) => context.lifecycle_manager = Some(Arc::new(lm)),
-            Err(_) => return CiphernError::MemoryAllocationFailed,
-        }
-        
-        CiphernError::Success
+        context::initialize_context()
     }) {
         Ok(result) => result,
-        Err(_) => CiphernError::UnknownError,
+        Err(_) => {
+            eprintln!("ciphern_init: Panic occurred during initialization");
+            CiphernError::UnknownError
+        }
     }
 }
 
@@ -100,11 +45,7 @@ pub extern "C" fn ciphern_init() -> CiphernError {
 #[no_mangle]
 pub extern "C" fn ciphern_cleanup() {
     match std::panic::catch_unwind(|| {
-        if let Ok(mut context) = GLOBAL_CONTEXT.lock() {
-            context.key_manager = None;
-            context.lifecycle_manager = None;
-            context.fips_context = None;
-        }
+        context::cleanup_context()
     }) {
         Ok(_) => {},
         Err(_) => {
@@ -118,25 +59,23 @@ pub extern "C" fn ciphern_cleanup() {
 #[no_mangle]
 pub extern "C" fn ciphern_enable_fips() -> CiphernError {
     match std::panic::catch_unwind(|| {
-        match FipsContext::enable() {
-            Ok(_) => {
-                // 更新全局上下文
-                let mut context = match GLOBAL_CONTEXT.lock() {
-                    Ok(guard) => guard,
-                    Err(_) => return CiphernError::UnknownError,
-                };
-                if let Some(ref _km) = context.key_manager {
-                    context.fips_context = Some(Arc::new(
-                        match FipsContext::new(FipsMode::Enabled) {
-                            Ok(fc) => fc,
-                            Err(_) => return CiphernError::FipsError,
-                        }
-                    ));
-                }
-                CiphernError::Success
-            },
-            Err(_) => CiphernError::FipsError,
-        }
+        with_context(|context| {
+            // 启用FIPS模式
+            match crate::fips::FipsContext::enable() {
+                Ok(_) => {
+                    // 创建新的FIPS上下文
+                    let fips_context = match crate::fips::FipsContext::new(crate::fips::FipsMode::Enabled) {
+                        Ok(fc) => fc,
+                        Err(_) => return Err(CiphernError::FipsError),
+                    };
+
+                    // 更新上下文中的FIPS状态
+                    context.set_fips_enabled(true);
+                    Ok(CiphernError::Success)
+                },
+                Err(_) => Err(CiphernError::FipsError),
+            }
+        }).unwrap_or(CiphernError::UnknownError)
     }) {
         Ok(result) => result,
         Err(_) => CiphernError::UnknownError,
@@ -147,11 +86,13 @@ pub extern "C" fn ciphern_enable_fips() -> CiphernError {
 #[no_mangle]
 pub extern "C" fn ciphern_is_fips_enabled() -> c_int {
     match std::panic::catch_unwind(|| {
-        if crate::fips::is_fips_enabled() {
-            1
-        } else {
-            0
-        }
+        with_context(|context| {
+            if context.is_fips_enabled() {
+                Ok(1)
+            } else {
+                Ok(0)
+            }
+        }).unwrap_or(0)
     }) {
         Ok(result) => result,
         Err(_) => {
@@ -174,65 +115,33 @@ pub extern "C" fn ciphern_generate_key(
     }
     
     match std::panic::catch_unwind(|| {
-        // 转换算法名称
-        let algo_str = unsafe {
-            match CStr::from_ptr(algorithm_name).to_str() {
-                Ok(s) => s,
-                Err(_) => return CiphernError::InvalidParameter,
+        with_context(|context| {
+            // 验证参数
+            let algo_str = interface::validation::validate_c_str(algorithm_name)?;
+            let key_id_buffer = interface::validation::validate_mut_c_str(key_id_buffer, key_id_buffer_size)?;
+
+            // 解析算法
+            let algorithm = interface::parse_algorithm(algo_str)?;
+
+            // 获取密钥管理器
+            let key_manager = context.key_manager()
+                .ok_or(CiphernError::UnknownError)?;
+
+            // 生成密钥
+            let key_id = key_manager.generate_key(algorithm)
+                .map_err(|_| CiphernError::KeyLifecycleError)?;
+
+            // 自动激活密钥
+            if let Ok(mut key) = key_manager.get_key(&key_id) {
+                let _ = key.activate(None);
+                let _ = key_manager.update_key(key);
             }
-        };
-        
-        // 解析算法
-        let algorithm = match parse_algorithm(algo_str) {
-            Ok(algo) => algo,
-            Err(_) => return CiphernError::AlgorithmNotSupported,
-        };
-        
-        // 获取密钥管理器
-        let context = match GLOBAL_CONTEXT.lock() {
-            Ok(guard) => guard,
-            Err(_) => return CiphernError::UnknownError,
-        };
-        let key_manager = match context.key_manager.as_ref() {
-            Some(km) => km.clone(),
-            None => return CiphernError::UnknownError,
-        };
 
-        // 必须显式释放锁，因为后续操作可能需要再次获取锁或耗时较长
-        drop(context);
+            // 复制密钥ID到缓冲区
+            interface::write_c_string(&key_id, key_id_buffer, key_id_buffer_size)?;
 
-        // 生成密钥
-        let key_id = match key_manager.generate_key(algorithm) {
-            Ok(id) => id,
-            Err(_) => return CiphernError::KeyLifecycleError,
-        };
-
-        // 自动激活密钥
-        if let Ok(mut key) = key_manager.get_key(&key_id) {
-            let _ = key.activate(None);
-            let _ = key_manager.update_key(key);
-        }
-        
-        // 复制密钥ID到缓冲区
-        let key_id_cstring = match CString::new(key_id) {
-            Ok(s) => s,
-            Err(_) => return CiphernError::MemoryAllocationFailed,
-        };
-        
-        let key_id_bytes = key_id_cstring.as_bytes_with_nul();
-        if key_id_bytes.len() > key_id_buffer_size {
-            return CiphernError::BufferTooSmall;
-        }
-        
-        unsafe {
-            ptr::copy_nonoverlapping(
-                key_id_bytes.as_ptr() as *const c_char,
-                key_id_buffer,
-                key_id_bytes.len(),
-            );
-        }
-        
-        CiphernError::Success
+            Ok(CiphernError::Success)
+        }).unwrap_or(CiphernError::UnknownError)
     }) {
         Ok(result) => result,
         Err(_) => CiphernError::UnknownError,
@@ -247,30 +156,20 @@ pub extern "C" fn ciphern_destroy_key(key_id: *const c_char) -> CiphernError {
     }
     
     match std::panic::catch_unwind(|| {
-        // 转换密钥ID
-        let key_id_str = unsafe {
-            match CStr::from_ptr(key_id).to_str() {
-                Ok(s) => s,
-                Err(_) => return CiphernError::InvalidParameter,
-            }
-        };
-        
-        // 获取密钥管理器
-        let context = match GLOBAL_CONTEXT.lock() {
-            Ok(guard) => guard,
-            Err(_) => return CiphernError::UnknownError,
-        };
-        let key_manager = match context.key_manager.as_ref() {
-            Some(km) => km.clone(),
-            None => return CiphernError::UnknownError,
-        };
-        drop(context);
-        
-        // 销毁密钥
-        match key_manager.destroy_key(key_id_str) {
-            Ok(_) => CiphernError::Success,
-            Err(_) => CiphernError::KeyNotFound,
-        }
+        with_context(|context| {
+            // 验证参数
+            let key_id_str = interface::validation::validate_c_str(key_id)?;
+
+            // 获取密钥管理器
+            let key_manager = context.key_manager()
+                .ok_or(CiphernError::UnknownError)?;
+
+            // 销毁密钥
+            key_manager.destroy_key(key_id_str)
+                .map_err(|_| CiphernError::KeyNotFound)?;
+
+            Ok(CiphernError::Success)
+        }).unwrap_or(CiphernError::UnknownError)
     }) {
         Ok(result) => result,
         Err(_) => CiphernError::UnknownError,
@@ -300,63 +199,43 @@ pub extern "C" fn ciphern_encrypt(
     }
     
     match std::panic::catch_unwind(|| {
-        // 转换密钥ID
-        let key_id_str = unsafe {
-            match CStr::from_ptr(key_id).to_str() {
-                Ok(s) => s,
-                Err(_) => return CiphernError::InvalidParameter,
+        with_context(|context| {
+            // 验证参数
+            let key_id_str = interface::validation::validate_c_str(key_id)?;
+            let plaintext_slice = interface::validation::validate_slice(plaintext, plaintext_len)?;
+            let ciphertext_buffer = interface::validation::validate_mut_slice(ciphertext, ciphertext_buffer_size)?;
+            let ciphertext_len_ptr = interface::validation::validate_mut_usize(ciphertext_len)?;
+
+            // 获取密钥管理器
+            let key_manager = context.key_manager()
+                .ok_or(CiphernError::UnknownError)?;
+
+            // 获取密钥
+            let key = key_manager.get_key(key_id_str)
+                .map_err(|_| CiphernError::KeyNotFound)?;
+
+            // 创建加密器
+            let cipher = Cipher::new(key.algorithm())
+                .map_err(|_| CiphernError::AlgorithmNotSupported)?;
+
+            // 加密
+            let mut encrypted = cipher.encrypt(key_manager, key_id_str, plaintext_slice)
+                .map_err(|_| CiphernError::EncryptionFailed)?;
+
+            // 检查缓冲区大小
+            if encrypted.len() > ciphertext_buffer_size {
+                return Err(CiphernError::BufferTooSmall);
             }
-        };
-        
-        // 创建明文切片
-        let plaintext_slice = unsafe {
-            slice::from_raw_parts(plaintext, plaintext_len)
-        };
-        
-        // 获取密钥管理器
-        let context = GLOBAL_CONTEXT.lock().unwrap();
-        let key_manager = match context.key_manager.as_ref() {
-            Some(km) => km.clone(),
-            None => return CiphernError::UnknownError,
-        };
-        
-        // 获取密钥
-        let key = match key_manager.get_key(key_id_str) {
-            Ok(k) => k,
-            Err(_) => return CiphernError::KeyNotFound,
-        };
-        
-        // 创建加密器
-        let cipher = match Cipher::new(key.algorithm()) {
-            Ok(c) => c,
-            Err(_) => return CiphernError::AlgorithmNotSupported,
-        };
-        
-        // 加密
-        let encrypted = match cipher.encrypt(&key_manager, key_id_str, plaintext_slice) {
-            Ok(data) => data,
-            Err(_) => return CiphernError::EncryptionFailed,
-        };
-        
-        // 检查缓冲区大小
-        if encrypted.len() > ciphertext_buffer_size {
-            return CiphernError::BufferTooSmall;
-        }
-        
-        // 复制加密数据
-        unsafe {
-            ptr::copy_nonoverlapping(
-                encrypted.as_ptr(),
-                ciphertext,
-                encrypted.len(),
-            );
-            *ciphertext_len = encrypted.len();
-        }
 
-        // 清零加密数据，防止敏感信息残留
-        encrypted.zeroize();
+            // 复制加密数据
+            ciphertext_buffer[..encrypted.len()].copy_from_slice(&encrypted);
+            *ciphertext_len_ptr = encrypted.len();
 
-        CiphernError::Success
+            // 清零加密数据，防止敏感信息残留
+            encrypted.zeroize();
+
+            Ok(CiphernError::Success)
+        }).unwrap_or(CiphernError::UnknownError)
     }) {
         Ok(result) => result,
         Err(_) => CiphernError::UnknownError,
@@ -386,63 +265,43 @@ pub extern "C" fn ciphern_decrypt(
     }
     
     match std::panic::catch_unwind(|| {
-        // 转换密钥ID
-        let key_id_str = unsafe {
-            match CStr::from_ptr(key_id).to_str() {
-                Ok(s) => s,
-                Err(_) => return CiphernError::InvalidParameter,
+        with_context(|context| {
+            // 验证参数
+            let key_id_str = interface::validation::validate_c_str(key_id)?;
+            let ciphertext_slice = interface::validation::validate_slice(ciphertext, ciphertext_len)?;
+            let plaintext_buffer = interface::validation::validate_mut_slice(plaintext, plaintext_buffer_size)?;
+            let plaintext_len_ptr = interface::validation::validate_mut_usize(plaintext_len)?;
+
+            // 获取密钥管理器
+            let key_manager = context.key_manager()
+                .ok_or(CiphernError::UnknownError)?;
+
+            // 获取密钥
+            let key = key_manager.get_key(key_id_str)
+                .map_err(|_| CiphernError::KeyNotFound)?;
+
+            // 创建解密器
+            let cipher = Cipher::new(key.algorithm())
+                .map_err(|_| CiphernError::AlgorithmNotSupported)?;
+
+            // 解密
+            let mut decrypted = cipher.decrypt(key_manager, key_id_str, ciphertext_slice)
+                .map_err(|_| CiphernError::DecryptionFailed)?;
+
+            // 检查缓冲区大小
+            if decrypted.len() > plaintext_buffer_size {
+                return Err(CiphernError::BufferTooSmall);
             }
-        };
-        
-        // 创建密文切片
-        let ciphertext_slice = unsafe {
-            slice::from_raw_parts(ciphertext, ciphertext_len)
-        };
-        
-        // 获取密钥管理器
-        let context = GLOBAL_CONTEXT.lock().unwrap();
-        let key_manager = match context.key_manager.as_ref() {
-            Some(km) => km.clone(),
-            None => return CiphernError::UnknownError,
-        };
-        
-        // 获取密钥
-        let key = match key_manager.get_key(key_id_str) {
-            Ok(k) => k,
-            Err(_) => return CiphernError::KeyNotFound,
-        };
-        
-        // 创建解密器
-        let cipher = match Cipher::new(key.algorithm()) {
-            Ok(c) => c,
-            Err(_) => return CiphernError::AlgorithmNotSupported,
-        };
-        
-        // 解密
-        let decrypted = match cipher.decrypt(&key_manager, key_id_str, ciphertext_slice) {
-            Ok(data) => data,
-            Err(_) => return CiphernError::DecryptionFailed,
-        };
-        
-        // 检查缓冲区大小
-        if decrypted.len() > plaintext_buffer_size {
-            return CiphernError::BufferTooSmall;
-        }
-        
-        // 复制解密数据
-        unsafe {
-            ptr::copy_nonoverlapping(
-                decrypted.as_ptr(),
-                plaintext,
-                decrypted.len(),
-            );
-            *plaintext_len = decrypted.len();
-        }
 
-        // 清零解密数据，防止敏感信息残留
-        decrypted.zeroize();
+            // 复制解密数据
+            plaintext_buffer[..decrypted.len()].copy_from_slice(&decrypted);
+            *plaintext_len_ptr = decrypted.len();
 
-        CiphernError::Success
+            // 清零解密数据，防止敏感信息残留
+            decrypted.zeroize();
+
+            Ok(CiphernError::Success)
+        }).unwrap_or(CiphernError::UnknownError)
     }) {
         Ok(result) => result,
         Err(_) => CiphernError::UnknownError,
@@ -488,32 +347,6 @@ pub extern "C" fn ciphern_error_string(error: CiphernError) -> *const c_char {
     }
 }
 
-/// 解析算法名称
-fn parse_algorithm(name: &str) -> Result<Algorithm> {
-    match name.to_uppercase().as_str() {
-        "AES128GCM" => Ok(Algorithm::AES128GCM),
-        "AES192GCM" => Ok(Algorithm::AES192GCM),
-        "AES256GCM" => Ok(Algorithm::AES256GCM),
-        "ECDSAP256" => Ok(Algorithm::ECDSAP256),
-        "ECDSAP384" => Ok(Algorithm::ECDSAP384),
-        "ECDSAP521" => Ok(Algorithm::ECDSAP521),
-        "RSA2048" => Ok(Algorithm::RSA2048),
-        "RSA3072" => Ok(Algorithm::RSA3072),
-        "RSA4096" => Ok(Algorithm::RSA4096),
-        "SHA256" => Ok(Algorithm::SHA256),
-        "SHA384" => Ok(Algorithm::SHA384),
-        "SHA512" => Ok(Algorithm::SHA512),
-        "SHA3_256" => Ok(Algorithm::SHA3_256),
-        "SHA3_384" => Ok(Algorithm::SHA3_384),
-        "SHA3_512" => Ok(Algorithm::SHA3_512),
-        "HKDF" => Ok(Algorithm::HKDF),
-        "PBKDF2" => Ok(Algorithm::PBKDF2),
-        "SM4GCM" => Ok(Algorithm::SM4GCM),
-        "SM2" => Ok(Algorithm::SM2),
-        "ED25519" => Ok(Algorithm::ED25519),
-        _ => Err(CryptoError::AlgorithmNotSupported),
-    }
-}
 
 /// C FFI 头文件生成辅助函数
 #[cfg(feature = "generate_headers")]
