@@ -23,7 +23,6 @@ pub mod embedded_power;
 pub mod error_injection;
 pub mod masking;
 pub mod power_analysis;
-pub mod tests;
 
 pub use cache_protection::*;
 pub use constant_time::*;

@@ -801,4 +801,138 @@ mod tests {
         assert_ne!(ProtectionLevel::Enhanced, ProtectionLevel::Maximum);
         assert_ne!(ProtectionLevel::Basic, ProtectionLevel::Maximum);
     }
+
+    #[test]
+    fn test_masking_properties() {
+        // Test that XOR masking is reversible
+        for i in 0..256 {
+            let original = i as u8;
+            let (masked, mask) = mask_value(original).unwrap();
+            let unmasked = unmask_value(masked, mask);
+            assert_eq!(unmasked, original, "XOR masking failed for value {}", original);
+
+            // Masked value should be different from original when mask is non-zero
+            if mask != 0 {
+                assert_ne!(masked, original, "Non-zero mask should change the value");
+            }
+        }
+    }
+
+    #[test]
+    fn test_multiplicative_mask_properties() {
+        let mask = MultiplicativeMask::new().unwrap();
+
+        // Test with various values including edge cases
+        let test_values = [0u32, 1, 0xFFFFFFFF, 0x12345678, 0x87654321];
+
+        for &value in &test_values {
+            let masked = mask.mask(value);
+            let unmasked = mask.unmask(masked);
+            assert_eq!(unmasked, value, "Multiplicative masking failed for value 0x{:08x}", value);
+
+            // Masked value should be different from original (except for 0)
+            if value != 0 {
+                assert_ne!(masked, value, "Multiplicative mask should change non-zero values");
+            }
+        }
+    }
+
+    #[test]
+    fn test_boolean_mask_properties() {
+        let mask = BooleanMask::new(16).unwrap();
+
+        // Test boolean masking
+        for i in 0..16 {
+            let original = (i % 2) == 0;
+            let masked = mask.mask_bool(i, original);
+            let unmasked = mask.mask_bool(i, masked); // XOR is its own inverse
+            assert_eq!(unmasked, original, "Boolean masking failed at index {}", i);
+        }
+
+        // Test u8 masking
+        let original = 0b10101010u8;
+        let masked = mask.mask_u8(original);
+        let unmasked = mask.mask_u8(masked); // XOR is its own inverse
+        assert_eq!(unmasked, original, "Boolean u8 masking failed");
+    }
+
+    #[test]
+    fn test_mask_distribution() {
+        // Test that masks are properly distributed (not all zeros or ones)
+        let mut mask_counts = [0u32; 256];
+
+        for _ in 0..1000 {
+            let (masked, mask) = mask_value(0x42).unwrap();
+            mask_counts[mask as usize] += 1;
+            assert_eq!(unmask_value(masked, mask), 0x42);
+        }
+
+        // Check that we get a reasonable distribution of mask values
+        let zero_count = mask_counts.iter().filter(|&&c| c == 0).count();
+        assert!(zero_count < 200, "Too many mask values never used: {}", zero_count);
+
+        let max_count = *mask_counts.iter().max().unwrap();
+        assert!(max_count < 20, "Mask value used too frequently: {}", max_count);
+    }
+
+    #[test]
+    fn test_large_byte_masking() {
+        // Test masking of larger byte arrays
+        let original: Vec<u8> = (0..1024).map(|i| (i * 7 + 3) as u8).collect();
+        let (masked, masks) = mask_bytes(&original).unwrap();
+        let unmasked = unmask_bytes(&masked, &masks);
+
+        assert_eq!(unmasked, original, "Large byte array masking failed");
+        assert_eq!(masked.len(), original.len());
+        assert_eq!(masks.len(), original.len());
+
+        // Verify that masking actually changes the data
+        let mut changed_count = 0;
+        for (orig, mask) in original.iter().zip(masked.iter()) {
+            if orig != mask {
+                changed_count += 1;
+            }
+        }
+        assert!(changed_count > 800, "Masking should change most bytes, only changed {}", changed_count);
+    }
+
+    #[test]
+    fn test_power_analysis_stats() {
+        let stats = PowerAnalysisStats::new();
+        assert_eq!(stats.masking_operations, 0);
+        assert_eq!(stats.randomization_operations, 0);
+        assert_eq!(stats.dummy_operations, 0);
+        assert_eq!(stats.avg_protection_time_ms, 0.0);
+        assert_eq!(stats.protection_level, ProtectionLevel::Basic);
+
+        // Test default implementation
+        let default_stats = PowerAnalysisStats::default();
+        assert_eq!(default_stats.masking_operations, 0);
+        assert_eq!(default_stats.protection_level, ProtectionLevel::Basic);
+    }
+
+    #[test]
+    fn test_manager_timing_stats() {
+        let config = PowerAnalysisConfig::default();
+        let mut manager = PowerAnalysisManager::new(config);
+
+        // Perform some operations to build timing statistics
+        for i in 0..5 {
+            let data = vec![i; 100];
+            let _ = manager.mask_bytes_tracked(&data).unwrap();
+            manager.randomize_power_consumption_tracked(5);
+        }
+
+        let stats = manager.get_stats();
+        assert!(stats.masking_operations >= 5);
+        assert!(stats.randomization_operations >= 5);
+        assert!(stats.avg_protection_time_ms > 0.0);
+
+        // Reset and verify
+        manager.reset_stats();
+        let reset_stats = manager.get_stats();
+        assert_eq!(reset_stats.masking_operations, 0);
+        assert_eq!(reset_stats.randomization_operations, 0);
+        assert_eq!(reset_stats.avg_protection_time_ms, 0.0);
+    }
 }
