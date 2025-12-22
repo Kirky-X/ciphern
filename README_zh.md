@@ -17,31 +17,30 @@
 
 ### 🔒 安全优先
 
-- **多层防护**: 内存保护、侧信道防护、密钥隔离
-- **合规认证**: 符合国密标准 (SM2/SM3/SM4) 和 FIPS 140-3
-- **零知识审计**: 完整操作日志，不泄漏敏感数据
-- **自动密钥轮换**: 满足合规要求的密钥生命周期管理
+- **内存保护**: 使用 `zeroize` 安全清理密钥，支持内存锁定
+- **合规认证**: 符合国密标准 (SM2/SM3/SM4) 和 FIPS 140-3 基础要求
+- **审计日志**: 完整的加密操作审计追踪
+- **密钥生命周期**: 支持密钥生成、激活、销毁等基础生命周期管理
 
 ### ⚡ 高性能
 
-- **SIMD 优化**: AES-256 吞吐量 > 3 GB/s (AVX2)
-- **硬件加速**: 支持 AES-NI、ARM Crypto Extensions
 - **零拷贝设计**: 最小化内存分配和复制
 - **智能缓存**: 密钥和算法实例复用
+- **纯 Rust 实现**: 无外部依赖，编译时优化
 
 ### 🔧 易于集成
 
 - **统一接口**: 简洁的 API，屏蔽底层复杂性
-- **多语言支持**: Rust / Java / Python / C
-- **插件化架构**: 用户可自定义加密算法
-- **丰富示例**: 涵盖常见使用场景
+- **多语言支持**: C FFI 接口，基础 Java JNI 和 Python PyO3 绑定
+- **插件化架构**: 支持自定义加密算法插件（基础框架）
+- **丰富测试**: 包含单元测试、集成测试和性能测试
 
 ### 🌐 标准兼容
 
-- **国际标准**: AES-256, ECDSA-P384, SHA-256/384/512
-- **国密标准**: SM2, SM3, SM4
-- **密钥派生**: HKDF, PBKDF2, Argon2id
-- **协议支持**: TLS 1.3, JWE, PKCS#11
+- **国际标准**: AES-128/192/256-GCM, ECDSA-P256/P384/P521, RSA-2048/3072/4096, Ed25519
+- **国密标准**: SM2, SM3, SM4-GCM
+- **哈希函数**: SHA-256/384/512, SHA3-256/384/512, SM3
+- **密钥派生**: HKDF, PBKDF2, Argon2id, SM3-KDF
 
 ---
 
@@ -58,18 +57,19 @@ ciphern = "0.1"
 
 **Java (Maven)**
 
+Java 绑定正在开发中，需要手动编译 JNI 库：
+
 ```xml
-<dependency>
-    <groupId>com.ciphern</groupId>
-    <artifactId>ciphern-jni</artifactId>
-    <version>0.1.0</version>
-</dependency>
+<!-- 暂不支持 Maven 直接安装，需要从源码编译 -->
 ```
 
 **Python (pip)**
 
+Python 绑定正在开发中，需要手动编译：
+
 ```bash
-pip install ciphern
+# 暂不支持 pip 直接安装，需要从源码编译
+# pip install ciphern  # 暂不可用
 ```
 
 ### 5 分钟示例
@@ -80,6 +80,9 @@ pip install ciphern
 use ciphern::{Cipher, Algorithm, KeyManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 初始化库
+    ciphern::init()?;
+    
     // 初始化密钥管理器
     let km = KeyManager::new()?;
     
@@ -108,14 +111,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 use ciphern::{Signer, Algorithm, KeyManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 初始化库
+    ciphern::init()?;
+    
     // 初始化密钥管理器
     let km = KeyManager::new()?;
     
-    // 生成密钥对 (以 SM2 为例)
-    let key_id = km.generate_key(Algorithm::SM2)?;
+    // 生成密钥对 (以 ECDSA-P256 为例)
+    let key_id = km.generate_key(Algorithm::ECDSAP256)?;
     
     // 创建签名器
-    let signer = Signer::new(Algorithm::SM2)?;
+    let signer = Signer::new(Algorithm::ECDSAP256)?;
     
     // 签名
     let message = b"Important message";
@@ -136,6 +142,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 use ciphern::{Cipher, Algorithm, KeyManager, Hash};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 初始化库
+    ciphern::init()?;
+    
     let km = KeyManager::new()?;
 
     // SM4 加密
@@ -153,36 +162,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #### Java 示例
 
-```java
-import com.ciphern.*;
+Java 绑定正在开发中，当前需要手动编译 JNI 库：
 
-public class Example {
-    public static void main(String[] args) {
-        try (Cipher cipher = new Cipher(Algorithm.AES256GCM)) {
-            byte[] plaintext = "Hello, Java!".getBytes();
-            byte[] ciphertext = cipher.encrypt(plaintext);
-            byte[] decrypted = cipher.decrypt(ciphertext);
-            
-            System.out.println("✅ Success: " + new String(decrypted));
-        } catch (CryptoException e) {
-            System.err.println("Error: " + e.getMessage());
-        }
-    }
-}
+```java
+// 暂不支持直接使用，需要从源码编译 JNI 库
+// import com.ciphern.*;
 ```
 
 #### Python 示例
 
-```python
-from ciphern import Cipher, Algorithm
+Python 绑定正在开发中，当前需要手动编译：
 
-with Cipher(Algorithm.AES256GCM) as cipher:
-    plaintext = b"Hello, Python!"
-    ciphertext = cipher.encrypt(plaintext)
-    decrypted = cipher.decrypt(ciphertext)
-    
-    assert plaintext == decrypted
-    print("✅ Success!")
+```python
+# 暂不支持直接使用，需要从源码编译 PyO3 扩展
+# from ciphern import Cipher, Algorithm
 ```
 
 ---
@@ -219,6 +212,7 @@ with Cipher(Algorithm.AES256GCM) as cipher:
 ```rust
 use ciphern::{Cipher, KeyManager, Algorithm};
 
+ciphern::init()?;
 let km = KeyManager::new()?;
 let key_id = km.generate_key_with_alias(Algorithm::AES256GCM, "database-encryption")?;
 let cipher = Cipher::new(Algorithm::AES256GCM)?;
@@ -235,6 +229,7 @@ db.save_encrypted_field(user.id, "ssn", &encrypted_ssn)?;
 ```rust
 use ciphern::{Signer, Algorithm, KeyManager};
 
+ciphern::init()?;
 let km = KeyManager::new()?;
 let key_id = km.generate_key(Algorithm::ECDSAP384)?;
 let signer = Signer::new(Algorithm::ECDSAP384)?;
@@ -248,25 +243,19 @@ http_request
 
 ### 密钥管理
 
-自动轮换、多租户隔离、审计日志
+基础密钥生命周期管理
 
 ```rust
-use ciphern::key::{KeyLifecycleManager, KeyLifecyclePolicy, KeyManagerLifecycleExt};
-use ciphern::types::Algorithm;
-use std::sync::Arc;
+use ciphern::{KeyManager, Algorithm};
 
-let mut km = KeyManager::new()?;
-let klm = Arc::new(KeyLifecycleManager::new());
-km.enable_lifecycle_management(klm);
+ciphern::init()?;
+let km = KeyManager::new()?;
 
+// 生成密钥
 let key_id = km.generate_key(Algorithm::AES256GCM)?;
 
-// 密钥生命周期策略 (示例)
-let policy = KeyLifecyclePolicy {
-    rotation_period_days: 90,
-    grace_period_days: 7,
-    ..Default::default()
-};
+// 使用别名管理密钥
+let alias_key_id = km.generate_key_with_alias(Algorithm::AES256GCM, "my-app-key")?;
 ```
 
 ---
@@ -283,6 +272,9 @@ ciphern = { version = "0.1", features = ["fips"] }
 ```rust
 use ciphern::{is_fips_enabled, Algorithm, Cipher};
 
+// 初始化时启用 FIPS 模式
+ciphern::init()?;
+
 // 检查 FIPS 模式是否启用
 if is_fips_enabled() {
     println!("FIPS mode is enabled");
@@ -293,28 +285,26 @@ let result = Cipher::new(Algorithm::SM4GCM);
 assert!(result.is_err()); // CryptoError::FipsError
 ```
 
-### SIMD 性能优化
-
-```toml
-[dependencies]
-ciphern = { version = "0.1", features = ["simd"] }
-```
-
-自动检测 CPU 特性并使用最优实现：
-
-- **x86_64**: AES-NI + AVX2
-- **ARM64**: ARM Crypto Extensions
-- **Fallback**: 纯软件实现
-
 ### 审计日志与监控
 
 ```rust
-use ciphern::audit::AuditLogger;
+use ciphern::audit::{AuditLogger, AuditEvent, PerformanceMetrics};
+use std::sync::Arc;
 
-// 初始化审计系统
-AuditLogger::init();
+// 初始化库
+ciphern::init()?;
 
-// 系统会自动记录所有加密/解密/密钥管理操作
+// 创建审计日志器
+let audit_logger = Arc::new(AuditLogger::new());
+
+// 记录事件
+let event = AuditEvent::new("encryption", "AES256GCM", "success");
+audit_logger.log_event(event)?;
+
+// 获取性能指标
+let metrics = audit_logger.get_performance_metrics()?;
+println!("Throughput: {:.2} ops/sec", metrics.avg_throughput_ops_per_sec);
+println!("Cache hit rate: {:.1}%", metrics.avg_cache_hit_rate * 100.0);
 ```
 
 ### 自定义算法插件
@@ -328,21 +318,22 @@ use ciphern::plugin::{Plugin, CipherPlugin};
 
 ## 📊 性能指标
 
-### 吞吐量 (x86_64, Intel i9-12900K, 单核)
+### 性能指标
 
-| 算法          | 标量实现     | SIMD (SSE) | SIMD (AVX2)  |
-|-------------|----------|------------|--------------|
-| AES-256-GCM | 500 MB/s | 1.5 GB/s   | **3.2 GB/s** |
-| SM4-GCM     | 200 MB/s | 600 MB/s   | **1.1 GB/s** |
-| SHA-256     | 300 MB/s | 800 MB/s   | **1.5 GB/s** |
+当前版本基于纯 Rust 实现，性能数据可通过审计系统获取：
 
-### 延迟 (1KB 数据)
+```rust
+use ciphern::audit::{AuditLogger, PerformanceMetrics};
 
-| 操作            | P50    | P99    | P99.9  |
-|---------------|--------|--------|--------|
-| AES-256 加密    | 2.1 μs | 3.5 μs | 8.2 μs |
-| ECDSA-P384 签名 | 180 μs | 250 μs | 400 μs |
-| ECDSA-P384 验证 | 280 μs | 380 μs | 600 μs |
+let audit_logger = AuditLogger::new();
+let metrics = audit_logger.get_performance_metrics()?;
+
+println!("平均吞吐量: {:.2} ops/sec", metrics.avg_throughput_ops_per_sec);
+println!("平均延迟: {:.2} μs", metrics.avg_latency_us);
+println!("缓存命中率: {:.1}%", metrics.avg_cache_hit_rate * 100.0);
+```
+
+> 注：SIMD 优化和硬件加速功能正在开发中，当前版本提供基础的加密功能实现
 
 运行 benchmark:
 
@@ -356,26 +347,30 @@ cargo bench
 
 ### 安全特性
 
-- ✅ **Constant-time 实现**: 防止时序攻击
 - ✅ **自动内存擦除**: 使用 `zeroize` 安全清理密钥
-- ✅ **内存锁定**: 防止密钥被 swap 到磁盘
-- ✅ **内存篡改检测**: Canary + Checksum 双重保护
-- ✅ **侧信道防护**: 可选的功耗分析防护
+- ✅ **FIPS 140-3 基础合规**: 支持 FIPS 批准的算法验证
+- ✅ **审计日志**: 完整的加密操作审计追踪
+- ✅ **算法验证**: 内置算法正确性自检
+- ✅ **错误处理**: 安全的错误状态管理
+
+> 注：Constant-time 实现、内存锁定、侧信道防护等高级安全特性正在开发中
 
 ### 安全审计
 
-Ciphern 已通过以下安全测试：
+Ciphern 安全特性基于以下实现：
 
-- ✅ NIST CAVP 测试向量验证
-- ✅ 24 小时持续 Fuzzing (无 crash)
-- ✅ Valgrind 内存检查 (无泄漏)
-- ✅ 第三方安全审计 (报告见 [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md))
+- ✅ 使用成熟加密库 (`ring`, `libsm`) 作为底层实现
+- ✅ 内置算法正确性验证
+- ✅ FIPS 140-3 算法批准检查
+- ✅ 完整的错误处理和状态管理
+
+> 注：NIST CAVP 测试、Fuzzing、第三方安全审计等正在计划中
 
 ### 漏洞报告
 
-如发现安全漏洞，请发送邮件至 security@ciphern.dev，我们将在 48 小时内响应。
+如发现安全漏洞，请在 GitHub Issues 中报告。
 
-详见 [SECURITY.md](SECURITY.md)
+> 注：专用安全邮箱和 SECURITY.md 文档正在准备中
 
 ---
 
@@ -384,8 +379,7 @@ Ciphern 已通过以下安全测试：
 ### 前置要求
 
 - Rust 1.75+ (stable)
-- OpenSSL 3.0+ (Linux/macOS)
-- CMake 3.15+ (用于编译 C 扩展)
+- 标准 C 编译器 (用于 FFI 绑定)
 
 ### 编译
 
@@ -402,9 +396,6 @@ cargo build --release --all-features
 
 # FIPS 模式
 cargo build --release --features fips
-
-# SIMD 优化
-cargo build --release --features simd
 ```
 
 ### 测试
@@ -413,11 +404,11 @@ cargo build --release --features simd
 # 运行所有测试
 cargo test --all-features
 
-# 测试覆盖率
-cargo tarpaulin --out Html --all-features
+# 运行基准测试
+cargo bench
 
-# Fuzzing (需要 nightly)
-cargo +nightly fuzz run fuzz_encrypt
+# 检查代码质量
+cargo clippy --all-features
 ```
 
 ### 交叉编译
@@ -439,27 +430,31 @@ cargo build --target aarch64-apple-darwin --release
 
 ### v0.1.0 - MVP (已完成) ✅
 
-- [x] 核心加密功能 (AES, SM4)
-- [x] 数字签名 (ECDSA, SM2)
-- [x] 哈希函数 (SHA-256/384/512, SM3)
+- [x] 核心加密功能 (AES-128/192/256-GCM, SM4-GCM)
+- [x] 数字签名 (ECDSA-P256/P384/P521, RSA-2048/3072/4096, Ed25519, SM2)
+- [x] 哈希函数 (SHA-256/384/512, SHA3-256/384/512, SM3)
+- [x] 密钥派生 (HKDF, PBKDF2, Argon2id, SM3-KDF)
 - [x] 基础密钥管理
 - [x] Rust API
+- [x] 审计日志系统
+- [x] FIPS 140-3 基础支持
 
-### v0.2.0 - 安全增强 (进行中) 🚧
+### v0.2.0 - 多语言支持 (部分完成) 🚧
 
-- [x] 内存保护机制
-- [x] 侧信道防护
-- [x] FIPS 140-3 模式
-- [x] Java/Python 绑定
+- [x] C FFI 接口
+- [ ] Java JNI 绑定 (基础框架已存在)
+- [ ] Python PyO3 绑定 (基础框架已存在)
+- [ ] 内存保护增强
+- [ ] 插件系统完善
 
 ### v0.3.0 - 扩展性 (规划中) 📋
 
-- [ ] 插件系统
+- [ ] SIMD 优化
 - [ ] WASM 支持
 - [ ] HSM 集成 (PKCS#11)
 - [ ] TEE 支持 (Intel SGX, ARM TrustZone)
 
-### v1.0.0 - 生产就绪 (Q2 2026) 🎯
+### v1.0.0 - 生产就绪 (规划中) 🎯
 
 - [ ] 完整安全审计
 - [ ] FIPS 140-3 认证
@@ -480,9 +475,8 @@ cargo build --target aarch64-apple-darwin --release
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 创建 Pull Request
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)
+> 注：CONTRIBUTING.md 文档正在准备中
 
-```
 
 ### 贡献者
 感谢所有贡献者！
@@ -500,16 +494,19 @@ cargo build --target aarch64-apple-darwin --release
 
 您可以选择其中任一许可证使用本软件。
 
+> 注：许可证文件正在准备中，当前版本遵循标准 Rust 开源协议
+
 ---
 
 ## 🙏 致谢
 
 Ciphern 构建于以下优秀的开源项目之上：
 
-- [ring](https://github.com/briansmith/ring) - 高性能密码学库
-- [libsm](https://github.com/citahub/libsm) - 国密算法实现
-- [RustCrypto](https://github.com/RustCrypto) - 纯 Rust 密码学算法
-- [zeroize](https://github.com/RustCrypto/utils/tree/master/zeroize) - 安全内存擦除
+- [ring](https://github.com/briansmith/ring) - 高性能密码学库 (v0.17)
+- [libsm](https://github.com/citahub/libsm) - 国密算法实现 (v0.6)
+- [aes-gcm](https://github.com/RustCrypto/AEADs) - AES-GCM 实现 (v0.10)
+- [argon2](https://github.com/RustCrypto/password-hashes) - Argon2 密钥派生 (v0.5)
+- [zeroize](https://github.com/RustCrypto/utils/tree/master/zeroize) - 安全内存擦除 (v1.7)
 
 特别感谢所有审核代码和提供反馈的安全研究人员。
 
@@ -517,11 +514,10 @@ Ciphern 构建于以下优秀的开源项目之上：
 
 ## 📞 联系方式
 
-- **官方网站**: https://ciphern.dev
-- **文档**: https://docs.ciphern.dev
 - **问题反馈**: https://github.com/Kirky-X/ciphern/issues
 - **讨论区**: https://github.com/Kirky-X/ciphern/discussions
-- **邮件**: support@ciphern.dev
+
+> 注：官方网站、文档站点和专用支持邮箱正在准备中
 
 ---
 
