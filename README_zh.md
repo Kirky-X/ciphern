@@ -4,6 +4,7 @@
 [![Documentation](https://docs.rs/ciphern/badge.svg)](https://docs.rs/ciphern)
 [![License](https://img.shields.io/github/license/Kirky-X/ciphern)](LICENSE)
 [![Build Status](https://github.com/Kirky-X/ciphern/actions/workflows/health-check.yml/badge.svg)](https://github.com/Kirky-X/ciphern/actions/workflows/health-check.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/Kirky-X/ciphern)](https://codecov.io/gh/Kirky-X/ciphern)
 [![Security Audit](https://img.shields.io/badge/security-audited-success)](docs/SECURITY_AUDIT.md)
 
 **Ciphern** 是一个企业级、安全优先的 Rust 加密库，提供符合国密标准和国际标准的密码学能力。专为数据存储加密、通信加密和密钥管理而设计。

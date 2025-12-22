@@ -4,6 +4,7 @@
 [![Documentation](https://docs.rs/ciphern/badge.svg)](https://docs.rs/ciphern)
 [![License](https://img.shields.io/github/license/Kirky-X/ciphern)](LICENSE)
 [![Build Status](https://github.com/Kirky-X/ciphern/actions/workflows/health-check.yml/badge.svg)](https://github.com/Kirky-X/ciphern/actions/workflows/health-check.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/Kirky-X/ciphern)](https://codecov.io/gh/Kirky-X/ciphern)
 [![Security Audit](https://img.shields.io/badge/security-audited-success)](docs/SECURITY_AUDIT.md)
 
 **Ciphern** is an enterprise-grade, security-first Rust cryptographic library providing cryptographic capabilities that comply with both Chinese National Standards (GuoMi) and international standards. Designed for data storage encryption, communication encryption, and key management.

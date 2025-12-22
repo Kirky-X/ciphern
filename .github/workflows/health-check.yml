@@ -34,3 +34,15 @@ jobs:
 
       - name: Run Tests
         run: cargo test --all-targets --all-features
+
+      - name: Generate Code Coverage
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: '0.22.0'
+          args: '--all-features --out Xml'
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: cobertura.xml
+          fail_ci_if_error: true
