@@ -5,10 +5,10 @@
 
 pub mod loader;
 pub mod manager;
-pub mod hot_reload;
+// pub mod hot_reload; // Removed as it is unused and causes warnings
 
 use crate::error::Result;
-use crate::key::Key;
+// use crate::key::Key;
 use crate::provider::SymmetricCipher;
 use crate::types::Algorithm;
 use std::any::Any;
@@ -28,7 +28,9 @@ pub trait CipherPlugin: Plugin {
     fn supported_algorithms(&self) -> Vec<Algorithm>;
 }
 
-#[derive(Debug, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginMetadata {
     pub name: String,
     pub version: String,

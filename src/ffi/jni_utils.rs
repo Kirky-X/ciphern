@@ -7,10 +7,11 @@
 //! 
 //! 提供统一的JNI类型转换和错误处理工具，减少代码重复
 
-use jni::objects::{JByteArray, JClass, JString, Throwable};
-use jni::sys::{jboolean, jint, jlong};
-use jni::{JNIEnv, JavaError};
-use std::ffi::{CStr, CString};
+use jni::JNIEnv;
+use jni::objects::{JByteArray, JString};
+use jni::sys::jint;
+use jni::errors::Error as JniErrorType;
+use std::ffi::CString;
 
 use super::{CiphernError, ciphern_init, ciphern_cleanup};
 
@@ -19,22 +20,31 @@ pub type JniResult<T> = Result<T, JniError>;
 
 /// JNI 错误类型
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum JniError {
-    Jni(JavaError),
-    Ciphern(CiphernError),
+    Jni(()),
+    Ciphern(()),
     InvalidString,
     InvalidBuffer,
 }
 
-impl From<JavaError> for JniError {
-    fn from(error: JavaError) -> Self {
-        JniError::Jni(error)
+impl std::fmt::Display for JniError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for JniError {}
+
+impl From<JniErrorType> for JniError {
+    fn from(_error: JniErrorType) -> Self {
+        JniError::Jni(())
     }
 }
 
 impl From<CiphernError> for JniError {
-    fn from(error: CiphernError) -> Self {
-        JniError::Ciphern(error)
+    fn from(_error: CiphernError) -> Self {
+        JniError::Ciphern(())
     }
 }
 
@@ -57,22 +67,22 @@ impl<'a> JniEnv<'a> {
 
     /// 获取字节数组
     pub fn get_bytes(&mut self, array: &JByteArray) -> JniResult<Vec<u8>> {
-        self.env.convert_byte_array(array).map_err(JniError::from)
+        self.env.convert_byte_array(array).map_err(|e| JniError::from(e))
     }
 
     /// 创建 Java 字符串
-    pub fn new_string(&mut self, string: &str) -> JniResult<JString> {
-        self.env.new_string(string).map_err(JniError::from)
+    pub fn new_string(&mut self, string: &str) -> JniResult<JString<'a>> {
+        self.env.new_string(string).map_err(|e| JniError::from(e))
     }
 
     /// 创建字节数组
-    pub fn new_byte_array(&mut self, data: &[u8]) -> JniResult<JByteArray> {
-        self.env.byte_array_from_slice(data).map_err(JniError::from)
+    pub fn new_byte_array(&mut self, data: &[u8]) -> JniResult<JByteArray<'a>> {
+        self.env.byte_array_from_slice(data).map_err(|e| JniError::from(e))
     }
 
     /// 抛出异常
     pub fn throw_exception(&mut self, class_name: &str, message: &str) -> JniResult<()> {
-        self.env.throw_new(class_name, message).map_err(JniError::from)
+        self.env.throw_new(class_name, message).map_err(|_e| JniError::Jni(()))
     }
 
     /// 处理 CiphernError 并抛出对应的 Java 异常
@@ -83,6 +93,7 @@ impl<'a> JniEnv<'a> {
     }
 
     /// 获取底层 JNIEnv（用于需要直接访问的情况）
+    #[allow(dead_code)]
     pub fn inner(&mut self) -> &mut JNIEnv<'a> {
         &mut self.env
     }
@@ -123,7 +134,7 @@ impl JniBuffer {
     }
 }
 
-/// 宏定义，简化 JNI 函数实现
+/// 宏定义，提供 JNI 函数的标准错误处理和返回值转换封装
 #[macro_export]
 macro_rules! jni_wrap {
     ($env:expr, $body:expr) => {{
@@ -138,7 +149,7 @@ macro_rules! jni_wrap {
     }};
 }
 
-/// 宏定义，简化字符串转换
+/// 宏定义，安全地将 Java 字符串转换为 Rust CString
 #[macro_export]
 macro_rules! jni_get_string {
     ($env:expr, $string:expr) => {{
@@ -147,7 +158,7 @@ macro_rules! jni_get_string {
     }};
 }
 
-/// 宏定义，简化字节数组转换
+/// 宏定义，提供 Java 字节数组到 Rust Vec<u8> 的安全转换封装
 #[macro_export]
 macro_rules! jni_get_bytes {
     ($env:expr, $array:expr) => {{

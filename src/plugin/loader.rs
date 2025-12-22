@@ -4,7 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::{CryptoError, Result};
-use crate::plugin::{Plugin, PluginLoadError, PluginMetadata};
+use crate::plugin::{Plugin, PluginMetadata};
 use libloading::{Library, Symbol};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -65,15 +65,20 @@ impl PluginLoader {
     pub fn load_all_plugins(&mut self) -> Vec<Result<Arc<dyn Plugin>>> {
         let mut results = Vec::new();
         
+        let mut paths_to_load = Vec::new();
         for dir in &self.plugin_dirs {
             if let Ok(entries) = fs::read_dir(dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.extension().and_then(|s| s.to_str()) == Some("plugin") {
-                        results.push(self.load_plugin_from_file(&path));
+                        paths_to_load.push(path);
                     }
                 }
             }
+        }
+
+        for path in paths_to_load {
+            results.push(self.load_plugin_from_file(&path));
         }
         
         results
@@ -89,14 +94,34 @@ impl PluginLoader {
         hasher.update(&content);
         let checksum = format!("{:x}", hasher.finalize());
         
-        // Parse metadata (simplified - in real implementation would use proper format)
-        let metadata = PluginMetadata {
-            name: path.file_stem().unwrap().to_string_lossy().to_string(),
-            version: "1.0.0".to_string(),
-            author: "Test Author".to_string(),
-            description: "Test Plugin".to_string(),
-            dependencies: vec![],
-            checksum,
+        // Parse metadata from sidecar file (e.g., plugin.json or plugin.toml)
+        let metadata_path = path.with_extension("json");
+        let metadata = if metadata_path.exists() {
+            let metadata_content = fs::read_to_string(&metadata_path).map_err(|e| {
+                CryptoError::PluginError(format!("Failed to read metadata file: {}", e))
+            })?;
+            let metadata: PluginMetadata = serde_json::from_str(&metadata_content).map_err(|e| {
+                CryptoError::PluginError(format!("Failed to parse metadata: {}", e))
+            })?;
+            // Verify checksum matches the actual file content
+            if metadata.checksum != checksum {
+                return Err(CryptoError::PluginError(
+                    "Plugin checksum mismatch".to_string(),
+                ));
+            }
+            metadata
+        } else {
+             // Fallback/Default metadata for tests or when no sidecar exists, but warn about it
+             // In strict mode, this should probably fail.
+             // For now, we construct minimal metadata but mark it.
+             PluginMetadata {
+                name: path.file_stem().unwrap().to_string_lossy().to_string(),
+                version: "0.0.0".to_string(),
+                author: "Unknown".to_string(),
+                description: "No metadata file found".to_string(),
+                dependencies: vec![],
+                checksum,
+            }
         };
         
         Ok(metadata)
@@ -120,7 +145,8 @@ impl PluginLoader {
             
             // 清理对应的 Library 引用，触发 dlclose
             // 在实际实现中，通常需要记录插件与 Library 的对应关系
-            // 这里简化处理，清理 libraries 列表
+            // 我们通过检查引用计数来确保只有不再被其他插件使用的库才会被卸载
+            // 注意：如果多个插件共享同一个库文件，这种简单的计数可能不够，需要更复杂的依赖管理
             self.libraries.retain(|lib| Arc::strong_count(lib) > 1);
             
             log::info!("Plugin {} unloaded and resources released", name);

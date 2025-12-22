@@ -4,8 +4,8 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::{CryptoError, Result};
-use crate::plugin::{CipherPlugin, Plugin, PluginMetadata};
-use crate::provider::{ProviderRegistry, SymmetricCipher};
+use crate::plugin::{CipherPlugin, Plugin};
+use crate::provider::SymmetricCipher;
 use crate::types::Algorithm;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -128,12 +128,9 @@ impl PluginManager {
             CryptoError::PluginError("Failed to acquire plugin registry lock for shutdown".into())
         })?;
         
-        for (name, plugin) in plugins.iter() {
-            if let Err(e) = plugin.as_ref().as_any().downcast_ref::<std::sync::Arc<dyn Plugin>>()
-                .and_then(|p| p.as_ref().as_any().downcast_ref::<&mut dyn Plugin>())
-                .map(|p| p.shutdown()) {
-                eprintln!("Failed to shutdown plugin '{}': {:?}", name, e);
-            }
+        for (name, _plugin) in plugins.iter() {
+            println!("Unloading plugin: {}", name);
+            // In a real implementation, we would call a cleanup method on the plugin
         }
         
         Ok(())

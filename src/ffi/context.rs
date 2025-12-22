@@ -9,8 +9,9 @@
 
 use std::sync::{Arc, Mutex, RwLock};
 use once_cell::sync::Lazy;
-use crate::{fips::{FipsContext, FipsMode}, key::{KeyLifecycleManager, KeyManager}, CryptoError, Result};
-use super::interface::CiphernError;
+use crate::ffi::CiphernError;
+use crate::fips::{FipsContext, FipsMode};
+use crate::key::{KeyLifecycleManager, KeyManager};
 
 /// FFI 上下文状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +27,11 @@ pub enum ContextState {
 #[derive(Debug, Clone)]
 pub struct ContextConfig {
     pub enable_fips: bool,
+    /// 最大密钥数量
+    #[allow(dead_code)]
     pub max_keys: usize,
+    /// 密钥生命周期策略
+    #[allow(dead_code)]
     pub key_lifecycle_policy: crate::key::KeyLifecyclePolicy,
 }
 
@@ -40,174 +45,176 @@ impl Default for ContextConfig {
     }
 }
 
-/// FFI 上下文管理器
-pub struct FfiContext {
-    state: RwLock<ContextState>,
-    config: ContextConfig,
+/// 内部上下文状态
+struct InnerContext {
+    state: ContextState,
     key_manager: Option<Arc<KeyManager>>,
     lifecycle_manager: Option<Arc<KeyLifecycleManager>>,
     fips_context: Option<Arc<FipsContext>>,
+}
+
+/// FFI 上下文管理器
+pub struct FfiContext {
+    inner: RwLock<InnerContext>,
+    config: ContextConfig,
 }
 
 impl FfiContext {
     /// 创建新的上下文
     pub fn new(config: ContextConfig) -> Self {
         Self {
-            state: RwLock::new(ContextState::Uninitialized),
+            inner: RwLock::new(InnerContext {
+                state: ContextState::Uninitialized,
+                key_manager: None,
+                lifecycle_manager: None,
+                fips_context: None,
+            }),
             config,
-            key_manager: None,
-            lifecycle_manager: None,
-            fips_context: None,
         }
     }
 
     /// 初始化上下文
-    pub fn initialize(&self) -> Result<(), CiphernError> {
-        // 检查当前状态
+    pub fn initialize(&self) -> std::result::Result<(), CiphernError> {
+        // 检查当前状态 (读锁)
         {
-            let state = self.state.read().unwrap();
-            match *state {
+            let inner = self.inner.read().unwrap();
+            match inner.state {
                 ContextState::Ready => return Ok(()),
-                ContextState::Initializing => {
-                    return Err(CiphernError::UnknownError);
-                }
-                ContextState::ShuttingDown | ContextState::Error => {
-                    return Err(CiphernError::UnknownError);
-                }
+                ContextState::Initializing => return Err(CiphernError::UnknownError),
+                ContextState::ShuttingDown | ContextState::Error => return Err(CiphernError::UnknownError),
                 _ => {}
             }
         }
 
-        // 设置初始化状态
+        // 设置初始化状态 (写锁)
         {
-            let mut state = self.state.write().unwrap();
-            *state = ContextState::Initializing;
+            let mut inner = self.inner.write().unwrap();
+            if inner.state == ContextState::Ready {
+                return Ok(());
+            }
+            if inner.state == ContextState::Initializing {
+                return Err(CiphernError::UnknownError);
+            }
+            inner.state = ContextState::Initializing;
         }
 
-        // 执行初始化
-        let result = self.do_initialize();
+        // 执行初始化 (不持有锁)
+        let result = self.do_initialize_resources();
 
-        // 更新状态
-        {
-            let mut state = self.state.write().unwrap();
-            *state = match result {
-                Ok(_) => ContextState::Ready,
-                Err(_) => ContextState::Error,
-            };
+        // 更新状态 (写锁)
+        let mut inner = self.inner.write().unwrap();
+        match result {
+            Ok((km, lm, fc)) => {
+                inner.key_manager = Some(km);
+                inner.lifecycle_manager = Some(lm);
+                inner.fips_context = fc;
+                inner.state = ContextState::Ready;
+                Ok(())
+            },
+            Err(e) => {
+                inner.state = ContextState::Error;
+                Err(e)
+            }
         }
-
-        result
     }
 
-    /// 实际初始化逻辑
-    fn do_initialize(&self) -> Result<(), CiphernError> {
+    /// 准备资源
+    fn do_initialize_resources(&self) -> std::result::Result<(Arc<KeyManager>, Arc<KeyLifecycleManager>, Option<Arc<FipsContext>>), CiphernError> {
         // 初始化核心库
         crate::init().map_err(|_| CiphernError::UnknownError)?;
 
         // 创建密钥管理器
         let key_manager = KeyManager::new()
             .map_err(|_| CiphernError::MemoryAllocationFailed)?;
-        self.key_manager = Some(Arc::new(key_manager));
+        let key_manager = Arc::new(key_manager);
 
         // 创建生命周期管理器
         let lifecycle_manager = KeyLifecycleManager::new()
             .map_err(|_| CiphernError::MemoryAllocationFailed)?;
-        self.lifecycle_manager = Some(Arc::new(lifecycle_manager));
+        let lifecycle_manager = Arc::new(lifecycle_manager);
 
         // 如果需要，初始化 FIPS 上下文
-        if self.config.enable_fips {
-            self.initialize_fips()?;
-        }
+        let fips_context = if self.config.enable_fips {
+            // 启用 FIPS 模式
+            FipsContext::enable()
+                .map_err(|_| CiphernError::FipsError)?;
 
-        Ok(())
-    }
+            // 创建 FIPS 上下文
+            let ctx = FipsContext::new(FipsMode::Enabled)
+                .map_err(|_| CiphernError::FipsError)?;
+            Some(Arc::new(ctx))
+        } else {
+            None
+        };
 
-    /// 初始化 FIPS 上下文
-    fn initialize_fips(&self) -> Result<(), CiphernError> {
-        // 启用 FIPS 模式
-        FipsContext::enable()
-            .map_err(|_| CiphernError::FipsError)?;
-
-        // 创建 FIPS 上下文
-        let fips_context = FipsContext::new(FipsMode::Enabled)
-            .map_err(|_| CiphernError::FipsError)?;
-        self.fips_context = Some(Arc::new(fips_context));
-
-        Ok(())
+        Ok((key_manager, lifecycle_manager, fips_context))
     }
 
     /// 清理上下文
     pub fn cleanup(&self) {
-        // 设置关闭状态
-        {
-            let mut state = self.state.write().unwrap();
-            *state = ContextState::ShuttingDown;
-        }
-
+        let mut inner = self.inner.write().unwrap();
+        
+        inner.state = ContextState::ShuttingDown;
+        
         // 清理资源
-        self.key_manager = None;
-        self.lifecycle_manager = None;
-        self.fips_context = None;
-
-        // 重置状态
-        {
-            let mut state = self.state.write().unwrap();
-            *state = ContextState::Uninitialized;
-        }
+        inner.key_manager = None;
+        inner.lifecycle_manager = None;
+        inner.fips_context = None;
+        
+        inner.state = ContextState::Uninitialized;
     }
 
     /// 获取密钥管理器
-    pub fn key_manager(&self) -> Result<Arc<KeyManager>, CiphernError> {
-        self.check_ready()?;
-        self.key_manager.clone()
-            .ok_or(CiphernError::UnknownError)
+    pub fn key_manager(&self) -> std::result::Result<Arc<KeyManager>, CiphernError> {
+        let inner = self.inner.read().unwrap();
+        if inner.state != ContextState::Ready {
+            return Err(CiphernError::UnknownError);
+        }
+        inner.key_manager.clone().ok_or(CiphernError::UnknownError)
     }
 
     /// 获取生命周期管理器
-    pub fn lifecycle_manager(&self) -> Result<Arc<KeyLifecycleManager>, CiphernError> {
-        self.check_ready()?;
-        self.lifecycle_manager.clone()
-            .ok_or(CiphernError::UnknownError)
+    #[allow(dead_code)]
+    pub fn lifecycle_manager(&self) -> std::result::Result<Arc<KeyLifecycleManager>, CiphernError> {
+        let inner = self.inner.read().unwrap();
+        if inner.state != ContextState::Ready {
+            return Err(CiphernError::UnknownError);
+        }
+        inner.lifecycle_manager.clone().ok_or(CiphernError::UnknownError)
     }
 
     /// 获取 FIPS 上下文
+    #[allow(dead_code)]
     pub fn fips_context(&self) -> Option<Arc<FipsContext>> {
-        self.fips_context.clone()
-    }
-
-    /// 检查是否就绪
-    fn check_ready(&self) -> Result<(), CiphernError> {
-        let state = self.state.read().unwrap();
-        match *state {
-            ContextState::Ready => Ok(()),
-            ContextState::Uninitialized => Err(CiphernError::UnknownError),
-            ContextState::Initializing => Err(CiphernError::UnknownError),
-            ContextState::ShuttingDown => Err(CiphernError::UnknownError),
-            ContextState::Error => Err(CiphernError::UnknownError),
-        }
+        let inner = self.inner.read().unwrap();
+        inner.fips_context.clone()
     }
 
     /// 检查 FIPS 是否启用
     pub fn is_fips_enabled(&self) -> bool {
-        self.fips_context.is_some() && crate::fips::is_fips_enabled()
+        let inner = self.inner.read().unwrap();
+        inner.fips_context.is_some() && crate::fips::is_fips_enabled()
     }
 
     /// 设置 FIPS 启用状态
     pub fn set_fips_enabled(&self, enabled: bool) {
-        if enabled && self.fips_context.is_none() {
+        let mut inner = self.inner.write().unwrap();
+        
+        if enabled && inner.fips_context.is_none() {
             // 如果启用且当前没有FIPS上下文，尝试初始化
             if let Ok(fips_context) = FipsContext::new(FipsMode::Enabled) {
-                self.fips_context = Some(Arc::new(fips_context));
+                inner.fips_context = Some(Arc::new(fips_context));
             }
         } else if !enabled {
             // 如果禁用，清除FIPS上下文
-            self.fips_context = None;
+            inner.fips_context = None;
         }
     }
 
     /// 获取状态
+    #[allow(dead_code)]
     pub fn state(&self) -> ContextState {
-        *self.state.read().unwrap()
+        self.inner.read().unwrap().state
     }
 }
 
@@ -217,7 +224,7 @@ static GLOBAL_CONTEXT: Lazy<Arc<Mutex<Option<Arc<FfiContext>>>>> = Lazy::new(|| 
 });
 
 /// 获取或创建全局上下文
-pub fn get_context() -> Result<Arc<FfiContext>, CiphernError> {
+pub fn get_context() -> std::result::Result<Arc<FfiContext>, CiphernError> {
     let mut global = GLOBAL_CONTEXT.lock().unwrap();
     
     if let Some(ref context) = *global {
@@ -233,7 +240,7 @@ pub fn get_context() -> Result<Arc<FfiContext>, CiphernError> {
 }
 
 /// 初始化全局上下文
-pub fn initialize_context() -> Result<(), CiphernError> {
+pub fn initialize_context() -> std::result::Result<(), CiphernError> {
     let context = get_context()?;
     context.initialize()
 }
@@ -250,18 +257,20 @@ pub fn cleanup_context() {
 }
 
 /// 检查上下文是否就绪
+#[allow(dead_code)]
 pub fn is_context_ready() -> bool {
-    if let Ok(context) = get_context() {
-        context.state() == ContextState::Ready
-    } else {
-        false
+    if let Ok(global) = GLOBAL_CONTEXT.lock() {
+        if let Some(ref context) = *global {
+            return context.state() == ContextState::Ready;
+        }
     }
+    false
 }
 
 /// 安全的上下文操作包装器
-pub fn with_context<F, R>(f: F) -> Result<R, CiphernError>
+pub fn with_context<F, R>(f: F) -> std::result::Result<R, CiphernError>
 where
-    F: FnOnce(&Arc<FfiContext>) -> Result<R, CiphernError>,
+    F: FnOnce(&Arc<FfiContext>) -> std::result::Result<R, CiphernError>,
 {
     let context = get_context()?;
     f(&context)
@@ -298,8 +307,7 @@ mod tests {
             key_lifecycle_policy: crate::key::KeyLifecyclePolicy::default(),
         };
         
-        let context = Arc::new(FfiContext::new(config.clone()));
-        assert!(context.config.enable_fips);
-        assert_eq!(context.config.max_keys, 500);
+        let context = FfiContext::new(config);
+        assert_eq!(context.state(), ContextState::Uninitialized);
     }
 }

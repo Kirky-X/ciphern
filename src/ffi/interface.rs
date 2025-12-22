@@ -8,9 +8,10 @@
 //! Unified interface definitions for all FFI bindings
 
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char};
 use std::ptr;
 use std::slice;
+use zeroize::Zeroize;
 
 /// FFI 错误码定义
 #[repr(C)]
@@ -61,13 +62,14 @@ impl CiphernError {
     pub fn from_crypto_error(error: crate::CryptoError) -> CiphernError {
         use crate::CryptoError;
         match error {
-            CryptoError::InvalidKey => CiphernError::KeyNotFound,
-            CryptoError::AlgorithmNotSupported => CiphernError::AlgorithmNotSupported,
-            CryptoError::EncryptionError => CiphernError::EncryptionFailed,
-            CryptoError::DecryptionError => CiphernError::DecryptionFailed,
-            CryptoError::KeyGenerationError => CiphernError::KeyLifecycleError,
-            CryptoError::InvalidKeySize => CiphernError::InvalidKeySize,
-            CryptoError::FipsError => CiphernError::FipsError,
+            CryptoError::InvalidParameter(_) => CiphernError::InvalidParameter,
+            CryptoError::KeyNotFound(_) => CiphernError::KeyNotFound,
+            CryptoError::UnsupportedAlgorithm(_) => CiphernError::AlgorithmNotSupported,
+            CryptoError::EncryptionFailed(_) => CiphernError::EncryptionFailed,
+            CryptoError::DecryptionFailed(_) => CiphernError::DecryptionFailed,
+            CryptoError::KeyError(_) => CiphernError::KeyLifecycleError,
+            CryptoError::InvalidKeySize { .. } => CiphernError::InvalidKeySize,
+            CryptoError::FipsError(_) => CiphernError::FipsError,
             _ => CiphernError::UnknownError,
         }
     }
@@ -75,6 +77,7 @@ impl CiphernError {
 
 /// FFI 缓冲区结构
 #[repr(C)]
+#[allow(dead_code)]
 pub struct CiphernBuffer {
     pub data: *mut u8,
     pub len: usize,
@@ -83,6 +86,7 @@ pub struct CiphernBuffer {
 
 impl CiphernBuffer {
     /// 创建新的缓冲区
+    #[allow(dead_code)]
     pub fn new(capacity: usize) -> Result<Self, CiphernError> {
         if capacity == 0 {
             return Ok(Self {
@@ -107,6 +111,7 @@ impl CiphernBuffer {
     }
 
     /// 从 Vec 创建缓冲区
+    #[allow(dead_code)]
     pub fn from_vec(mut vec: Vec<u8>) -> Self {
         let data = vec.as_mut_ptr();
         let len = vec.len();
@@ -122,6 +127,7 @@ impl CiphernBuffer {
     }
 
     /// 转换为 Vec
+    #[allow(dead_code)]
     pub unsafe fn to_vec(self) -> Vec<u8> {
         if self.data.is_null() || self.capacity == 0 {
             return Vec::new();
@@ -130,7 +136,14 @@ impl CiphernBuffer {
         Vec::from_raw_parts(self.data, self.len, self.capacity)
     }
 
+    /// 从原始指针创建（不拥有所有权）
+    #[allow(dead_code)]
+    pub unsafe fn from_raw_parts(data: *mut u8, len: usize, capacity: usize) -> Self {
+        Self { data, len, capacity }
+    }
+
     /// 释放缓冲区
+    #[allow(dead_code)]
     pub unsafe fn free(self) {
         if !self.data.is_null() && self.capacity > 0 {
             let _ = Vec::from_raw_parts(self.data, 0, self.capacity);
@@ -147,6 +160,7 @@ pub struct CiphernString {
 
 impl CiphernString {
     /// 创建新的字符串
+    #[allow(dead_code)]
     pub fn new(s: &str) -> Result<Self, CiphernError> {
         let cstring = CString::new(s).map_err(|_| CiphernError::InvalidParameter)?;
         let len = cstring.as_bytes_with_nul().len();
@@ -159,6 +173,7 @@ impl CiphernString {
     }
 
     /// 释放字符串
+    #[allow(dead_code)]
     pub unsafe fn free(self) {
         if !self.data.is_null() {
             let _ = CString::from_raw(self.data);
@@ -189,6 +204,7 @@ pub mod validation {
     }
 
     /// 验证缓冲区大小
+    #[allow(dead_code)]
     pub fn validate_buffer_size(size: usize, min_size: usize, name: &str) -> Result<(), CiphernError> {
         if size < min_size {
             eprintln!("FFI: Buffer '{}' too small: {} < {}", name, size, min_size);
@@ -204,6 +220,27 @@ pub mod validation {
             return Err(CiphernError::InvalidParameter);
         }
         Ok(())
+    }
+
+    /// 验证 C 字符串
+    pub unsafe fn validate_c_str<'a>(ptr: *const c_char) -> Result<&'a str, CiphernError> {
+        c_str_to_str(ptr, "c_str")
+    }
+
+    /// 验证切片
+    pub unsafe fn validate_slice<'a>(data: *const u8, len: usize) -> Result<&'a [u8], CiphernError> {
+        create_slice(data, len, "slice")
+    }
+
+    /// 验证可变切片
+    pub unsafe fn validate_mut_slice<'a>(data: *mut u8, len: usize) -> Result<&'a mut [u8], CiphernError> {
+        create_mut_slice(data, len, "mut_slice")
+    }
+    
+    /// 验证可变 usize 指针
+    pub unsafe fn validate_mut_usize<'a>(ptr: *mut usize, name: &str) -> Result<&'a mut usize, CiphernError> {
+        validate_mut_ptr(ptr, name)?;
+        Ok(&mut *ptr)
     }
 
     /// 安全转换 C 字符串
@@ -235,11 +272,29 @@ pub mod validation {
     }
 }
 
+/// 字符串写入工具
+pub unsafe fn write_c_string(s: &str, buf: *mut c_char, size: usize) -> Result<(), CiphernError> {
+    if buf.is_null() || size == 0 {
+        return Err(CiphernError::InvalidParameter);
+    }
+
+    let c_string = CString::new(s).map_err(|_| CiphernError::InvalidParameter)?;
+    let bytes = c_string.as_bytes_with_nul();
+
+    if bytes.len() > size {
+        return Err(CiphernError::BufferTooSmall);
+    }
+
+    ptr::copy_nonoverlapping(bytes.as_ptr(), buf as *mut u8, bytes.len());
+    Ok(())
+}
+
 /// 内存管理工具
 pub mod memory {
     use super::*;
 
     /// 安全复制数据到缓冲区
+    #[allow(dead_code)]
     pub unsafe fn copy_to_buffer(
         src: &[u8],
         dst: *mut u8,
@@ -254,6 +309,7 @@ pub mod memory {
     }
 
     /// 零内存（安全擦除）
+    #[allow(dead_code)]
     pub unsafe fn zero_memory(ptr: *mut u8, len: usize) {
         if !ptr.is_null() && len > 0 {
             let slice = slice::from_raw_parts_mut(ptr, len);
@@ -262,6 +318,7 @@ pub mod memory {
     }
 
     /// 创建临时缓冲区
+    #[allow(dead_code)]
     pub fn create_temp_buffer(size: usize) -> Vec<u8> {
         vec![0u8; size]
     }
@@ -269,10 +326,9 @@ pub mod memory {
 
 /// 算法解析工具
 pub mod algorithm {
-    use crate::{Algorithm, CryptoError};
-
+    use crate::Algorithm;
     /// 解析算法名称
-    pub fn parse_algorithm(name: &str) -> Result<Algorithm, CiphernError> {
+    pub fn parse_algorithm(name: &str) -> Result<Algorithm, super::CiphernError> {
         match name.to_uppercase().as_str() {
             "AES128GCM" => Ok(Algorithm::AES128GCM),
             "AES192GCM" => Ok(Algorithm::AES192GCM),
@@ -293,11 +349,62 @@ pub mod algorithm {
             "PBKDF2" => Ok(Algorithm::PBKDF2),
             "SM4GCM" => Ok(Algorithm::SM4GCM),
             "SM2" => Ok(Algorithm::SM2),
-            "ED25519" => Ok(Algorithm::ED25519),
-            _ => Err(CiphernError::AlgorithmNotSupported),
+            "ED25519" => Ok(Algorithm::Ed25519),
+            _ => Err(super::CiphernError::AlgorithmNotSupported),
         }
     }
 }
+
+pub use algorithm::parse_algorithm;
+#[allow(unused_imports)]
+pub use validation::*;
+#[allow(unused_imports)]
+pub use memory::*;
+
+#[cfg(feature = "plugin")]
+pub mod plugin_interface {
+    use super::*;
+    use std::os::raw::{c_char, c_int};
+
+    /// 加载插件
+    #[no_mangle]
+    pub unsafe extern "C" fn ciphern_plugin_load(_path: *const c_char) -> CiphernError {
+        // Implementation placeholder
+        CiphernError::AlgorithmNotSupported
+    }
+
+    /// 卸载插件
+    #[no_mangle]
+    pub unsafe extern "C" fn ciphern_plugin_unload(_name: *const c_char) -> CiphernError {
+        // Implementation placeholder
+        CiphernError::AlgorithmNotSupported
+    }
+
+    /// 获取插件信息
+    #[no_mangle]
+    pub unsafe extern "C" fn ciphern_plugin_get_info(_name: *const c_char, _buf: *mut c_char, _len: usize) -> CiphernError {
+        // Implementation placeholder
+        CiphernError::AlgorithmNotSupported
+    }
+
+    /// 注册算法
+    #[no_mangle]
+    pub unsafe extern "C" fn ciphern_plugin_register_algorithm(_name: *const c_char, _algo_type: c_int) -> CiphernError {
+        // Implementation placeholder
+        CiphernError::AlgorithmNotSupported
+    }
+
+    /// 获取插件列表
+    #[no_mangle]
+    pub unsafe extern "C" fn ciphern_plugin_list(_buf: *mut c_char, _len: usize) -> CiphernError {
+        // Implementation placeholder
+        CiphernError::AlgorithmNotSupported
+    }
+}
+
+#[cfg(feature = "plugin")]
+#[allow(unused_imports)]
+pub use plugin_interface::*;
 
 #[cfg(test)]
 mod tests {
@@ -305,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_error_conversion() {
-        let error = CiphernError::from_result(Err(CryptoError::InvalidKey));
+        let error = CiphernError::from_result::<()>(Err(crate::CryptoError::KeyNotFound("test".into())));
         assert_eq!(error, CiphernError::KeyNotFound);
     }
 
@@ -322,6 +429,7 @@ mod tests {
 
     #[test]
     fn test_algorithm_parsing() {
+        use crate::Algorithm;
         assert_eq!(algorithm::parse_algorithm("AES128GCM").unwrap(), Algorithm::AES128GCM);
         assert_eq!(algorithm::parse_algorithm("aes256gcm").unwrap(), Algorithm::AES256GCM);
         assert!(algorithm::parse_algorithm("INVALID").is_err());
