@@ -134,10 +134,7 @@ impl ApiClient {
 
     /// 检查FIPS模式是否启用
     fn is_fips_mode_enabled(&self) -> bool {
-        match FipsContext::new(ciphern::fips::FipsMode::Enabled) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        FipsContext::new(ciphern::fips::FipsMode::Enabled).is_ok()
     }
 
     /// 验证熵源质量

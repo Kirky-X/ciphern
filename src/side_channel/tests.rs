@@ -581,7 +581,7 @@ pub fn run_strict_side_channel_tests() -> ComprehensiveTestResult {
 }
 
 #[cfg(test)]
-mod tests {
+mod side_channel_tests {
     use super::*;
 
     #[test]

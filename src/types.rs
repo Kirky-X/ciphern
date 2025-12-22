@@ -105,10 +105,7 @@ impl Algorithm {
 
     #[must_use]
     pub const fn is_national_standard(&self) -> bool {
-        matches!(
-            self,
-            Self::SM2 | Self::SM3 | Self::SM4GCM | Self::Sm3Kdf
-        )
+        matches!(self, Self::SM2 | Self::SM3 | Self::SM4GCM | Self::Sm3Kdf)
     }
 }
 

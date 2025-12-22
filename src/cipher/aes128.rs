@@ -50,6 +50,8 @@ impl Aes128GcmProvider {
     }
 
     fn encrypt_internal(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        let key_bytes = key.secret_bytes()?;
+        let _ = self.expand_key_protected(key_bytes.as_bytes())?;
         self.encrypt_core(key, plaintext, aad)
     }
 
@@ -81,6 +83,8 @@ impl Aes128GcmProvider {
         ciphertext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
+        let key_bytes = key.secret_bytes()?;
+        let _ = self.expand_key_protected(key_bytes.as_bytes())?;
         self.decrypt_core(key, ciphertext, aad)
     }
 
@@ -171,106 +175,23 @@ impl Aes128GcmProvider {
         ];
         AES_SBOX[input as usize]
     }
+
+    /// Get side-channel protection statistics
+    pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
+        self.side_channel_context
+            .as_ref()
+            .map(|ctx| ctx.lock().unwrap().get_stats())
+    }
+
+    /// Check if side-channel protection is enabled
+    pub fn is_side_channel_protected(&self) -> bool {
+        self.side_channel_context.is_some() && self.rotating_sbox.is_some()
+    }
 }
 
 impl Default for Aes128GcmProvider {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::key::Key;
-    use crate::types::Algorithm;
-
-    #[test]
-    fn test_aes128_with_side_channel_protection() {
-        // 使用自定义配置强制启用所有防护
-        let mut config = SideChannelConfig::default();
-        config.power_analysis_protection = true; // 强制启用电源分析防护
-        config.constant_time_enabled = true;
-        config.error_injection_protection = true;
-        config.cache_protection = true;
-
-        let provider = Aes128GcmProvider::with_side_channel_config(config);
-        assert!(provider.is_side_channel_protected());
-
-        // Test basic encryption/decryption
-        let key_data = vec![0u8; 16];
-        let mut key = Key::new(Algorithm::AES128GCM, key_data).unwrap();
-
-        // 激活密钥以使其有效
-        key.activate(None).unwrap();
-
-        let plaintext = b"Hello, World! This is a test message.";
-        let aad = b"additional authenticated data";
-
-        // Encrypt
-        let ciphertext = provider.encrypt(&key, plaintext, Some(aad)).unwrap();
-        assert_ne!(ciphertext, plaintext);
-
-        // Decrypt
-        let decrypted = provider.decrypt(&key, &ciphertext, Some(aad)).unwrap();
-        assert_eq!(decrypted, plaintext);
-
-        // Check stats
-        let stats = provider.get_side_channel_stats().unwrap();
-        println!("Side-channel stats: {:?}", stats);
-        assert!(
-            stats.timing_protections > 0
-                || stats.masking_operations > 0
-                || stats.error_detection_triggers > 0
-                || stats.cache_flush_operations > 0
-        );
-    }
-
-    #[test]
-    fn test_aes128_without_side_channel_protection() {
-        let mut config = SideChannelConfig::default();
-        config.power_analysis_protection = false;
-        config.constant_time_enabled = false;
-        config.error_injection_protection = false;
-        config.cache_protection = false;
-
-        let provider = Aes128GcmProvider::with_side_channel_config(config);
-        assert!(!provider.is_side_channel_protected());
-
-        // Test basic encryption/decryption
-        let key_data = vec![0u8; 16];
-        let key = Key::new_active(Algorithm::AES128GCM, key_data).unwrap();
-        let plaintext = b"Hello, World! This is a test message.";
-
-        // Encrypt
-        let ciphertext = provider.encrypt(&key, plaintext, None).unwrap();
-        assert_ne!(ciphertext, plaintext);
-
-        // Decrypt
-        let decrypted = provider.decrypt(&key, &ciphertext, None).unwrap();
-        assert_eq!(decrypted, plaintext);
-    }
-
-    #[test]
-    fn test_aes128_wrong_algorithm_key() {
-        let provider = Aes128GcmProvider::new();
-        let key_data = vec![0u8; 16];
-        let wrong_key = Key::new(Algorithm::SM4GCM, key_data).unwrap();
-        let plaintext = b"test";
-
-        let result = provider.encrypt(&wrong_key, plaintext, None);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_aes128_invalid_ciphertext() {
-        let provider = Aes128GcmProvider::new();
-        let key_data = vec![0u8; 16];
-        let key = Key::new(Algorithm::AES128GCM, key_data).unwrap();
-        let invalid_ciphertext = b"too short";
-
-        let result = provider.decrypt(&key, invalid_ciphertext, None);
-        assert!(result.is_err());
     }
 }
 
@@ -357,16 +278,109 @@ impl SymmetricCipher for Aes128GcmProvider {
     }
 }
 
-impl Aes128GcmProvider {
-    /// Get side-channel protection statistics
-    pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
-        self.side_channel_context
-            .as_ref()
-            .map(|ctx| ctx.lock().unwrap().get_stats())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::key::Key;
+    use crate::types::Algorithm;
+
+    #[test]
+    fn test_aes128_with_side_channel_protection() {
+        // 使用自定义配置强制启用所有防护
+        let config = SideChannelConfig {
+            power_analysis_protection: true, // 强制启用电源分析防护
+            constant_time_enabled: true,
+            error_injection_protection: true,
+            cache_protection: true,
+            timing_noise_enabled: true,
+            masking_operations_enabled: true,
+            redundancy_checks_enabled: true,
+            cache_flush_enabled: true,
+            ..SideChannelConfig::default()
+        };
+
+        let provider = Aes128GcmProvider::with_side_channel_config(config);
+        assert!(provider.is_side_channel_protected());
+
+        // Test basic encryption/decryption
+        let key_data = vec![0u8; 16];
+        let mut key = Key::new(Algorithm::AES128GCM, key_data).unwrap();
+
+        // 激活密钥以使其有效
+        key.activate(None).unwrap();
+
+        let plaintext = b"Hello, World! This is a test message.";
+        let aad = b"additional authenticated data";
+
+        // Encrypt
+        let ciphertext = provider.encrypt(&key, plaintext, Some(aad)).unwrap();
+        assert_ne!(ciphertext, plaintext);
+
+        // Decrypt
+        let decrypted = provider.decrypt(&key, &ciphertext, Some(aad)).unwrap();
+        assert_eq!(decrypted, plaintext);
+
+        // Check stats
+        let stats = provider.get_side_channel_stats().unwrap();
+        println!("Side-channel stats: {:?}", stats);
+        assert!(
+            stats.timing_protections > 0
+                || stats.masking_operations > 0
+                || stats.error_detection_triggers > 0
+                || stats.cache_flush_operations > 0
+        );
     }
 
-    /// Check if side-channel protection is enabled
-    pub fn is_side_channel_protected(&self) -> bool {
-        self.side_channel_context.is_some() && self.rotating_sbox.is_some()
+    #[test]
+    fn test_aes128_without_side_channel_protection() {
+        let config = SideChannelConfig {
+            power_analysis_protection: false,
+            constant_time_enabled: false,
+            error_injection_protection: false,
+            cache_protection: false,
+            timing_noise_enabled: false,
+            masking_operations_enabled: false,
+            redundancy_checks_enabled: false,
+            cache_flush_enabled: false,
+            ..SideChannelConfig::default()
+        };
+
+        let provider = Aes128GcmProvider::with_side_channel_config(config);
+        assert!(!provider.is_side_channel_protected());
+
+        // Test basic encryption/decryption
+        let key_data = vec![0u8; 16];
+        let key = Key::new_active(Algorithm::AES128GCM, key_data).unwrap();
+        let plaintext = b"Hello, World! This is a test message.";
+
+        // Encrypt
+        let ciphertext = provider.encrypt(&key, plaintext, None).unwrap();
+        assert_ne!(ciphertext, plaintext);
+
+        // Decrypt
+        let decrypted = provider.decrypt(&key, &ciphertext, None).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_aes128_wrong_algorithm_key() {
+        let provider = Aes128GcmProvider::new();
+        let key_data = vec![0u8; 16];
+        let wrong_key = Key::new(Algorithm::SM4GCM, key_data).unwrap();
+        let plaintext = b"test";
+
+        let result = provider.encrypt(&wrong_key, plaintext, None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_aes128_invalid_ciphertext() {
+        let provider = Aes128GcmProvider::new();
+        let key_data = vec![0u8; 16];
+        let key = Key::new(Algorithm::AES128GCM, key_data).unwrap();
+        let invalid_ciphertext = b"too short";
+
+        let result = provider.decrypt(&key, invalid_ciphertext, None);
+        assert!(result.is_err());
     }
 }

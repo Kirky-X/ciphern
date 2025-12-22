@@ -186,17 +186,17 @@ fn test_key_operations_audit_logging() {
     }
 
     // 验证所有记录都包含租户信息
+    let monitored_operations = [
+        "KEY_GENERATE",
+        "KEY_LIST",
+        "KEY_ACTIVATE",
+        "KEY_SUSPEND",
+        "KEY_MAX_USAGE_SET",
+        "KEY_DESTROY",
+    ];
+
     for log in &logs {
-        if vec![
-            "KEY_GENERATE",
-            "KEY_LIST",
-            "KEY_ACTIVATE",
-            "KEY_SUSPEND",
-            "KEY_MAX_USAGE_SET",
-            "KEY_DESTROY",
-        ]
-        .contains(&log.operation.as_str())
-        {
+        if monitored_operations.contains(&log.operation.as_str()) {
             assert_eq!(
                 log.tenant_id.as_deref(),
                 Some("audit_test_tenant"),

@@ -7,6 +7,7 @@ use crate::error::{CryptoError, Result};
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use std::sync::{Arc, Mutex, OnceLock};
+use zeroize::Zeroize;
 
 pub mod monitor;
 
@@ -57,6 +58,10 @@ impl SecureRandom {
         let mut seed = [0u8; 32];
         OsEntropy.get_bytes(&mut seed)?;
         let rng = ChaCha20Rng::from_seed(seed);
+
+        // 清零种子数据，防止敏感信息残留
+        seed.zeroize();
+
         Ok(Self {
             csprng: Arc::new(Mutex::new(rng)),
         })

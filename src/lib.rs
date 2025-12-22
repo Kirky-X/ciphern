@@ -103,7 +103,11 @@ impl Cipher {
             "ENCRYPT",
             Some(self.algorithm),
             Some(key_id),
-            if result.is_ok() { Ok(()) } else { Err("Failed") },
+            if result.is_ok() {
+                Ok(())
+            } else {
+                Err("Failed")
+            },
         );
 
         result
@@ -138,10 +142,73 @@ impl Cipher {
             "DECRYPT",
             Some(self.algorithm),
             Some(key_id),
-            if result.is_ok() { Ok(()) } else { Err("Failed") },
+            if result.is_ok() {
+                Ok(())
+            } else {
+                Err("Failed")
+            },
         );
 
         result
+    }
+}
+
+/// High-level Signer API
+pub struct Signer {
+    provider: std::sync::Arc<dyn provider::Signer>,
+    algorithm: Algorithm,
+}
+
+impl Signer {
+    /// Create a new signer instance
+    pub fn new(algorithm: Algorithm) -> Result<Self> {
+        fips::validate_algorithm_fips(&algorithm)?;
+        let provider = provider::registry::REGISTRY.get_signer(algorithm)?;
+        Ok(Self {
+            provider,
+            algorithm,
+        })
+    }
+
+    /// Get the algorithm
+    pub fn algorithm(&self) -> Algorithm {
+        self.algorithm
+    }
+
+    /// Sign a message using the specified key
+    pub fn sign(&self, key_manager: &KeyManager, key_id: &str, message: &[u8]) -> Result<Vec<u8>> {
+        key_manager.with_key(key_id, |key| self.provider.sign(key, message))
+    }
+
+    /// Verify a signature using the specified key
+    pub fn verify(
+        &self,
+        key_manager: &KeyManager,
+        key_id: &str,
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<bool> {
+        key_manager.with_key(key_id, |key| self.provider.verify(key, message, signature))
+    }
+}
+
+/// High-level Hash API
+pub struct Hash;
+
+impl Hash {
+    /// Calculate SHA-256 hash
+    pub fn sha256(data: &[u8]) -> Result<Vec<u8>> {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        Ok(hasher.finalize().to_vec())
+    }
+
+    /// Calculate SM3 hash
+    pub fn sm3(data: &[u8]) -> Result<Vec<u8>> {
+        use libsm::sm3::hash::Sm3Hash;
+        let mut hash = Sm3Hash::new(data);
+        Ok(hash.get_hash().to_vec())
     }
 }
 

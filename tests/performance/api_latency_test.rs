@@ -21,7 +21,7 @@ struct LatencyStats {
     p999: Duration,
 }
 
-fn calculate_latency_stats(latencies: &mut Vec<Duration>) -> LatencyStats {
+fn calculate_latency_stats(latencies: &mut [Duration]) -> LatencyStats {
     latencies.sort_unstable();
 
     let min = latencies[0];

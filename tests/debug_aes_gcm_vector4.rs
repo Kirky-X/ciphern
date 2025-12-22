@@ -1,5 +1,4 @@
 use ciphern::{key::Key, Algorithm, Cipher};
-use hex;
 
 #[test]
 fn debug_aes_gcm_vector4() {

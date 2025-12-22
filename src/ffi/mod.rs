@@ -8,17 +8,18 @@
 //! 提供 C 语言兼容的 API，支持跨语言调用
 //! 遵循 Rust FFI 安全最佳实践
 
+use once_cell::sync::LazyStatic;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr;
 use std::slice;
 use std::sync::Arc;
 use std::sync::Mutex;
-use once_cell::sync::LazyStatic;
+use zeroize::Zeroize;
 
-use crate::{Cipher, KeyManager, Algorithm, Result, CryptoError};
 use crate::fips::{FipsContext, FipsMode};
 use crate::key::{KeyLifecycleManager, KeyLifecyclePolicy};
+use crate::{Algorithm, Cipher, CryptoError, KeyManager, Result};
 
 pub mod java_jni;
 pub mod python_pyo3;
@@ -95,10 +96,18 @@ pub extern "C" fn ciphern_init() -> CiphernError {
 /// 清理库资源
 #[no_mangle]
 pub extern "C" fn ciphern_cleanup() {
-    let mut context = GLOBAL_CONTEXT.lock().unwrap();
-    context.key_manager = None;
-    context.lifecycle_manager = None;
-    context.fips_context = None;
+    match std::panic::catch_unwind(|| {
+        let mut context = GLOBAL_CONTEXT.lock().unwrap();
+        context.key_manager = None;
+        context.lifecycle_manager = None;
+        context.fips_context = None;
+    }) {
+        Ok(_) => {},
+        Err(_) => {
+            // Log the panic but don't propagate it across FFI boundary
+            eprintln!("ciphern_cleanup: Panic occurred during cleanup");
+        }
+    }
 }
 
 /// 启用 FIPS 模式
@@ -130,10 +139,19 @@ pub extern "C" fn ciphern_enable_fips() -> CiphernError {
 /// 检查 FIPS 模式是否启用
 #[no_mangle]
 pub extern "C" fn ciphern_is_fips_enabled() -> c_int {
-    if crate::fips::is_fips_enabled() {
-        1
-    } else {
-        0
+    match std::panic::catch_unwind(|| {
+        if crate::fips::is_fips_enabled() {
+            1
+        } else {
+            0
+        }
+    }) {
+        Ok(result) => result,
+        Err(_) => {
+            // Log the panic and return safe default
+            eprintln!("ciphern_is_fips_enabled: Panic occurred");
+            0
+        }
     }
 }
 
@@ -252,6 +270,14 @@ pub extern "C" fn ciphern_encrypt(
     ciphertext_buffer_size: usize,
     ciphertext_len: *mut usize,
 ) -> CiphernError {
+    debug_assert!(!key_id.is_null(), "Key ID should not be null");
+    debug_assert!(!plaintext.is_null(), "Plaintext should not be null");
+    debug_assert!(!ciphertext.is_null(), "Ciphertext buffer should not be null");
+    debug_assert!(!ciphertext_len.is_null(), "Ciphertext length pointer should not be null");
+    debug_assert!(plaintext_len > 0, "Plaintext length should be greater than 0");
+    debug_assert!(plaintext_len <= 1024 * 1024, "Plaintext length should not exceed 1MB for performance");
+    debug_assert!(ciphertext_buffer_size >= plaintext_len + 32, "Ciphertext buffer should be large enough to hold encrypted data");
+
     if key_id.is_null() || plaintext.is_null() || ciphertext.is_null() || ciphertext_len.is_null() {
         return CiphernError::InvalidParameter;
     }
@@ -309,7 +335,10 @@ pub extern "C" fn ciphern_encrypt(
             );
             *ciphertext_len = encrypted.len();
         }
-        
+
+        // 清零加密数据，防止敏感信息残留
+        encrypted.zeroize();
+
         CiphernError::Success
     }) {
         Ok(result) => result,
@@ -327,6 +356,14 @@ pub extern "C" fn ciphern_decrypt(
     plaintext_buffer_size: usize,
     plaintext_len: *mut usize,
 ) -> CiphernError {
+    debug_assert!(!key_id.is_null(), "Key ID should not be null");
+    debug_assert!(!ciphertext.is_null(), "Ciphertext should not be null");
+    debug_assert!(!plaintext.is_null(), "Plaintext buffer should not be null");
+    debug_assert!(!plaintext_len.is_null(), "Plaintext length pointer should not be null");
+    debug_assert!(ciphertext_len > 0, "Ciphertext length should be greater than 0");
+    debug_assert!(ciphertext_len <= 1024 * 1024 + 32, "Ciphertext length should not exceed 1MB + 32 bytes for performance");
+    debug_assert!(plaintext_buffer_size >= ciphertext_len - 32, "Plaintext buffer should be large enough to hold decrypted data");
+
     if key_id.is_null() || ciphertext.is_null() || plaintext.is_null() || plaintext_len.is_null() {
         return CiphernError::InvalidParameter;
     }
@@ -384,7 +421,10 @@ pub extern "C" fn ciphern_decrypt(
             );
             *plaintext_len = decrypted.len();
         }
-        
+
+        // 清零解密数据，防止敏感信息残留
+        decrypted.zeroize();
+
         CiphernError::Success
     }) {
         Ok(result) => result,
@@ -395,27 +435,39 @@ pub extern "C" fn ciphern_decrypt(
 /// 获取错误描述
 #[no_mangle]
 pub extern "C" fn ciphern_error_string(error: CiphernError) -> *const c_char {
-    let error_str = match error {
-        CiphernError::Success => "Success",
-        CiphernError::InvalidParameter => "Invalid parameter",
-        CiphernError::MemoryAllocationFailed => "Memory allocation failed",
-        CiphernError::KeyNotFound => "Key not found",
-        CiphernError::AlgorithmNotSupported => "Algorithm not supported",
-        CiphernError::EncryptionFailed => "Encryption failed",
-        CiphernError::DecryptionFailed => "Decryption failed",
-        CiphernError::FipsError => "FIPS error",
-        CiphernError::KeyLifecycleError => "Key lifecycle error",
-        CiphernError::BufferTooSmall => "Buffer too small",
-        CiphernError::InvalidKeySize => "Invalid key size",
-        CiphernError::UnknownError => "Unknown error",
-    };
-    
-    // 创建静态字符串，确保在函数返回后仍然有效
-    static mut ERROR_STRING: Option<CString> = None;
-    
-    unsafe {
-        ERROR_STRING = Some(CString::new(error_str).unwrap_or_else(|_| CString::new("Unknown error").unwrap()));
-        ERROR_STRING.as_ref().unwrap().as_ptr()
+    match std::panic::catch_unwind(|| {
+        let error_str = match error {
+            CiphernError::Success => "Success",
+            CiphernError::InvalidParameter => "Invalid parameter",
+            CiphernError::MemoryAllocationFailed => "Memory allocation failed",
+            CiphernError::KeyNotFound => "Key not found",
+            CiphernError::AlgorithmNotSupported => "Algorithm not supported",
+            CiphernError::EncryptionFailed => "Encryption failed",
+            CiphernError::DecryptionFailed => "Decryption failed",
+            CiphernError::FipsError => "FIPS error",
+            CiphernError::KeyLifecycleError => "Key lifecycle error",
+            CiphernError::BufferTooSmall => "Buffer too small",
+            CiphernError::InvalidKeySize => "Invalid key size",
+            CiphernError::UnknownError => "Unknown error",
+        };
+
+        // 使用线程本地存储避免竞态条件
+        thread_local! {
+            static ERROR_STRING: std::cell::RefCell<Option<CString>> = std::cell::RefCell::new(None);
+        }
+
+        ERROR_STRING.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            *borrow = Some(CString::new(error_str).unwrap_or_else(|_| CString::new("Unknown error").unwrap()));
+            borrow.as_ref().unwrap().as_ptr()
+        })
+    }) {
+        Ok(ptr) => ptr,
+        Err(_) => {
+            // Log panic and return a static string
+            eprintln!("ciphern_error_string: Panic occurred");
+            b"Unknown error\0".as_ptr() as *const c_char
+        }
     }
 }
 

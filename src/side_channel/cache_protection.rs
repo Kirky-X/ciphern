@@ -380,8 +380,8 @@ mod tests {
 
         // Check that only partition-aligned locations are touched
         let mut touched_count = 0;
-        for i in 0..data.len() {
-            if data[i] == 0xFF {
+        for item in &data {
+            if *item == 0xFF {
                 touched_count += 1;
             }
         }

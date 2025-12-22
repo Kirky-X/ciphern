@@ -1742,8 +1742,8 @@ mod tests {
 
         // Test with periodic data (should fail some tests)
         let mut data = vec![0u8; 1000];
-        for i in 0..data.len() {
-            data[i] = (i % 256) as u8;
+        for (i, item) in data.iter_mut().enumerate() {
+            *item = (i % 256) as u8;
         }
         let result1 = engine.nist_randomness_tests(&data);
         assert!(result1.total_tests > 0);
@@ -1755,8 +1755,8 @@ mod tests {
 
         // Test with random-looking data
         let mut data_rand = vec![0u8; 1000];
-        for i in 0..data_rand.len() {
-            data_rand[i] = (i * 31 + 17) as u8;
+        for (i, item) in data_rand.iter_mut().enumerate() {
+            *item = (i * 31 + 17) as u8;
         }
         let result3 = engine.nist_randomness_tests(&data_rand);
         assert!(result3.total_tests > 0);

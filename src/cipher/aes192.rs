@@ -7,7 +7,7 @@ use crate::error::{CryptoError, Result};
 use crate::key::Key;
 use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
-use crate::side_channel::{protect_critical_operation, SideChannelConfig, SideChannelContext};
+use crate::side_channel::{SideChannelConfig, SideChannelContext};
 use crate::types::Algorithm;
 use aes_gcm::aead::consts::U12;
 use aes_gcm::aead::{Aead, KeyInit, Payload};
@@ -16,6 +16,44 @@ use std::sync::{Arc, Mutex};
 
 pub struct Aes192GcmProvider {
     side_channel_context: Option<Arc<Mutex<SideChannelContext>>>,
+}
+
+impl SymmetricCipher for Aes192GcmProvider {
+    fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        self.encrypt_internal(key, plaintext, aad)
+    }
+
+    fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        self.decrypt_internal(key, ciphertext, aad)
+    }
+
+    fn algorithm(&self) -> Algorithm {
+        Algorithm::AES192GCM
+    }
+
+    fn encrypt_with_nonce(
+        &self,
+        key: &Key,
+        plaintext: &[u8],
+        nonce: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
+        let secret = key.secret_bytes()?;
+        let cipher = AesGcm::<Aes192, U12>::new_from_slice(secret.as_bytes())
+            .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
+
+        let nonce_val = nonce.into();
+
+        cipher
+            .encrypt(
+                nonce_val,
+                Payload {
+                    msg: plaintext,
+                    aad: aad.unwrap_or(&[]),
+                },
+            )
+            .map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
+    }
 }
 
 impl Aes192GcmProvider {
@@ -38,7 +76,17 @@ impl Aes192GcmProvider {
     }
 
     fn encrypt_internal(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        self.encrypt_core(key, plaintext, aad)
+        if let Some(ref ctx) = self.side_channel_context {
+            let mut guard = ctx.lock().map_err(|_| {
+                CryptoError::SideChannelError("Side channel context lock poisoned".into())
+            })?;
+
+            crate::side_channel::protect_critical_operation(&mut guard, || {
+                self.encrypt_core(key, plaintext, aad)
+            })
+        } else {
+            self.encrypt_core(key, plaintext, aad)
+        }
     }
 
     fn encrypt_core(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
@@ -71,7 +119,17 @@ impl Aes192GcmProvider {
         ciphertext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        self.decrypt_core(key, ciphertext, aad)
+        if let Some(ref ctx) = self.side_channel_context {
+            let mut guard = ctx.lock().map_err(|_| {
+                CryptoError::SideChannelError("Side channel context lock poisoned".into())
+            })?;
+
+            crate::side_channel::protect_critical_operation(&mut guard, || {
+                self.decrypt_core(key, ciphertext, aad)
+            })
+        } else {
+            self.decrypt_core(key, ciphertext, aad)
+        }
     }
 
     fn decrypt_core(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
@@ -108,6 +166,20 @@ impl Default for Aes192GcmProvider {
     }
 }
 
+impl Aes192GcmProvider {
+    /// Get side-channel protection statistics
+    pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
+        self.side_channel_context
+            .as_ref()
+            .map(|ctx| ctx.lock().unwrap().get_stats())
+    }
+
+    /// Check if side-channel protection is enabled
+    pub fn is_side_channel_protected(&self) -> bool {
+        self.side_channel_context.is_some()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,11 +189,13 @@ mod tests {
     #[test]
     fn test_aes192_with_side_channel_protection() {
         // 使用自定义配置强制启用所有防护
-        let mut config = SideChannelConfig::default();
-        config.power_analysis_protection = true; // 强制启用电源分析防护
-        config.constant_time_enabled = true;
-        config.error_injection_protection = true;
-        config.cache_protection = true;
+        let config = SideChannelConfig {
+            power_analysis_protection: true, // 强制启用电源分析防护
+            constant_time_enabled: true,
+            error_injection_protection: true,
+            cache_protection: true,
+            ..SideChannelConfig::default()
+        };
 
         let provider = Aes192GcmProvider::with_side_channel_config(config);
         assert!(provider.is_side_channel_protected());
@@ -157,11 +231,17 @@ mod tests {
 
     #[test]
     fn test_aes192_without_side_channel_protection() {
-        let mut config = SideChannelConfig::default();
-        config.power_analysis_protection = false;
-        config.constant_time_enabled = false;
-        config.error_injection_protection = false;
-        config.cache_protection = false;
+        let config = SideChannelConfig {
+            power_analysis_protection: false,
+            constant_time_enabled: false,
+            error_injection_protection: false,
+            cache_protection: false,
+            timing_noise_enabled: false,
+            masking_operations_enabled: false,
+            redundancy_checks_enabled: false,
+            cache_flush_enabled: false,
+            ..SideChannelConfig::default()
+        };
 
         // 即使配置全关，new() 默认也会创建一个 context
         // 我们通过 is_side_channel_protected() 检查的是 context 是否存在
@@ -203,104 +283,5 @@ mod tests {
 
         let result = provider.decrypt(&key, invalid_ciphertext, None);
         assert!(result.is_err());
-    }
-}
-
-impl SymmetricCipher for Aes192GcmProvider {
-    fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        if key.algorithm() != Algorithm::AES192GCM {
-            return Err(CryptoError::UnsupportedAlgorithm(
-                "Key algo mismatch".into(),
-            ));
-        }
-
-        if let Some(context) = &self.side_channel_context {
-            let mut context_guard = context.lock().unwrap();
-            protect_critical_operation(&mut context_guard, || {
-                self.encrypt_internal(key, plaintext, aad)
-            })
-        } else {
-            self.encrypt_internal(key, plaintext, aad)
-        }
-    }
-
-    fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        if ciphertext.len() < 12 + 16 {
-            // Nonce + Tag min
-            return Err(CryptoError::DecryptionFailed("Ciphertext too short".into()));
-        }
-
-        if let Some(context) = &self.side_channel_context {
-            let mut context_guard = context.lock().unwrap();
-            protect_critical_operation(&mut context_guard, || {
-                self.decrypt_internal(key, ciphertext, aad)
-            })
-        } else {
-            self.decrypt_internal(key, ciphertext, aad)
-        }
-    }
-
-    fn algorithm(&self) -> Algorithm {
-        Algorithm::AES192GCM
-    }
-
-    fn encrypt_with_nonce(
-        &self,
-        key: &Key,
-        plaintext: &[u8],
-        nonce: &[u8],
-        aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>> {
-        if key.algorithm() != Algorithm::AES192GCM {
-            return Err(CryptoError::UnsupportedAlgorithm(
-                "Key algo mismatch".into(),
-            ));
-        }
-        if nonce.len() != 12 {
-            return Err(CryptoError::EncryptionFailed("Invalid nonce length".into()));
-        }
-
-        let operation = || {
-            let secret = key.secret_bytes()?;
-            let cipher = AesGcm::<Aes192, U12>::new_from_slice(secret.as_bytes())
-                .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
-
-            let nonce_val = aes_gcm::Nonce::from_slice(nonce);
-
-            let ciphertext = cipher
-                .encrypt(
-                    nonce_val,
-                    Payload {
-                        msg: plaintext,
-                        aad: aad.unwrap_or(&[]),
-                    },
-                )
-                .map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))?;
-
-            Ok(ciphertext)
-        };
-
-        if let Some(context) = &self.side_channel_context {
-            let mut context_guard = context
-                .lock()
-                .map_err(|_| CryptoError::SideChannelError("Context lock poisoned".into()))?;
-            protect_critical_operation(&mut context_guard, operation)
-        } else {
-            operation()
-        }
-    }
-}
-
-impl Aes192GcmProvider {
-    /// Get side-channel protection statistics
-    pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
-        self.side_channel_context
-            .as_ref()
-            .map(|ctx| ctx.lock().unwrap().get_stats())
-    }
-
-    /// Check if side-channel protection is enabled
-    pub fn is_side_channel_protected(&self) -> bool {
-        self.side_channel_context.is_some()
     }
 }

@@ -11,6 +11,7 @@ use hmac::Hmac;
 use pbkdf2::pbkdf2;
 use ring::hkdf;
 use sha2::Sha256;
+use zeroize::Zeroize;
 
 pub struct Hkdf;
 
@@ -21,6 +22,9 @@ impl Hkdf {
         info: &[u8],
         output_algo: Algorithm,
     ) -> Result<Key> {
+        debug_assert!(salt.len() <= 128, "Salt should not exceed 128 bytes for performance");
+        debug_assert!(info.len() <= 1024, "Info should not exceed 1024 bytes for performance");
+
         let _secret = master_key.secret_bytes()?;
         let key_size = output_algo.key_size();
 
@@ -34,6 +38,8 @@ impl Hkdf {
             let full_key = Self::derive_32_bytes(master_key, salt, info, Algorithm::AES256GCM)?;
             let full_bytes = full_key.secret_bytes()?;
             let truncated: Vec<u8> = full_bytes.as_bytes()[..16].to_vec();
+            // 清零临时密钥数据
+            drop(full_key);
             return Key::new_active(output_algo, truncated);
         }
 
@@ -42,6 +48,8 @@ impl Hkdf {
             let full_key = Self::derive_32_bytes(master_key, salt, info, Algorithm::AES256GCM)?;
             let full_bytes = full_key.secret_bytes()?;
             let truncated: Vec<u8> = full_bytes.as_bytes()[..24].to_vec();
+            // 清零临时密钥数据
+            drop(full_key);
             return Key::new_active(output_algo, truncated);
         }
 
@@ -75,7 +83,12 @@ impl Hkdf {
         okm.fill(&mut derived_bytes)
             .map_err(|e| CryptoError::EncryptionFailed(format!("HKDF Fill failed: {:?}", e)))?;
 
-        Key::new_active(output_algo, derived_bytes)
+        let result = Key::new_active(output_algo, derived_bytes.clone());
+
+        // 清零派生过程中的敏感数据
+        derived_bytes.zeroize();
+
+        result
     }
 }
 
@@ -88,6 +101,10 @@ impl Pbkdf2 {
         iterations: u32,
         output_algo: Algorithm,
     ) -> Result<Key> {
+        debug_assert!(!password.is_empty(), "Password should not be empty for PBKDF2");
+        debug_assert!(salt.len() <= 128, "Salt should not exceed 128 bytes for performance");
+        debug_assert!(iterations >= 10000, "PBKDF2 iterations should be at least 10000 for security");
+
         let key_size = output_algo.key_size();
         let mut derived_key = vec![0u8; key_size];
 
@@ -95,7 +112,12 @@ impl Pbkdf2 {
         pbkdf2::<Hmac<Sha256>>(password, salt, iterations, &mut derived_key)
             .map_err(|e| CryptoError::EncryptionFailed(format!("PBKDF2 failed: {:?}", e)))?;
 
-        Key::new_active(output_algo, derived_key)
+        let result = Key::new_active(output_algo, derived_key.clone());
+
+        // 清零派生过程中的敏感数据
+        derived_key.zeroize();
+
+        result
     }
 }
 
@@ -110,6 +132,11 @@ impl Argon2id {
         parallelism: u32, // 并行度
         output_algo: Algorithm,
     ) -> Result<Key> {
+        debug_assert!(!password.is_empty(), "Password should not be empty for Argon2id");
+        debug_assert!(salt.len() <= 128, "Salt should not exceed 128 bytes for performance");
+        debug_assert!(memory_cost >= 65536, "Argon2id memory cost should be at least 64MB for security");
+        debug_assert!(time_cost >= 3, "Argon2id time cost should be at least 3 for security");
+
         let key_size = output_algo.key_size();
         let mut derived_key = vec![0u8; key_size];
 
@@ -124,7 +151,12 @@ impl Argon2id {
             .hash_password_into(password, salt, &mut derived_key)
             .map_err(|e| CryptoError::EncryptionFailed(format!("Argon2id failed: {:?}", e)))?;
 
-        Key::new_active(output_algo, derived_key)
+        let result = Key::new_active(output_algo, derived_key.clone());
+
+        // 清零派生过程中的敏感数据
+        derived_key.zeroize();
+
+        result
     }
 }
 
@@ -137,6 +169,10 @@ impl Sm3Kdf {
         key_length: usize,
         output_algo: Algorithm,
     ) -> Result<Key> {
+        debug_assert!(fixed_data.len() <= 128, "Fixed data should not exceed 128 bytes for performance");
+        debug_assert!(key_length >= 16, "Key length should be at least 16 bytes for security");
+        debug_assert!(key_length <= 1024, "Key length should not exceed 1024 bytes for performance");
+
         let secret = master_key.secret_bytes()?;
         let mut derived_key = vec![0u8; key_length];
 
@@ -162,20 +198,33 @@ impl Sm3Kdf {
 
             offset += copy_len;
             counter += 1;
+
+            // 清零临时输入数据
+            input.zeroize();
         }
 
         // 如果派生长度与算法要求不匹配，调整长度
         let final_key = if derived_key.len() == output_algo.key_size() {
-            derived_key
+            derived_key.clone()
         } else if derived_key.len() > output_algo.key_size() {
-            derived_key[..output_algo.key_size()].to_vec()
+            let truncated = derived_key[..output_algo.key_size()].to_vec();
+            derived_key.zeroize(); // 清零原始数据
+            truncated
         } else {
             // 如果派生长度不足，扩展密钥
             let mut extended_key = vec![0u8; output_algo.key_size()];
             extended_key[..derived_key.len()].copy_from_slice(&derived_key);
+            derived_key.zeroize(); // 清零原始数据
             extended_key
         };
 
-        Key::new_active(output_algo, final_key)
+        let result = Key::new_active(output_algo, final_key);
+
+        // 清零派生过程中的敏感数据
+        if !derived_key.is_empty() {
+            derived_key.zeroize();
+        }
+
+        result
     }
 }

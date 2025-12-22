@@ -32,6 +32,9 @@ impl Clone for SecretBytes {
 
 impl SecretBytes {
     pub fn new(data: Vec<u8>) -> Result<Self> {
+        debug_assert!(!data.is_empty(), "SecretBytes should not be created with empty data");
+        debug_assert!(data.len() <= 1024 * 1024, "SecretBytes data should not exceed 1MB for memory locking efficiency");
+
         let mut secret = Self {
             inner: data,
             locked: false,
@@ -63,6 +66,7 @@ impl SecretBytes {
     }
 
     pub fn as_bytes(&self) -> &[u8] {
+        debug_assert!(!self.inner.is_empty(), "SecretBytes should not contain empty data");
         &self.inner
     }
 }
@@ -93,6 +97,8 @@ impl ProtectedKey {
     }
 
     pub fn access(&self) -> Result<&SecretBytes> {
+        debug_assert!(!self.canary.iter().all(|&b| b == 0), "Canary should not be all zeros");
+
         let current_checksum = Self::compute_checksum(self.key.as_bytes(), &self.canary);
         if current_checksum != self.checksum {
             return Err(CryptoError::MemoryTampered);

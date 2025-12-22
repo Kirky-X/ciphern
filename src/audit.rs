@@ -189,12 +189,23 @@ impl PerformanceMonitor {
     ) {
         let key = format!("{}_{:?}", operation, algo);
 
-        // Use write lock for minimal time
-        if let Ok(mut metrics) = self.metrics.write() {
-            metrics
-                .entry(key)
-                .or_default()
-                .update(latency_us, data_size, cache_hit);
+        // Use write lock with poison recovery
+        match self.metrics.write() {
+            Ok(mut metrics) => {
+                metrics
+                    .entry(key)
+                    .or_default()
+                    .update(latency_us, data_size, cache_hit);
+            }
+            Err(poisoned) => {
+                // Log the poisoning incident and recover the data
+                log::warn!("Performance monitor lock poisoned, recovering data");
+                let mut metrics = poisoned.into_inner();
+                metrics
+                    .entry(key)
+                    .or_default()
+                    .update(latency_us, data_size, cache_hit);
+            }
         }
 
         // Update Prometheus metrics
@@ -206,22 +217,37 @@ impl PerformanceMonitor {
     pub fn get_stats(&self, operation: &str, algo: Option<Algorithm>) -> Option<PerformanceStats> {
         let key = format!("{}_{:?}", operation, algo);
 
-        if let Ok(metrics) = self.metrics.read() {
-            metrics.get(&key).map(|m| m.to_stats())
-        } else {
-            None
+        // Use read lock with poison recovery
+        match self.metrics.read() {
+            Ok(metrics) => metrics.get(&key).map(|m| m.to_stats()),
+            Err(poisoned) => {
+                // Log the poisoning incident and recover the data
+                log::warn!("Performance monitor read lock poisoned, recovering data");
+                let metrics = poisoned.into_inner();
+                metrics.get(&key).map(|m| m.to_stats())
+            }
         }
     }
 
     /// Get all performance statistics
     pub fn get_all_stats(&self) -> HashMap<String, PerformanceStats> {
-        if let Ok(metrics) = self.metrics.read() {
-            metrics
-                .iter()
-                .map(|(k, v)| (k.clone(), v.to_stats()))
-                .collect()
-        } else {
-            HashMap::new()
+        // Use read lock with poison recovery
+        match self.metrics.read() {
+            Ok(metrics) => {
+                metrics
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_stats()))
+                    .collect()
+            }
+            Err(poisoned) => {
+                // Log the poisoning incident and recover the data
+                log::warn!("Performance monitor read lock poisoned, recovering data");
+                let metrics = poisoned.into_inner();
+                metrics
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_stats()))
+                    .collect()
+            }
         }
     }
 
@@ -229,15 +255,33 @@ impl PerformanceMonitor {
     pub fn reset_stats(&self, operation: &str, algo: Option<Algorithm>) {
         let key = format!("{}_{:?}", operation, algo);
 
-        if let Ok(mut metrics) = self.metrics.write() {
-            metrics.remove(&key);
+        // Use write lock with poison recovery
+        match self.metrics.write() {
+            Ok(mut metrics) => {
+                metrics.remove(&key);
+            }
+            Err(poisoned) => {
+                // Log the poisoning incident and recover the data
+                log::warn!("Performance monitor write lock poisoned, recovering data");
+                let mut metrics = poisoned.into_inner();
+                metrics.remove(&key);
+            }
         }
     }
 
     /// Reset all statistics
     pub fn reset_all_stats(&self) {
-        if let Ok(mut metrics) = self.metrics.write() {
-            metrics.clear();
+        // Use write lock with poison recovery
+        match self.metrics.write() {
+            Ok(mut metrics) => {
+                metrics.clear();
+            }
+            Err(poisoned) => {
+                // Log the poisoning incident and recover the data
+                log::warn!("Performance monitor write lock poisoned, recovering data");
+                let mut metrics = poisoned.into_inner();
+                metrics.clear();
+            }
         }
     }
 }
@@ -267,9 +311,10 @@ pub struct AuditLog {
 
 /// Audit logger with channel-based logging to reduce lock contention
 pub struct AuditLogger {
-    sender: Sender<String>,
-    sync_buffer: Mutex<Vec<String>>,
+    sender: Arc<Mutex<Sender<String>>>,
+    sync_buffer: Arc<Mutex<Vec<String>>>,
     _handle: Option<thread::JoinHandle<()>>, // Keep the handle to prevent thread from being dropped
+    fallback_enabled: Arc<Mutex<bool>>, // Graceful degradation flag
 }
 
 impl Default for AuditLogger {
@@ -279,20 +324,75 @@ impl Default for AuditLogger {
 }
 
 impl AuditLogger {
+    /// Send log entry through channel with fallback to sync buffer
+    fn send_with_fallback(&self, json: String) {
+        // Try to send via channel first
+        match self.sender.lock() {
+            Ok(sender) => {
+                match sender.send(json.clone()) {
+                    Ok(_) => {
+                        // Reset fallback flag on successful send
+                        if let Ok(mut fallback) = self.fallback_enabled.lock() {
+                            *fallback = false;
+                        }
+                    }
+                    Err(_) => {
+                        // Channel is closed or full, enable fallback mode
+                        log::warn!("Audit logger channel closed, enabling fallback mode");
+                        if let Ok(mut fallback) = self.fallback_enabled.lock() {
+                            *fallback = true;
+                        }
+                        // Store in sync buffer as fallback
+                        self.store_in_sync_buffer(json);
+                    }
+                }
+            }
+            Err(_) => {
+                // Failed to acquire sender lock, enable fallback mode
+                log::warn!("Failed to acquire audit logger sender lock, enabling fallback mode");
+                if let Ok(mut fallback) = self.fallback_enabled.lock() {
+                    *fallback = true;
+                }
+                // Store in sync buffer as fallback
+                self.store_in_sync_buffer(json);
+            }
+        }
+    }
+
+    /// Store log entry in sync buffer
+    fn store_in_sync_buffer(&self, json: String) {
+        match self.sync_buffer.lock() {
+            Ok(mut buf) => {
+                if buf.len() < 1000 {
+                    buf.push(json);
+                }
+            }
+            Err(poisoned) => {
+                log::warn!("Audit logger sync buffer lock poisoned, recovering data");
+                let mut buf = poisoned.into_inner();
+                if buf.len() < 1000 {
+                    buf.push(json);
+                }
+            }
+        }
+    }
+
     pub fn new() -> Self {
         let (sender, receiver) = channel();
 
-        // Spawn background thread for logging
+        // Spawn background thread for logging with error recovery
         let handle = thread::spawn(move || {
             for log_entry in receiver {
                 log::info!("AUDIT: {}", log_entry);
             }
+            log::warn!("Audit logger background thread terminated - channel closed");
         });
 
         Self {
-            sender,
-            sync_buffer: Mutex::new(Vec::new()),
+            sender: Arc::new(Mutex::new(sender)),
+            sync_buffer: Arc::new(Mutex::new(Vec::new())),
             _handle: Some(handle),
+            fallback_enabled: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -311,6 +411,19 @@ impl AuditLogger {
         result: Result<(), &str>,
         access_type: &str,
     ) {
+        debug_assert!(!operation.is_empty(), "Operation should not be empty");
+        debug_assert!(operation.len() <= 100, "Operation should not exceed 100 characters");
+        debug_assert!(!access_type.is_empty(), "Access type should not be empty");
+        debug_assert!(access_type.len() <= 50, "Access type should not exceed 50 characters");
+        if let Some(key_id) = key_id {
+            debug_assert!(!key_id.is_empty(), "Key ID should not be empty when provided");
+            debug_assert!(key_id.len() <= 256, "Key ID should not exceed 256 characters");
+        }
+        if let Some(tenant_id) = tenant_id {
+            debug_assert!(!tenant_id.is_empty(), "Tenant ID should not be empty when provided");
+            debug_assert!(tenant_id.len() <= 128, "Tenant ID should not exceed 128 characters");
+        }
+
         let entry = AuditLog {
             timestamp: Utc::now(),
             operation: operation.to_string(),
@@ -323,15 +436,11 @@ impl AuditLogger {
         };
 
         if let Ok(json) = serde_json::to_string(&entry) {
-            // Always store in sync buffer for testing
-            if let Ok(mut buf) = LOGGER.sync_buffer.lock() {
-                if buf.len() < 1000 {
-                    buf.push(json.clone());
-                }
-            }
+            // Store in sync buffer for testing
+            LOGGER.store_in_sync_buffer(json.clone());
 
-            // Try to send via channel for background processing
-            let _ = LOGGER.sender.send(json);
+            // Send via channel with fallback
+            LOGGER.send_with_fallback(json);
         }
     }
 
@@ -354,15 +463,11 @@ impl AuditLogger {
         };
 
         if let Ok(json) = serde_json::to_string(&entry) {
-            // Always store in sync buffer for testing
-            if let Ok(mut buf) = LOGGER.sync_buffer.lock() {
-                if buf.len() < 1000 {
-                    buf.push(json.clone());
-                }
-            }
+            // Store in sync buffer for testing
+            LOGGER.store_in_sync_buffer(json.clone());
 
-            // Try to send via channel for background processing
-            let _ = LOGGER.sender.send(json.clone());
+            // Send via channel with fallback
+            LOGGER.send_with_fallback(json.clone());
 
             // Also print to stdout for demo
             log::info!("AUDIT: {}", json);
@@ -390,15 +495,11 @@ impl AuditLogger {
         };
 
         if let Ok(json) = serde_json::to_string(&entry) {
-            // Always store in sync buffer for testing
-            if let Ok(mut buf) = LOGGER.sync_buffer.lock() {
-                if buf.len() < 1000 {
-                    buf.push(json.clone());
-                }
-            }
+            // Store in sync buffer for testing
+            LOGGER.store_in_sync_buffer(json.clone());
 
-            // Try to send via channel for background processing
-            let _ = LOGGER.sender.send(json);
+            // Send via channel with fallback
+            LOGGER.send_with_fallback(json);
         }
     }
 
@@ -425,15 +526,11 @@ impl AuditLogger {
             // Update Prometheus security alerts
             SECURITY_ALERTS_TOTAL.inc();
 
-            // Always store in sync buffer for testing
-            if let Ok(mut buf) = LOGGER.sync_buffer.lock() {
-                if buf.len() < 1000 {
-                    buf.push(json.clone());
-                }
-            }
+            // Store in sync buffer for testing
+            LOGGER.store_in_sync_buffer(json.clone());
 
-            // Try to send via channel for background processing
-            let _ = LOGGER.sender.send(json.clone());
+            // Send via channel with fallback
+            LOGGER.send_with_fallback(json.clone());
 
             // 记录到安全日志并触发警报
             log::warn!("SECURITY ALERT: {}", json);
@@ -461,15 +558,11 @@ impl AuditLogger {
         };
 
         if let Ok(json) = serde_json::to_string(&entry) {
-            // Always store in sync buffer for testing
-            if let Ok(mut buf) = LOGGER.sync_buffer.lock() {
-                if buf.len() < 1000 {
-                    buf.push(json.clone());
-                }
-            }
+            // Store in sync buffer for testing
+            LOGGER.store_in_sync_buffer(json.clone());
 
-            // Try to send via channel for background processing
-            let _ = LOGGER.sender.send(json.clone());
+            // Send via channel with fallback
+            LOGGER.send_with_fallback(json.clone());
 
             // Also print to stdout for demo
             log::info!("AUDIT: {}", json);
@@ -478,19 +571,35 @@ impl AuditLogger {
 
     /// 获取审计日志缓冲区（用于测试）
     pub fn get_logs() -> Vec<String> {
-        let logs = LOGGER.sync_buffer.lock().unwrap().clone();
-        // 增加调试输出
-        for (i, log) in logs.iter().enumerate() {
-            if log.contains("KEY_GENERATE") {
-                log::debug!("FOUND KEY_GENERATE at index {}", i);
+        match LOGGER.sync_buffer.lock() {
+            Ok(buffer) => {
+                let logs = buffer.clone();
+                // 增加调试输出
+                for (i, log) in logs.iter().enumerate() {
+                    if log.contains("KEY_GENERATE") {
+                        log::debug!("FOUND KEY_GENERATE at index {}", i);
+                    }
+                }
+                logs
+            }
+            Err(poisoned) => {
+                log::warn!("Audit logger sync buffer lock poisoned, recovering data");
+                let buffer = poisoned.into_inner();
+                buffer.clone()
             }
         }
-        logs
     }
 
     /// 清空审计日志缓冲区（用于测试）
     pub fn clear_logs() {
-        LOGGER.sync_buffer.lock().unwrap().clear();
+        match LOGGER.sync_buffer.lock() {
+            Ok(mut buffer) => buffer.clear(),
+            Err(poisoned) => {
+                log::warn!("Audit logger sync buffer lock poisoned, recovering data");
+                let mut buffer = poisoned.into_inner();
+                buffer.clear();
+            }
+        }
     }
 
     /// 导出 Prometheus 指标
