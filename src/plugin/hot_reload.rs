@@ -3,12 +3,12 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full information.
 
-use crate::plugin::{Plugin, PluginMetadata};
 use crate::error::{CryptoError, Result};
+use crate::plugin::{Plugin, PluginMetadata};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 use std::time::SystemTime;
 
 pub struct HotReloadWatcher {

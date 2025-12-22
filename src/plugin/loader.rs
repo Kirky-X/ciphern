@@ -3,14 +3,14 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use crate::plugin::{Plugin, PluginMetadata, PluginLoadError};
 use crate::error::{CryptoError, Result};
+use crate::plugin::{Plugin, PluginLoadError, PluginMetadata};
+use libloading::{Library, Symbol};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::collections::HashMap;
-use sha2::{Sha256, Digest};
-use libloading::{Library, Symbol};
 
 pub struct PluginLoader {
     plugin_dirs: Vec<PathBuf>,

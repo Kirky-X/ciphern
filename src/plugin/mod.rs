@@ -7,10 +7,10 @@ pub mod loader;
 pub mod manager;
 pub mod hot_reload;
 
+use crate::error::Result;
+use crate::key::Key;
 use crate::provider::SymmetricCipher;
 use crate::types::Algorithm;
-use crate::key::Key;
-use crate::error::Result;
 use std::any::Any;
 use std::sync::Arc;
 

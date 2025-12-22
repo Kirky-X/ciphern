@@ -3,9 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use crate::plugin::{Plugin, CipherPlugin, PluginMetadata};
-use crate::provider::{SymmetricCipher, ProviderRegistry};
 use crate::error::{CryptoError, Result};
+use crate::plugin::{CipherPlugin, Plugin, PluginMetadata};
+use crate::provider::{ProviderRegistry, SymmetricCipher};
 use crate::types::Algorithm;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
