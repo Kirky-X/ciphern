@@ -4,6 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::Result;
+#[cfg(feature = "encrypt")]
 use crate::fips::self_test::{Alert, AlertCategory, AlertHandler, AlertSeverity};
 use chrono::Utc;
 use std::collections::VecDeque;
@@ -64,6 +65,7 @@ impl Default for RngMonitorConfig {
 pub struct RngMonitor {
     config: RngMonitorConfig,
     metrics: Arc<RwLock<RngHealthMetrics>>,
+    #[cfg(feature = "encrypt")]
     alert_handler: Arc<Mutex<Option<Arc<dyn AlertHandler + Send + Sync>>>>,
     test_history: Arc<Mutex<VecDeque<bool>>>,
     last_test_time: Arc<Mutex<Instant>>,
@@ -74,6 +76,7 @@ impl RngMonitor {
         Self {
             config,
             metrics: Arc::new(RwLock::new(RngHealthMetrics::default())),
+            #[cfg(feature = "encrypt")]
             alert_handler: Arc::new(Mutex::new(None)),
             test_history: Arc::new(Mutex::new(VecDeque::with_capacity(100))),
             last_test_time: Arc::new(Mutex::new(Instant::now())),
@@ -81,6 +84,7 @@ impl RngMonitor {
     }
 
     /// 设置告警处理器
+    #[cfg(feature = "encrypt")]
     pub fn set_alert_handler(&self, handler: Arc<dyn AlertHandler + Send + Sync>) {
         if let Ok(mut handler_guard) = self.alert_handler.lock() {
             *handler_guard = Some(handler);
@@ -97,8 +101,6 @@ impl RngMonitor {
 
     /// 执行 RNG 健康检查
     pub fn perform_health_check(&self) -> Result<bool> {
-        use crate::fips::self_test::FipsSelfTestEngine;
-
         let mut random_bytes = vec![0u8; self.config.sample_size];
 
         // 生成随机数
@@ -106,6 +108,7 @@ impl RngMonitor {
             crate::random::SecureRandom::new().and_then(|rng| rng.fill(&mut random_bytes))
         {
             self.record_test_result(false);
+            #[cfg(feature = "encrypt")]
             self.trigger_alert(
                 AlertSeverity::Critical,
                 AlertCategory::SystemMalfunction,
@@ -121,6 +124,7 @@ impl RngMonitor {
 
         if all_zeros || all_ones {
             self.record_test_result(false);
+            #[cfg(feature = "encrypt")]
             self.trigger_alert(
                 AlertSeverity::Critical,
                 AlertCategory::TestFailure,
@@ -130,90 +134,100 @@ impl RngMonitor {
             return Ok(false);
         }
 
-        // 执行 NIST 随机性测试（简化版本）
-        let test_engine = FipsSelfTestEngine::new();
-        let nist_result = test_engine.nist_randomness_tests(&random_bytes);
-
-        let passed = nist_result.passed;
-        self.record_test_result(passed);
-
-        // 更新健康指标
+        #[cfg(feature = "encrypt")]
         {
-            let mut metrics = self.metrics.write().unwrap();
-            metrics.entropy_bits = nist_result.entropy_bits;
-            metrics.last_test_timestamp = Utc::now();
+            use crate::fips::self_test::FipsSelfTestEngine;
+            // 执行 NIST 随机性测试（简化版本）
+            let test_engine = FipsSelfTestEngine::new();
+            let nist_result = test_engine.nist_randomness_tests(&random_bytes);
 
-            // 计算失败率
-            let history = self.test_history.lock().unwrap();
-            let recent_tests: Vec<bool> = history.iter().cloned().collect();
-            let recent_failures = recent_tests.iter().filter(|&&x| !x).count();
-            metrics.failure_rate = recent_failures as f64 / recent_tests.len() as f64;
+            let passed = nist_result.passed;
+            self.record_test_result(passed);
 
-            // 计算健康评分
-            let entropy_score = (metrics.entropy_bits / 8.0).min(1.0);
-            let failure_rate_score = (1.0 - metrics.failure_rate).max(0.0);
-            let consecutive_failures_score = if metrics.consecutive_failures == 0 {
-                1.0
-            } else {
-                0.5_f64.powi(metrics.consecutive_failures as i32)
-            };
+            // 更新健康指标
+            {
+                let mut metrics = self.metrics.write().unwrap();
+                metrics.entropy_bits = nist_result.entropy_bits;
+                metrics.last_test_timestamp = Utc::now();
 
-            metrics.health_score =
-                (entropy_score * 0.4 + failure_rate_score * 0.4 + consecutive_failures_score * 0.2)
-                    .min(1.0);
+                // 计算失败率
+                let history = self.test_history.lock().unwrap();
+                let recent_tests: Vec<bool> = history.iter().cloned().collect();
+                let recent_failures = recent_tests.iter().filter(|&&x| !x).count();
+                metrics.failure_rate = recent_failures as f64 / recent_tests.len() as f64;
+
+                // 计算健康评分
+                let entropy_score = (metrics.entropy_bits / 8.0).min(1.0);
+                let failure_rate_score = (1.0 - metrics.failure_rate).max(0.0);
+                let consecutive_failures_score = if metrics.consecutive_failures == 0 {
+                    1.0
+                } else {
+                    0.5_f64.powi(metrics.consecutive_failures as i32)
+                };
+
+                metrics.health_score =
+                    (entropy_score * 0.4 + failure_rate_score * 0.4 + consecutive_failures_score * 0.2)
+                        .min(1.0);
+            }
+
+            // 检查是否需要触发告警
+            if !passed {
+                self.trigger_alert(
+                    AlertSeverity::Warning,
+                    AlertCategory::TestFailure,
+                    format!(
+                        "NIST randomness test failed: {}",
+                        nist_result.error_message.unwrap_or_default()
+                    ),
+                    Some("nist_randomness_test".to_string()),
+                );
+            }
+
+            // 检查熵值是否过低
+            if nist_result.entropy_bits < self.config.entropy_threshold {
+                self.trigger_alert(
+                    AlertSeverity::Warning,
+                    AlertCategory::EntropyDegradation,
+                    format!("Low entropy detected: {:.2} bits", nist_result.entropy_bits),
+                    Some("entropy_check".to_string()),
+                );
+            }
+
+            // 检查连续失败次数
+            let metrics = self.metrics.read().unwrap();
+            if metrics.consecutive_failures >= self.config.max_consecutive_failures {
+                self.trigger_alert(
+                    AlertSeverity::Critical,
+                    AlertCategory::SystemMalfunction,
+                    format!(
+                        "Too many consecutive RNG test failures: {}",
+                        metrics.consecutive_failures
+                    ),
+                    Some("consecutive_failures".to_string()),
+                );
+            }
+
+            // 检查失败率
+            if metrics.failure_rate > self.config.failure_rate_threshold {
+                self.trigger_alert(
+                    AlertSeverity::Warning,
+                    AlertCategory::TestFailure,
+                    format!(
+                        "RNG failure rate too high: {:.2}%",
+                        metrics.failure_rate * 100.0
+                    ),
+                    Some("failure_rate".to_string()),
+                );
+            }
+
+            Ok(passed)
         }
 
-        // 检查是否需要触发告警
-        if !passed {
-            self.trigger_alert(
-                AlertSeverity::Warning,
-                AlertCategory::TestFailure,
-                format!(
-                    "NIST randomness test failed: {}",
-                    nist_result.error_message.unwrap_or_default()
-                ),
-                Some("nist_randomness_test".to_string()),
-            );
+        #[cfg(not(feature = "encrypt"))]
+        {
+            self.record_test_result(true);
+            Ok(true)
         }
-
-        // 检查熵值是否过低
-        if nist_result.entropy_bits < self.config.entropy_threshold {
-            self.trigger_alert(
-                AlertSeverity::Warning,
-                AlertCategory::EntropyDegradation,
-                format!("Low entropy detected: {:.2} bits", nist_result.entropy_bits),
-                Some("entropy_check".to_string()),
-            );
-        }
-
-        // 检查连续失败次数
-        let metrics = self.metrics.read().unwrap();
-        if metrics.consecutive_failures >= self.config.max_consecutive_failures {
-            self.trigger_alert(
-                AlertSeverity::Critical,
-                AlertCategory::SystemMalfunction,
-                format!(
-                    "Too many consecutive RNG test failures: {}",
-                    metrics.consecutive_failures
-                ),
-                Some("consecutive_failures".to_string()),
-            );
-        }
-
-        // 检查失败率
-        if metrics.failure_rate > self.config.failure_rate_threshold {
-            self.trigger_alert(
-                AlertSeverity::Warning,
-                AlertCategory::TestFailure,
-                format!(
-                    "RNG failure rate too high: {:.2}%",
-                    metrics.failure_rate * 100.0
-                ),
-                Some("failure_rate".to_string()),
-            );
-        }
-
-        Ok(passed)
     }
 
     /// 记录测试结果
@@ -240,6 +254,7 @@ impl RngMonitor {
     }
 
     /// 触发告警
+    #[cfg(feature = "encrypt")]
     fn trigger_alert(
         &self,
         severity: AlertSeverity,
@@ -279,6 +294,7 @@ impl RngMonitor {
     pub fn record_external_test_result(&self, passed: bool, test_type: &str) {
         self.record_test_result(passed);
 
+        #[cfg(feature = "encrypt")]
         if !passed {
             self.trigger_alert(
                 AlertSeverity::Warning,

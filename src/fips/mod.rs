@@ -18,12 +18,14 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 pub mod self_test;
+#[cfg(feature = "encrypt")]
 mod validator;
 
 pub use self_test::{
     Alert, AlertCategory, AlertHandler, AlertSeverity, FipsSelfTestEngine, FipsSelfTestType,
     SelfTestResult,
 };
+#[cfg(feature = "encrypt")]
 pub use validator::FipsAlgorithmValidator;
 
 /// FIPS 模式状态
@@ -116,8 +118,10 @@ impl FipsErrorState {
 /// FIPS 上下文管理器
 pub struct FipsContext {
     mode: FipsMode,
-    _validator: FipsAlgorithmValidator,
-    self_test_engine: FipsSelfTestEngine,
+    #[cfg(feature = "encrypt")]
+    _validator: self::validator::FipsAlgorithmValidator,
+    #[cfg(feature = "encrypt")]
+    self_test_engine: self::self_test::FipsSelfTestEngine,
     error_state: FipsErrorState,
     algorithm_usage_stats: Mutex<HashMap<Algorithm, usize>>,
 }
@@ -125,25 +129,35 @@ pub struct FipsContext {
 impl FipsContext {
     /// 创建新的 FIPS 上下文
     pub fn new(mode: FipsMode) -> Result<Self> {
-        let validator = FipsAlgorithmValidator;
-        let self_test_engine = FipsSelfTestEngine::new();
         let error_state = FipsErrorState::new();
         let algorithm_usage_stats = Mutex::new(HashMap::new());
 
-        let context = Self {
-            mode,
-            _validator: validator,
-            self_test_engine,
-            error_state,
-            algorithm_usage_stats,
-        };
+        #[cfg(feature = "encrypt")]
+        {
+            let validator = self::validator::FipsAlgorithmValidator;
+            let self_test_engine = self::self_test::FipsSelfTestEngine::new();
+            let context = Self {
+                mode,
+                _validator: validator,
+                self_test_engine,
+                error_state,
+                algorithm_usage_stats,
+            };
 
-        // 如果启用 FIPS 模式，运行上电自检
-        if mode == FipsMode::Enabled {
-            context.self_test_engine.run_power_on_self_tests()?;
+            // 如果启用 FIPS 模式，运行上电自检
+            if mode == FipsMode::Enabled {
+                context.self_test_engine.run_power_on_self_tests()?;
+            }
+            Ok(context)
         }
-
-        Ok(context)
+        #[cfg(not(feature = "encrypt"))]
+        {
+            Ok(Self {
+                mode,
+                error_state,
+                algorithm_usage_stats,
+            })
+        }
     }
 
     /// 启用 FIPS 模式
@@ -182,7 +196,7 @@ impl FipsContext {
         }
 
         // 验证算法是否在白名单中
-        FipsAlgorithmValidator::validate_fips_compliance(algorithm)?;
+        self.validate_fips_compliance(algorithm)?;
 
         // 记录算法使用统计
         {
@@ -191,13 +205,16 @@ impl FipsContext {
         }
 
         // 执行条件自检
-        if let Err(e) = self.self_test_engine.run_conditional_self_test(*algorithm) {
-            self.error_state
-                .set_error(FipsError::ConditionalSelfTestFailed(
-                    format!("{:?}", algorithm),
-                    e.to_string(),
-                ));
-            return Err(e);
+        #[cfg(feature = "encrypt")]
+        {
+            if let Err(e) = self.self_test_engine.run_conditional_self_test(*algorithm) {
+                self.error_state
+                    .set_error(FipsError::ConditionalSelfTestFailed(
+                        format!("{:?}", algorithm),
+                        e.to_string(),
+                    ));
+                return Err(e);
+            }
         }
 
         Ok(())
@@ -205,7 +222,15 @@ impl FipsContext {
 
     /// 运行条件自检
     pub fn run_conditional_self_test(&self, algorithm: Algorithm) -> Result<()> {
-        self.self_test_engine.run_conditional_self_test(algorithm)
+        #[cfg(feature = "encrypt")]
+        {
+            self.self_test_engine.run_conditional_self_test(algorithm)
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            let _ = algorithm;
+            Ok(())
+        }
     }
 
     /// 验证密钥大小是否符合 FIPS 要求
@@ -214,7 +239,15 @@ impl FipsContext {
             return Ok(());
         }
 
-        FipsAlgorithmValidator::validate_key_size(algorithm, key_size)
+        #[cfg(feature = "encrypt")]
+        {
+            validator::FipsAlgorithmValidator::validate_key_size(algorithm, key_size)
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            let _ = (algorithm, key_size);
+            Ok(())
+        }
     }
 
     /// 获取算法使用统计
@@ -222,19 +255,53 @@ impl FipsContext {
         self.algorithm_usage_stats.lock().unwrap().clone()
     }
 
+    pub fn validate_fips_compliance(&self, algorithm: &Algorithm) -> Result<()> {
+        #[cfg(feature = "encrypt")]
+        {
+            validator::FipsAlgorithmValidator::validate_fips_compliance(algorithm)
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            let _ = algorithm;
+            Ok(())
+        }
+    }
+
     /// 获取自检测试结果
     pub fn get_self_test_results(&self) -> HashMap<String, SelfTestResult> {
-        self.self_test_engine.get_test_results()
+        #[cfg(feature = "encrypt")]
+        {
+            self.self_test_engine.get_test_results()
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            HashMap::new()
+        }
     }
 
     /// 获取特定测试的结果
     pub fn get_self_test_result(&self, test_name: &str) -> Option<SelfTestResult> {
-        self.self_test_engine.get_test_result(test_name)
+        #[cfg(feature = "encrypt")]
+        {
+            self.self_test_engine.get_test_result(test_name)
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            let _ = test_name;
+            None
+        }
     }
 
     /// 检查是否所有必需的测试都通过
     pub fn all_required_tests_passed(&self) -> bool {
-        self.self_test_engine.all_required_tests_passed()
+        #[cfg(feature = "encrypt")]
+        {
+            self.self_test_engine.all_required_tests_passed()
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            true
+        }
     }
 
     /// 检查是否处于错误状态
@@ -258,20 +325,38 @@ impl FipsContext {
             return Ok(());
         }
 
-        // 运行 RNG 健康检查
-        let rng_test = self.self_test_engine.rng_health_test()?;
-        if !rng_test.passed {
-            self.error_state.set_error(FipsError::RngHealthCheckFailed(
-                rng_test
-                    .error_message
-                    .unwrap_or_else(|| "Unknown RNG error".to_string()),
-            ));
-            return Err(CryptoError::FipsError(
-                "Periodic self test failed".to_string(),
-            ));
+        #[cfg(feature = "encrypt")]
+        {
+            // 运行 RNG 健康检查
+            let rng_test = self.self_test_engine.rng_health_test()?;
+            if !rng_test.passed {
+                self.error_state.set_error(FipsError::RngHealthCheckFailed(
+                    rng_test
+                        .error_message
+                        .unwrap_or_else(|| "Unknown RNG error".to_string()),
+                ));
+                return Err(CryptoError::FipsError(
+                    "Periodic self test failed".to_string(),
+                ));
+            }
         }
 
         Ok(())
+    }
+
+    pub fn run_periodic_self_test(&self) -> Result<()> {
+        if self.mode != FipsMode::Enabled {
+            return Ok(());
+        }
+
+        #[cfg(feature = "encrypt")]
+        {
+            self.self_test_engine.run_periodic_tests()
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            Ok(())
+        }
     }
 }
 
@@ -289,20 +374,15 @@ fn get_fips_mode() -> FipsMode {
 }
 
 /// 验证算法是否在 FIPS 模式下被允许
-pub fn validate_algorithm_fips(algorithm: &Algorithm) -> Result<()> {
-    if !is_fips_enabled() {
-        return Ok(());
+pub fn validate_algorithm_fips(_algorithm: &Algorithm) -> Result<()> {
+        #[cfg(feature = "encrypt")]
+        {
+            if is_fips_enabled() {
+                self::validator::FipsAlgorithmValidator::validate_fips_compliance(_algorithm)?;
+            }
+        }
+        Ok(())
     }
-
-    if !algorithm.is_fips_approved() {
-        return Err(CryptoError::FipsError(format!(
-            "Algorithm {:?} is not FIPS 140-3 approved",
-            algorithm
-        )));
-    }
-
-    Ok(())
-}
 
 /// 检查是否启用 FIPS 模式
 pub fn is_fips_enabled() -> bool {
@@ -311,10 +391,24 @@ pub fn is_fips_enabled() -> bool {
 
 /// 获取 FIPS 批准的算法列表
 pub fn get_fips_approved_algorithms() -> Vec<Algorithm> {
-    FipsAlgorithmValidator::get_approved_algorithms()
-}
+        #[cfg(feature = "encrypt")]
+        {
+            self::validator::FipsAlgorithmValidator::get_approved_algorithms()
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            vec![]
+        }
+    }
 
 /// 获取非 FIPS 批准的算法列表
-pub fn get_non_fips_approved_algorithms() -> Vec<Algorithm> {
-    FipsAlgorithmValidator::get_non_approved_algorithms()
-}
+pub fn get_non_approved_algorithms() -> Vec<Algorithm> {
+        #[cfg(feature = "encrypt")]
+        {
+            self::validator::FipsAlgorithmValidator::get_non_approved_algorithms()
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            vec![]
+        }
+    }

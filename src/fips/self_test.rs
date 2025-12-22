@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 // Note: Key is used in internal test methods within impl blocks
+#[cfg(feature = "encrypt")]
 use crate::key::Key;
 
 /// FIPS 自检测试类型
@@ -31,11 +32,15 @@ pub struct SelfTestResult {
 }
 
 /// FIPS 自检测试引擎
+#[cfg(feature = "encrypt")]
 pub struct FipsSelfTestEngine {
     test_results: Mutex<HashMap<String, SelfTestResult>>,
     alert_threshold: AlertThreshold,
     alert_handler: Option<Arc<dyn AlertHandler + Send + Sync>>,
 }
+
+#[cfg(not(feature = "encrypt"))]
+pub struct FipsSelfTestEngine;
 
 /// 告警阈值配置
 #[derive(Debug, Clone)]
@@ -95,10 +100,18 @@ pub struct NistTestResult {
 
 impl Default for FipsSelfTestEngine {
     fn default() -> Self {
-        Self::new()
+        #[cfg(feature = "encrypt")]
+        {
+            Self::new()
+        }
+        #[cfg(not(feature = "encrypt"))]
+        {
+            Self
+        }
     }
 }
 
+#[cfg(feature = "encrypt")]
 impl FipsSelfTestEngine {
     pub fn new() -> Self {
         Self {
@@ -190,7 +203,28 @@ impl FipsSelfTestEngine {
         .map(|_| ())
     }
 
-    /// AES 已知答案测试
+    /// 执行定期自检 (在运行时调用)
+    pub fn run_periodic_tests(&self) -> Result<()> {
+        let results = vec![
+            self.aes_kat_test()?,
+            self.sha_kat_test()?,
+            self.rng_health_test()?,
+        ];
+
+        // 存储测试结果
+        let mut test_results = self.test_results.lock().unwrap();
+        for result in &results {
+            test_results.insert(result.test_name.clone(), result.clone());
+        }
+
+        // 检查失败
+        if results.iter().any(|r| !r.passed) {
+            return Err(CryptoError::FipsError("FIPS periodic self test failed".to_string()));
+        }
+
+        Ok(())
+    }
+/// AES 已知答案测试
     fn aes_kat_test(&self) -> Result<SelfTestResult> {
         let test_name = "aes_256_gcm_kat".to_string();
         let timestamp = std::time::SystemTime::now();
@@ -691,8 +725,10 @@ impl FipsSelfTestEngine {
         let test_name = "ecdsa_pairwise_consistency".to_string();
         let timestamp = std::time::SystemTime::now();
 
-        use crate::key::Key;
-        use crate::provider::registry::REGISTRY;
+        #[cfg(feature = "encrypt")]
+use crate::key::Key;
+#[cfg(feature = "encrypt")]
+use crate::provider::registry::REGISTRY;
 
         let mut all_passed = true;
         let mut error_messages = Vec::new();
