@@ -7,7 +7,7 @@
 #[test]
 fn uat_fips_mode_validation() {
     use securevault::fips::FipsContext;
-    use securevault::{Cipher, Algorithm, KeyManager};
+    use securevault::{Algorithm, Cipher, KeyManager};
     
     // 1. Enable FIPS
     FipsContext::enable().expect("Failed to enable FIPS mode");

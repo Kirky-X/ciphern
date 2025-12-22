@@ -5,7 +5,7 @@
 
 #[test]
 fn uat_simd_performance_check() {
-    use securevault::{Cipher, Algorithm, KeyManager};
+    use securevault::{Algorithm, Cipher, KeyManager};
     use std::time::Instant;
 
     let key_manager = KeyManager::new().unwrap();

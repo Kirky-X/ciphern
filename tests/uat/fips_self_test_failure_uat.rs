@@ -1,7 +1,7 @@
 #[cfg(feature = "fips")]
 #[test]
 fn test_fips_self_test_failure_handling() {
-    use ciphern::fips::{FipsSelfTestEngine, FipsError};
+    use ciphern::fips::{FipsError, FipsSelfTestEngine};
     
     let engine = FipsSelfTestEngine::new();
     
