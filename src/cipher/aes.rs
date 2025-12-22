@@ -7,9 +7,7 @@ use crate::error::{CryptoError, Result};
 use crate::key::Key;
 use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
-use crate::side_channel::{
-    protect_critical_operation, RotatingSboxMasking, SideChannelConfig, SideChannelContext,
-};
+use crate::side_channel::{RotatingSboxMasking, SideChannelConfig, SideChannelContext};
 use crate::types::Algorithm;
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use std::sync::{Arc, Mutex};
@@ -17,6 +15,45 @@ use std::sync::{Arc, Mutex};
 pub struct Aes256GcmProvider {
     side_channel_context: Option<Arc<Mutex<SideChannelContext>>>,
     rotating_sbox: Option<Arc<Mutex<RotatingSboxMasking>>>,
+}
+
+impl SymmetricCipher for Aes256GcmProvider {
+    fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        self.encrypt_internal(key, plaintext, aad)
+    }
+
+    fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        self.decrypt_internal(key, ciphertext, aad)
+    }
+
+    fn algorithm(&self) -> Algorithm {
+        Algorithm::AES256GCM
+    }
+
+    fn encrypt_with_nonce(
+        &self,
+        key: &Key,
+        plaintext: &[u8],
+        nonce: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
+        let secret = key.secret_bytes()?;
+        let unbound_key = UnboundKey::new(&AES_256_GCM, secret.as_bytes())
+            .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
+        let less_safe_key = LessSafeKey::new(unbound_key);
+
+        let nonce_array: [u8; 12] = nonce
+            .try_into()
+            .map_err(|_| CryptoError::EncryptionFailed("Invalid nonce length".into()))?;
+        let nonce = Nonce::assume_unique_for_key(nonce_array);
+
+        let mut in_out = plaintext.to_vec();
+        less_safe_key
+            .seal_in_place_append_tag(nonce, Aad::from(aad.unwrap_or(&[])), &mut in_out)
+            .map_err(|_| CryptoError::EncryptionFailed("Seal failed".into()))?;
+
+        Ok(in_out)
+    }
 }
 
 impl Aes256GcmProvider {
@@ -52,7 +89,20 @@ impl Aes256GcmProvider {
     }
 
     fn encrypt_internal(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        self.encrypt_core(key, plaintext, aad)
+        if let Some(ref ctx) = self.side_channel_context {
+            let mut guard = ctx.lock().map_err(|_| {
+                CryptoError::SideChannelError("Side channel context lock poisoned".into())
+            })?;
+
+            let key_bytes = key.secret_bytes()?;
+            let _ = self.expand_key_protected(key_bytes.as_bytes())?;
+
+            crate::side_channel::protect_critical_operation(&mut guard, || {
+                self.encrypt_core(key, plaintext, aad)
+            })
+        } else {
+            self.encrypt_core(key, plaintext, aad)
+        }
     }
 
     fn encrypt_core(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
@@ -83,7 +133,20 @@ impl Aes256GcmProvider {
         ciphertext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        self.decrypt_core(key, ciphertext, aad)
+        if let Some(ref ctx) = self.side_channel_context {
+            let mut guard = ctx.lock().map_err(|_| {
+                CryptoError::SideChannelError("Side channel context lock poisoned".into())
+            })?;
+
+            let key_bytes = key.secret_bytes()?;
+            let _ = self.expand_key_protected(key_bytes.as_bytes())?;
+
+            crate::side_channel::protect_critical_operation(&mut guard, || {
+                self.decrypt_core(key, ciphertext, aad)
+            })
+        } else {
+            self.decrypt_core(key, ciphertext, aad)
+        }
     }
 
     fn decrypt_core(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
@@ -181,6 +244,20 @@ impl Default for Aes256GcmProvider {
     }
 }
 
+impl Aes256GcmProvider {
+    /// Get side-channel protection statistics
+    pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
+        self.side_channel_context
+            .as_ref()
+            .and_then(|ctx| ctx.lock().ok().map(|guard| guard.get_stats()))
+    }
+
+    /// Check if side-channel protection is enabled
+    pub fn is_side_channel_protected(&self) -> bool {
+        self.side_channel_context.is_some() && self.rotating_sbox.is_some()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,11 +267,13 @@ mod tests {
     #[test]
     fn test_aes_with_side_channel_protection() {
         // 使用自定义配置强制启用所有防护
-        let mut config = SideChannelConfig::default();
-        config.power_analysis_protection = true; // 强制启用电源分析防护
-        config.constant_time_enabled = true;
-        config.error_injection_protection = true;
-        config.cache_protection = true;
+        let config = SideChannelConfig {
+            power_analysis_protection: true, // 强制启用电源分析防护
+            constant_time_enabled: true,
+            error_injection_protection: true,
+            cache_protection: true,
+            ..SideChannelConfig::default()
+        };
 
         let provider = Aes256GcmProvider::with_side_channel_config(config);
         assert!(provider.is_side_channel_protected());
@@ -230,11 +309,17 @@ mod tests {
 
     #[test]
     fn test_aes_without_side_channel_protection() {
-        let mut config = SideChannelConfig::default();
-        config.power_analysis_protection = false;
-        config.constant_time_enabled = false;
-        config.error_injection_protection = false;
-        config.cache_protection = false;
+        let config = SideChannelConfig {
+            power_analysis_protection: false,
+            constant_time_enabled: false,
+            error_injection_protection: false,
+            cache_protection: false,
+            timing_noise_enabled: false,
+            masking_operations_enabled: false,
+            redundancy_checks_enabled: false,
+            cache_flush_enabled: false,
+            ..SideChannelConfig::default()
+        };
 
         let provider = Aes256GcmProvider::with_side_channel_config(config);
         assert!(!provider.is_side_channel_protected());
@@ -273,109 +358,5 @@ mod tests {
 
         let result = provider.decrypt(&key, invalid_ciphertext, None);
         assert!(result.is_err());
-    }
-}
-
-impl SymmetricCipher for Aes256GcmProvider {
-    fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        if key.algorithm() != Algorithm::AES256GCM {
-            return Err(CryptoError::UnsupportedAlgorithm(
-                "Key algo mismatch".into(),
-            ));
-        }
-
-        if let Some(context) = &self.side_channel_context {
-            let mut context_guard = context
-                .lock()
-                .map_err(|_| CryptoError::SideChannelError("Context lock poisoned".into()))?;
-            protect_critical_operation(&mut context_guard, || {
-                self.encrypt_internal(key, plaintext, aad)
-            })
-        } else {
-            self.encrypt_internal(key, plaintext, aad)
-        }
-    }
-
-    fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        if key.algorithm() != Algorithm::AES256GCM {
-            return Err(CryptoError::UnsupportedAlgorithm(
-                "Key algo mismatch".into(),
-            ));
-        }
-
-        if let Some(context) = &self.side_channel_context {
-            let mut context_guard = context
-                .lock()
-                .map_err(|_| CryptoError::SideChannelError("Context lock poisoned".into()))?;
-            protect_critical_operation(&mut context_guard, || {
-                self.decrypt_internal(key, ciphertext, aad)
-            })
-        } else {
-            self.decrypt_internal(key, ciphertext, aad)
-        }
-    }
-
-    fn algorithm(&self) -> Algorithm {
-        Algorithm::AES256GCM
-    }
-
-    fn encrypt_with_nonce(
-        &self,
-        key: &Key,
-        plaintext: &[u8],
-        nonce: &[u8],
-        aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>> {
-        if key.algorithm() != Algorithm::AES256GCM {
-            return Err(CryptoError::UnsupportedAlgorithm(
-                "Key algo mismatch".into(),
-            ));
-        }
-        if nonce.len() != 12 {
-            return Err(CryptoError::EncryptionFailed("Invalid nonce length".into()));
-        }
-
-        let operation = || {
-            let secret = key.secret_bytes()?;
-
-            let unbound_key = UnboundKey::new(&AES_256_GCM, secret.as_bytes())
-                .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
-            let less_safe_key = LessSafeKey::new(unbound_key);
-            let nonce_val = Nonce::assume_unique_for_key(
-                nonce
-                    .try_into()
-                    .map_err(|_| CryptoError::EncryptionFailed("Invalid nonce".into()))?,
-            );
-
-            let mut in_out = plaintext.to_vec();
-            less_safe_key
-                .seal_in_place_append_tag(nonce_val, Aad::from(aad.unwrap_or(&[])), &mut in_out)
-                .map_err(|_| CryptoError::EncryptionFailed("Seal failed".into()))?;
-
-            Ok(in_out)
-        };
-
-        if let Some(context) = &self.side_channel_context {
-            let mut context_guard = context
-                .lock()
-                .map_err(|_| CryptoError::SideChannelError("Context lock poisoned".into()))?;
-            protect_critical_operation(&mut context_guard, operation)
-        } else {
-            operation()
-        }
-    }
-}
-
-impl Aes256GcmProvider {
-    /// Get side-channel protection statistics
-    pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
-        self.side_channel_context
-            .as_ref()
-            .and_then(|ctx| ctx.lock().ok().map(|guard| guard.get_stats()))
-    }
-
-    /// Check if side-channel protection is enabled
-    pub fn is_side_channel_protected(&self) -> bool {
-        self.side_channel_context.is_some() && self.rotating_sbox.is_some()
     }
 }
