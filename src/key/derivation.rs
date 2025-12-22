@@ -23,14 +23,16 @@ impl Hkdf {
         info: &[u8],
         output_algo: Algorithm,
     ) -> Result<Key> {
-        debug_assert!(
-            salt.len() <= 128,
-            "Salt should not exceed 128 bytes for performance"
-        );
-        debug_assert!(
-            info.len() <= 1024,
-            "Info should not exceed 1024 bytes for performance"
-        );
+        if salt.len() > 128 {
+            return Err(CryptoError::InvalidParameter(
+                "Salt should not exceed 128 bytes for performance".to_string(),
+            ));
+        }
+        if info.len() > 1024 {
+            return Err(CryptoError::InvalidParameter(
+                "Info should not exceed 1024 bytes for performance".to_string(),
+            ));
+        }
 
         let _secret = master_key.secret_bytes()?;
         let key_size = output_algo.key_size();
