@@ -372,6 +372,7 @@ pub extern "C" fn ciphern_error_string(error: CiphernError) -> *const c_char {
 
 
 /// C FFI 头文件生成辅助函数
+#[allow(dead_code)]
 #[cfg(feature = "generate_headers")]
 pub fn generate_c_header() -> String {
     format!(r#"
