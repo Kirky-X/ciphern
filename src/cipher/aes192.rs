@@ -3,96 +3,46 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use crate::cipher::base_provider::BaseCipherProvider;
 use crate::error::{CryptoError, Result};
 use crate::key::Key;
 use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
-use crate::side_channel::{SideChannelConfig, SideChannelContext};
+use crate::side_channel::SideChannelConfig;
 use crate::types::Algorithm;
 use aes_gcm::aead::consts::U12;
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{aes::Aes192, AeadCore, AesGcm};
-use std::sync::{Arc, Mutex};
 
+/// AES-192 GCM Provider with unified base provider structure
 pub struct Aes192GcmProvider {
-    side_channel_context: Option<Arc<Mutex<SideChannelContext>>>,
-}
-
-impl SymmetricCipher for Aes192GcmProvider {
-    fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        self.encrypt_internal(key, plaintext, aad)
-    }
-
-    fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        self.decrypt_internal(key, ciphertext, aad)
-    }
-
-    fn algorithm(&self) -> Algorithm {
-        Algorithm::AES192GCM
-    }
-
-    fn encrypt_with_nonce(
-        &self,
-        key: &Key,
-        plaintext: &[u8],
-        nonce: &[u8],
-        aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>> {
-        let secret = key.secret_bytes()?;
-        let cipher = AesGcm::<Aes192, U12>::new_from_slice(secret.as_bytes())
-            .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
-
-        let nonce_val = nonce.into();
-
-        cipher
-            .encrypt(
-                nonce_val,
-                Payload {
-                    msg: plaintext,
-                    aad: aad.unwrap_or(&[]),
-                },
-            )
-            .map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
-    }
+    base: BaseCipherProvider,
 }
 
 impl Aes192GcmProvider {
+    /// Create a new AES-192 GCM provider with default configuration
     pub fn new() -> Self {
-        let side_channel_context = Some(Arc::new(Mutex::new(SideChannelContext::new(
-            SideChannelConfig::default(),
-        ))));
-
         Self {
-            side_channel_context,
+            base: BaseCipherProvider::new(),
         }
     }
-}
 
-impl Aes192GcmProvider {
+    /// Create a new AES-192 GCM provider with custom side-channel configuration
     pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
         Self {
-            side_channel_context: Some(Arc::new(Mutex::new(SideChannelContext::new(config)))),
+            base: BaseCipherProvider::with_side_channel_config(config),
         }
     }
 
+    /// Internal encryption implementation
     fn encrypt_internal(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        if let Some(ref ctx) = self.side_channel_context {
-            let mut guard = ctx.lock().map_err(|_| {
-                CryptoError::SideChannelError("Side channel context lock poisoned".into())
-            })?;
-
-            crate::side_channel::protect_critical_operation(&mut guard, || {
-                self.encrypt_core(key, plaintext, aad)
-            })
-        } else {
-            self.encrypt_core(key, plaintext, aad)
-        }
+        let secret = key.secret_bytes()?;
+        self.encrypt_core(secret.as_bytes(), plaintext, aad)
     }
 
-    fn encrypt_core(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        let secret = key.secret_bytes()?;
-
-        let cipher = AesGcm::<Aes192, U12>::new_from_slice(secret.as_bytes())
+    /// Core encryption logic
+    fn encrypt_core(&self, key_bytes: &[u8], plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        let cipher = AesGcm::<Aes192, U12>::new_from_slice(key_bytes)
             .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
 
         let nonce = AesGcm::<Aes192, U12>::generate_nonce(&mut SecureRandom::new()?);
@@ -113,29 +63,15 @@ impl Aes192GcmProvider {
         Ok(result)
     }
 
-    fn decrypt_internal(
-        &self,
-        key: &Key,
-        ciphertext: &[u8],
-        aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>> {
-        if let Some(ref ctx) = self.side_channel_context {
-            let mut guard = ctx.lock().map_err(|_| {
-                CryptoError::SideChannelError("Side channel context lock poisoned".into())
-            })?;
-
-            crate::side_channel::protect_critical_operation(&mut guard, || {
-                self.decrypt_core(key, ciphertext, aad)
-            })
-        } else {
-            self.decrypt_core(key, ciphertext, aad)
-        }
+    /// Internal decryption implementation
+    fn decrypt_internal(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        let secret = key.secret_bytes()?;
+        self.decrypt_core(secret.as_bytes(), ciphertext, aad)
     }
 
-    fn decrypt_core(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        let secret = key.secret_bytes()?;
-
-        let cipher = AesGcm::<Aes192, U12>::new_from_slice(secret.as_bytes())
+    /// Core decryption logic
+    fn decrypt_core(&self, key_bytes: &[u8], ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        let cipher = AesGcm::<Aes192, U12>::new_from_slice(key_bytes)
             .map_err(|_| CryptoError::DecryptionFailed("Invalid Key".into()))?;
 
         if ciphertext.len() < 12 {
@@ -158,6 +94,18 @@ impl Aes192GcmProvider {
 
         Ok(plaintext)
     }
+
+    /// Get side-channel protection statistics
+    pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
+        self.base.side_channel_context()
+            .as_ref()
+            .map(|ctx| ctx.lock().unwrap().get_stats())
+    }
+
+    /// Check if side-channel protection is enabled
+    pub fn is_side_channel_protected(&self) -> bool {
+        self.base.side_channel_context().is_some()
+    }
 }
 
 impl Default for Aes192GcmProvider {
@@ -166,17 +114,67 @@ impl Default for Aes192GcmProvider {
     }
 }
 
-impl Aes192GcmProvider {
-    /// Get side-channel protection statistics
-    pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
-        self.side_channel_context
-            .as_ref()
-            .map(|ctx| ctx.lock().unwrap().get_stats())
+crate::impl_cipher_provider!(Aes192GcmProvider, Algorithm::AES192GCM);
+
+impl SymmetricCipher for Aes192GcmProvider {
+    fn algorithm(&self) -> Algorithm {
+        Algorithm::AES192GCM
     }
 
-    /// Check if side-channel protection is enabled
-    pub fn is_side_channel_protected(&self) -> bool {
-        self.side_channel_context.is_some()
+    fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        if key.algorithm() != Algorithm::AES192GCM {
+            return Err(CryptoError::UnsupportedAlgorithm(
+                "Key algo mismatch".into(),
+            ));
+        }
+
+        self.base.protect_operation(|| self.encrypt_internal(key, plaintext, aad))
+    }
+
+    fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
+        if ciphertext.len() < 12 {
+            // Nonce + Tag min
+            return Err(CryptoError::DecryptionFailed("Ciphertext too short".into()));
+        }
+
+        self.base.protect_operation(|| self.decrypt_internal(key, ciphertext, aad))
+    }
+
+    fn encrypt_with_nonce(
+        &self,
+        key: &Key,
+        plaintext: &[u8],
+        nonce: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
+        if key.algorithm() != Algorithm::AES192GCM {
+            return Err(CryptoError::UnsupportedAlgorithm(
+                "Key algo mismatch".into(),
+            ));
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::EncryptionFailed("Invalid nonce length".into()));
+        }
+
+        let operation = || {
+            let secret = key.secret_bytes()?;
+
+            let cipher = AesGcm::<Aes192, U12>::new_from_slice(secret.as_bytes())
+                .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
+            let nonce_val = nonce.into();
+
+            cipher
+                .encrypt(
+                    nonce_val,
+                    Payload {
+                        msg: plaintext,
+                        aad: aad.unwrap_or(&[]),
+                    },
+                )
+                .map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
+        };
+
+        self.base.protect_operation(operation)
     }
 }
 

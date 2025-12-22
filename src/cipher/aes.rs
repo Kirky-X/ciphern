@@ -3,27 +3,36 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use crate::cipher::base_provider::BaseCipherProvider;
 use crate::error::{CryptoError, Result};
 use crate::key::Key;
 use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
-use crate::side_channel::{RotatingSboxMasking, SideChannelConfig, SideChannelContext};
+use crate::side_channel::SideChannelConfig;
 use crate::types::Algorithm;
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
-use std::sync::{Arc, Mutex};
 
 pub struct Aes256GcmProvider {
-    side_channel_context: Option<Arc<Mutex<SideChannelContext>>>,
-    rotating_sbox: Option<Arc<Mutex<RotatingSboxMasking>>>,
+    base: BaseCipherProvider,
 }
 
 impl SymmetricCipher for Aes256GcmProvider {
     fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        self.encrypt_internal(key, plaintext, aad)
+        if key.algorithm() != Algorithm::AES256GCM {
+            return Err(CryptoError::UnsupportedAlgorithm(
+                "Key algo mismatch".into(),
+            ));
+        }
+        self.base.protect_operation(|| self.encrypt_internal(key, plaintext, aad))
     }
 
     fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        self.decrypt_internal(key, ciphertext, aad)
+        if key.algorithm() != Algorithm::AES256GCM {
+            return Err(CryptoError::UnsupportedAlgorithm(
+                "Key algo mismatch".into(),
+            ));
+        }
+        self.base.protect_operation(|| self.decrypt_internal(key, ciphertext, aad))
     }
 
     fn algorithm(&self) -> Algorithm {
@@ -58,51 +67,19 @@ impl SymmetricCipher for Aes256GcmProvider {
 
 impl Aes256GcmProvider {
     pub fn new() -> Self {
-        let side_channel_context = Some(Arc::new(Mutex::new(SideChannelContext::new(
-            SideChannelConfig::default(),
-        ))));
-        let rotating_sbox = RotatingSboxMasking::new(4)
-            .ok()
-            .map(|sbox| Arc::new(Mutex::new(sbox))); // 4 rotating S-boxes
-
-        Self {
-            side_channel_context,
-            rotating_sbox,
-        }
+        let base = BaseCipherProvider::new();
+        Self { base }
     }
 }
 
 impl Aes256GcmProvider {
     pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
-        let rotating_sbox = if config.power_analysis_protection {
-            RotatingSboxMasking::new(4)
-                .ok()
-                .map(|sbox| Arc::new(Mutex::new(sbox))) // 4 rotating S-boxes if power analysis protection enabled
-        } else {
-            None
-        };
-
-        Self {
-            side_channel_context: Some(Arc::new(Mutex::new(SideChannelContext::new(config)))),
-            rotating_sbox,
-        }
+        let base = BaseCipherProvider::with_side_channel_config(config);
+        Self { base }
     }
 
     fn encrypt_internal(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        if let Some(ref ctx) = self.side_channel_context {
-            let mut guard = ctx.lock().map_err(|_| {
-                CryptoError::SideChannelError("Side channel context lock poisoned".into())
-            })?;
-
-            let key_bytes = key.secret_bytes()?;
-            let _ = self.expand_key_protected(key_bytes.as_bytes())?;
-
-            crate::side_channel::protect_critical_operation(&mut guard, || {
-                self.encrypt_core(key, plaintext, aad)
-            })
-        } else {
-            self.encrypt_core(key, plaintext, aad)
-        }
+        self.encrypt_core(key, plaintext, aad)
     }
 
     fn encrypt_core(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
@@ -133,20 +110,7 @@ impl Aes256GcmProvider {
         ciphertext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        if let Some(ref ctx) = self.side_channel_context {
-            let mut guard = ctx.lock().map_err(|_| {
-                CryptoError::SideChannelError("Side channel context lock poisoned".into())
-            })?;
-
-            let key_bytes = key.secret_bytes()?;
-            let _ = self.expand_key_protected(key_bytes.as_bytes())?;
-
-            crate::side_channel::protect_critical_operation(&mut guard, || {
-                self.decrypt_core(key, ciphertext, aad)
-            })
-        } else {
-            self.decrypt_core(key, ciphertext, aad)
-        }
+        self.decrypt_core(key, ciphertext, aad)
     }
 
     fn decrypt_core(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
@@ -179,36 +143,7 @@ impl Aes256GcmProvider {
     /// Perform side-channel protected key expansion
     #[allow(dead_code)]
     fn expand_key_protected(&self, key_bytes: &[u8]) -> Result<Vec<u8>> {
-        // If we have rotating S-box protection, use it for key expansion
-        if let Some(ref sbox_masking) = self.rotating_sbox {
-            // Apply masked S-box operations during key expansion
-            let mut expanded_key = Vec::with_capacity(240); // AES-256 expanded key size
-            expanded_key.extend_from_slice(key_bytes);
-
-            // Simulate key expansion with side-channel protection
-            // In a real implementation, this would use the masked S-box for all SubBytes operations
-            for i in 0..(expanded_key.len() / 4) {
-                if i > 7 && i % 4 == 0 {
-                    // Apply masked S-box transformation
-                    let byte_idx = i * 4;
-                    for j in 0..4 {
-                        if byte_idx + j < expanded_key.len() {
-                            let input = expanded_key[byte_idx + j];
-                            // Use rotating S-box for side-channel protection
-                            let mut sbox = sbox_masking.lock().map_err(|_| {
-                                CryptoError::SideChannelError("S-box lock poisoned".into())
-                            })?;
-                            expanded_key[byte_idx + j] = sbox.lookup(input);
-                        }
-                    }
-                }
-            }
-
-            Ok(expanded_key)
-        } else {
-            // Fallback to simple key copy without additional protection
-            Ok(key_bytes.to_vec())
-        }
+        self.base.expand_key_protected(key_bytes)
     }
 
     /// Simple AES S-box lookup (for demonstration)
@@ -247,14 +182,12 @@ impl Default for Aes256GcmProvider {
 impl Aes256GcmProvider {
     /// Get side-channel protection statistics
     pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
-        self.side_channel_context
-            .as_ref()
-            .and_then(|ctx| ctx.lock().ok().map(|guard| guard.get_stats()))
+        self.base.get_side_channel_stats()
     }
 
     /// Check if side-channel protection is enabled
     pub fn is_side_channel_protected(&self) -> bool {
-        self.side_channel_context.is_some() && self.rotating_sbox.is_some()
+        self.base.is_side_channel_protected()
     }
 }
 
@@ -360,3 +293,5 @@ mod tests {
         assert!(result.is_err());
     }
 }
+
+crate::impl_cipher_provider!(Aes256GcmProvider, Algorithm::AES256GCM);
