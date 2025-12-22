@@ -7,11 +7,11 @@
 //! 
 //! 为 Python 提供本地接口支持
 
-use pyo3::prelude::*;
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::prelude::*;
 use std::ffi::CString;
 
-use crate::ffi::{ciphern_init, ciphern_cleanup, ciphern_generate_key, ciphern_encrypt, ciphern_decrypt, CiphernError};
+use crate::ffi::{ciphern_cleanup, ciphern_decrypt, ciphern_encrypt, ciphern_generate_key, ciphern_init, CiphernError};
 
 #[pyclass]
 pub struct Ciphern {

@@ -7,12 +7,12 @@
 //! 
 //! 为 Java 提供本地接口支持
 
+use jni::objects::{JByteArray, JClass, JString};
+use jni::sys::{jboolean, jint, jlong};
 use jni::JNIEnv;
-use jni::objects::{JClass, JString, JByteArray};
-use jni::sys::{jint, jlong, jboolean};
 use std::ffi::{CStr, CString};
 
-use crate::ffi::{ciphern_init, ciphern_cleanup, ciphern_generate_key, ciphern_encrypt, ciphern_decrypt, CiphernError};
+use crate::ffi::{ciphern_cleanup, ciphern_decrypt, ciphern_encrypt, ciphern_generate_key, ciphern_init, CiphernError};
 
 #[no_mangle]
 pub extern "system" fn Java_com_ciphern_Ciphern_init(
