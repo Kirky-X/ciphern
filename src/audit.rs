@@ -817,44 +817,47 @@ mod tests {
 
     #[test]
     fn test_audit_logger_basic() {
-        // Clear logs first
-        AuditLogger::clear_logs();
+        // Use a unique key for this test to avoid interference from other tests running in parallel
+        let test_key = format!("test_key_basic_{}", Utc::now().timestamp_nanos_opt().unwrap_or(0));
 
         // Log some operations
         AuditLogger::log(
             "KEY_GENERATE",
             Some(Algorithm::AES256GCM),
-            Some("test_key"),
+            Some(&test_key),
             Ok(()),
         );
         AuditLogger::log(
             "ENCRYPT",
             Some(Algorithm::AES256GCM),
-            Some("test_key"),
+            Some(&test_key),
             Err("test error"),
         );
         
-        // Wait briefly for async logging to propagate
-        thread::sleep(std::time::Duration::from_millis(500));
+        // Wait briefly for async logging to propagate (though sync buffer is immediate)
+        thread::sleep(std::time::Duration::from_millis(100));
 
         // Get logs
         let logs = AuditLogger::get_logs();
 
-        // Find the logs we're interested in
+        // Find the logs we're interested in by filtering for our unique key
         let keygen_logs: Vec<_> = logs
             .iter()
-            .filter(|log| log.contains("KEY_GENERATE"))
+            .filter(|log| log.contains("KEY_GENERATE") && log.contains(&test_key))
             .collect();
-        let encrypt_logs: Vec<_> = logs.iter().filter(|log| log.contains("ENCRYPT")).collect();
+        let encrypt_logs: Vec<_> = logs
+            .iter()
+            .filter(|log| log.contains("ENCRYPT") && log.contains(&test_key))
+            .collect();
 
         // Verify we have at least the logs we expect
         assert!(
             !keygen_logs.is_empty(),
-            "Should have at least 1 KEY_GENERATE log"
+            "Should have at least 1 KEY_GENERATE log for key {}", test_key
         );
         assert!(
             !encrypt_logs.is_empty(),
-            "Should have at least 1 ENCRYPT log"
+            "Should have at least 1 ENCRYPT log for key {}", test_key
         );
 
         // Parse and verify one of the KEY_GENERATE logs
@@ -865,17 +868,19 @@ mod tests {
 
     #[test]
     fn test_audit_logger_concurrent() {
-        // Clear logs first
-        AuditLogger::clear_logs();
+        // Use a unique prefix for this test
+        let test_prefix = format!("concurrent_key_{}", Utc::now().timestamp_nanos_opt().unwrap_or(0));
+        let test_prefix_clone = test_prefix.clone();
 
         // Log operations concurrently
         let handles: Vec<_> = (0..100)
             .map(|i| {
+                let prefix = test_prefix_clone.clone();
                 thread::spawn(move || {
                     AuditLogger::log(
                         "test_op",
                         Some(Algorithm::AES256GCM),
-                        Some(&format!("key_{}", i)),
+                        Some(&format!("{}_{}", prefix, i)),
                         if i % 2 == 0 {
                             Ok(())
                         } else {
@@ -894,11 +899,16 @@ mod tests {
         thread::sleep(std::time::Duration::from_millis(200));
 
         let logs = AuditLogger::get_logs();
-        // Check that at least 100 logs are present (other tests might be running concurrently)
+        
+        // Count logs belonging to this test run
+        let test_logs: Vec<_> = logs.iter()
+            .filter(|log| log.contains(&test_prefix))
+            .collect();
+
+        // Check that at least 100 logs are present
         assert!(
-            logs.len() >= 100,
-            "Expected at least 100 logs, got {}",
-            logs.len()
+            test_logs.len() >= 100,
+            "Expected at least 100 logs for this test, found {}", test_logs.len()
         );
     }
 
