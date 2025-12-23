@@ -835,7 +835,7 @@ mod tests {
         );
         
         // Wait briefly for async logging to propagate
-        thread::sleep(std::time::Duration::from_millis(50));
+        thread::sleep(std::time::Duration::from_millis(500));
 
         // Get logs
         let logs = AuditLogger::get_logs();
@@ -889,6 +889,9 @@ mod tests {
         for handle in handles {
             handle.join().unwrap();
         }
+
+        // Wait for logs to be flushed
+        thread::sleep(std::time::Duration::from_millis(200));
 
         let logs = AuditLogger::get_logs();
         // Check that at least 100 logs are present (other tests might be running concurrently)
