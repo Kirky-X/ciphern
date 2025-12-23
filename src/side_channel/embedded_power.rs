@@ -10,9 +10,55 @@ use std::time::{Duration, Instant};
 use crate::error::Result;
 use crate::random::SecureRandom;
 
-use super::r#struct::{
-    EmbeddedPowerConfig, EmbeddedPowerProtector, EmbeddedPowerProtectorBuilder, EmbeddedPowerStats,
-};
+// === Struct Definitions ===
+
+/// 嵌入式功耗分析防护配置
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct EmbeddedPowerConfig {
+    /// 是否启用ARM Cortex-M特定优化
+    pub cortex_m_optimization: bool,
+    /// 功耗掩码强度 (0.0 - 1.0)
+    pub power_masking_strength: f32,
+    /// 随机延迟范围（微秒）
+    pub random_delay_range_us: (u32, u32),
+    /// 是否启用时钟抖动
+    pub clock_jitter_enabled: bool,
+    /// 时钟抖动强度 (0.0 - 1.0)
+    pub clock_jitter_strength: f32,
+    /// 是否启用功耗噪声注入
+    pub power_noise_injection: bool,
+    /// 功耗噪声强度 (0.0 - 1.0)
+    pub power_noise_strength: f32,
+}
+
+/// 嵌入式功耗分析防护器
+#[allow(dead_code)]
+pub struct EmbeddedPowerProtector {
+    pub(crate) config: EmbeddedPowerConfig,
+    pub(crate) operation_counter: AtomicU32,
+    pub(crate) last_operation_time: Mutex<Option<Instant>>,
+}
+
+/// 嵌入式功耗防护统计信息
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct EmbeddedPowerStats {
+    /// 总操作次数
+    pub total_operations: u32,
+    /// 最后一次操作时间
+    pub last_operation_time: Option<Instant>,
+    /// 是否启用Cortex-M优化
+    pub cortex_m_optimization_enabled: bool,
+    /// 功耗掩码强度
+    pub power_masking_strength: f32,
+}
+
+/// 嵌入式功耗防护构建器
+#[allow(dead_code)]
+pub struct EmbeddedPowerProtectorBuilder {
+    pub(crate) config: EmbeddedPowerConfig,
+}
 
 // === Implementation: EmbeddedPowerConfig ===
 
@@ -338,5 +384,67 @@ impl EmbeddedPowerProtectorBuilder {
 impl Default for EmbeddedPowerProtectorBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// === Tests ===
+
+#[cfg(test)]
+mod tests {
+    use crate::error::CryptoError;
+    use super::{
+        EmbeddedPowerConfig, EmbeddedPowerProtector, EmbeddedPowerProtectorBuilder,
+    };
+
+    #[test]
+    fn test_embedded_power_protector_creation() {
+        let protector = EmbeddedPowerProtector::new(EmbeddedPowerConfig::default());
+        let stats = protector.stats();
+
+        assert_eq!(stats.total_operations, 0);
+        assert!(stats.last_operation_time.is_none());
+    }
+
+    #[test]
+    fn test_embedded_power_protector_builder() {
+        let protector = EmbeddedPowerProtectorBuilder::new()
+            .cortex_m_optimization(true)
+            .power_masking_strength(0.9)
+            .random_delay_range(20, 80)
+            .clock_jitter(true, 0.4)
+            .power_noise(true, 0.6)
+            .build();
+
+        let stats = protector.stats();
+        assert_eq!(stats.power_masking_strength, 0.9);
+        assert!(stats.cortex_m_optimization_enabled);
+    }
+
+    #[test]
+    fn test_protect_operation() {
+        let protector = EmbeddedPowerProtector::new(EmbeddedPowerConfig::default());
+
+        let result = protector.protect_operation(|| Ok::<_, CryptoError>(42));
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
+
+        let stats = protector.stats();
+        assert_eq!(stats.total_operations, 1);
+        assert!(stats.last_operation_time.is_some());
+    }
+
+    #[test]
+    fn test_multiple_operations() {
+        let protector = EmbeddedPowerProtector::new(EmbeddedPowerConfig::default());
+
+        for i in 0..5 {
+            let result = protector.protect_operation(|| Ok::<_, CryptoError>(i));
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), i);
+        }
+
+        let stats = protector.stats();
+        assert_eq!(stats.total_operations, 5);
     }
 }
