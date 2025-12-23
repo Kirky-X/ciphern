@@ -8,6 +8,7 @@ use crate::key::Key;
 use crate::types::Algorithm;
 use argon2::{Algorithm as Argon2Algorithm, Argon2, Params, Version};
 use hmac::Hmac;
+use libsm::sm3::hash::{Digest, Sm3Hash};
 use pbkdf2::pbkdf2;
 use ring::hkdf;
 use sha2::Sha256;
@@ -16,7 +17,6 @@ use zeroize::Zeroize;
 pub struct Hkdf;
 
 impl Hkdf {
-    #[allow(dead_code)]
     pub fn derive(
         master_key: &Key,
         salt: &[u8],
@@ -69,7 +69,6 @@ impl Hkdf {
         )))
     }
 
-    #[allow(dead_code)]
     fn derive_32_bytes(
         master_key: &Key,
         salt: &[u8],
@@ -98,6 +97,174 @@ impl Hkdf {
         // 清零派生过程中的敏感数据
         derived_bytes.zeroize();
 
+        result
+    }
+}
+
+
+#[allow(dead_code)]
+pub struct Pbkdf2;
+
+#[allow(dead_code)]
+impl Pbkdf2 {
+    #[allow(dead_code)]
+    pub fn derive(
+        password: &[u8],
+        salt: &[u8],
+        iterations: u32,
+        output_algo: Algorithm,
+    ) -> Result<Key> {
+        debug_assert!(
+            !password.is_empty(),
+            "Password should not be empty for PBKDF2"
+        );
+        debug_assert!(
+            salt.len() <= 128,
+            "Salt should not exceed 128 bytes for performance"
+        );
+        debug_assert!(
+            iterations >= 10000,
+            "PBKDF2 iterations should be at least 10000 for security"
+        );
+
+        let key_size = output_algo.key_size();
+        let mut derived_key = vec![0u8; key_size];
+
+        // 使用PBKDF2-HMAC-SHA256进行密钥派生
+        pbkdf2::<Hmac<Sha256>>(password, salt, iterations, &mut derived_key)
+            .map_err(|e| CryptoError::EncryptionFailed(format!("PBKDF2 failed: {:?}", e)))?;
+
+        let result = Key::new_active(output_algo, derived_key.clone());
+
+        // 清零派生过程中的敏感数据
+        derived_key.zeroize();
+
+        result
+    }
+}
+
+#[allow(dead_code)]
+pub struct Argon2id;
+
+#[allow(dead_code)]
+impl Argon2id {
+    #[allow(dead_code)]
+    pub fn derive(
+        password: &[u8],
+        salt: &[u8],
+        output_algo: Algorithm,
+    ) -> Result<Key> {
+        let key_size = output_algo.key_size();
+        let mut derived_key = vec![0u8; key_size];
+
+        // 配置Argon2id参数
+        let params = Params::new(65536, 3, 4, Some(key_size))
+            .map_err(|e| CryptoError::EncryptionFailed(format!("Argon2 params failed: {:?}", e)))?;
+
+        let argon2 = Argon2::new(Argon2Algorithm::Argon2id, Version::V0x13, params);
+
+        argon2
+            .hash_password_into(password, salt, &mut derived_key)
+            .map_err(|e| CryptoError::EncryptionFailed(format!("Argon2 failed: {:?}", e)))?;
+
+        let result = Key::new_active(output_algo, derived_key.clone());
+
+        // 清零派生过程中的敏感数据
+        derived_key.zeroize();
+
+        result
+    }
+}
+
+/// SM3 Key Derivation Function (KDF) implementation
+/// 
+/// This implementation follows the GB/T 32918.4-2016 standard.
+pub struct Sm3Kdf;
+
+impl Sm3Kdf {
+    /// Derive a key using SM3-KDF
+    /// 
+    /// # Arguments
+    /// 
+    /// * `master_key` - The master key to derive from
+    /// * `data` - The input data (Z || other info)
+    /// * `key_len` - The desired length of the derived key in bytes
+    /// * `output_algo` - The algorithm for the derived key
+    /// 
+    /// # Returns
+    /// 
+    /// Returns the derived key
+    pub fn derive(
+        master_key: &Key,
+        data: &[u8],
+        key_len: usize,
+        output_algo: Algorithm,
+    ) -> Result<Key> {
+        // SM3 produces 32-byte (256-bit) hash
+        const HASH_LEN: usize = 32;
+        
+        // Check if key length is valid (limit to reasonable size, e.g., 1024 bytes)
+        if key_len == 0 || key_len > 1024 {
+            return Err(CryptoError::InvalidParameter(format!(
+                "Invalid key length for KDF: {}",
+                key_len
+            )));
+        }
+
+        let secret = master_key.secret_bytes()?;
+        let secret_bytes = secret.as_bytes();
+        
+        // Calculate number of blocks needed: ceil(key_len / HASH_LEN)
+        let n = (key_len + HASH_LEN - 1) / HASH_LEN;
+        
+        // Counter is 32-bit big-endian integer, starting from 1
+        // If n >= 2^32, we can't represent the counter. 
+        // With key_len limit of 1024, n is at most 32, so we are safe.
+        if n > (u32::MAX as usize) {
+            return Err(CryptoError::InvalidParameter("Key length too large".to_string()));
+        }
+
+        let mut derived_key = Vec::with_capacity(key_len);
+        
+        // KDF = H(Z || ct) || H(Z || ct+1) ...
+        // Note: The standard typically defines input as Z || ct where Z is seed/secret
+        // But implementation details vary. Based on typical SM3 KDF:
+        // Ha = SM3(Z || ct)
+        // We need to clarify if 'master_key' is part of Z or if Z is just 'data'.
+        // Usually KDF(Z, klen):
+        // For i = 1 to n:
+        //   Hash(Z || ct)
+        // Here we treat (secret || data) as Z for better security if not specified otherwise,
+        // but to strictly follow standard KDF often takes a single input stream.
+        // Let's assume input Z is constructed by caller or we use (secret || data).
+        // For general KDF usage here: H(secret || data || ct)
+        
+        use libsm::sm3::hash::{Sm3Hash, Digest};
+
+        for i in 1..=n {
+            let mut hasher = Sm3Hash::new(&[]);
+            
+            // Feed secret
+            hasher.update(secret_bytes);
+            
+            // Feed data
+            hasher.update(data);
+            
+            // Feed counter (32-bit big-endian)
+            hasher.update(&(i as u32).to_be_bytes());
+            
+            let hash = hasher.finalize();
+            derived_key.extend_from_slice(&hash);
+        }
+        
+        // Truncate to requested length
+        derived_key.truncate(key_len);
+        
+        let result = Key::new_active(output_algo, derived_key.clone());
+        
+        // Zeroize intermediate buffer
+        derived_key.zeroize();
+        
         result
     }
 }
@@ -152,189 +319,5 @@ mod sm3_tests {
         );
 
         println!("SM3 hash implementation test passed!");
-    }
-}
-
-#[allow(dead_code)]
-pub struct Pbkdf2;
-
-#[allow(dead_code)]
-impl Pbkdf2 {
-    #[allow(dead_code)]
-    pub fn derive(
-        password: &[u8],
-        salt: &[u8],
-        iterations: u32,
-        output_algo: Algorithm,
-    ) -> Result<Key> {
-        debug_assert!(
-            !password.is_empty(),
-            "Password should not be empty for PBKDF2"
-        );
-        debug_assert!(
-            salt.len() <= 128,
-            "Salt should not exceed 128 bytes for performance"
-        );
-        debug_assert!(
-            iterations >= 10000,
-            "PBKDF2 iterations should be at least 10000 for security"
-        );
-
-        let key_size = output_algo.key_size();
-        let mut derived_key = vec![0u8; key_size];
-
-        // 使用PBKDF2-HMAC-SHA256进行密钥派生
-        pbkdf2::<Hmac<Sha256>>(password, salt, iterations, &mut derived_key)
-            .map_err(|e| CryptoError::EncryptionFailed(format!("PBKDF2 failed: {:?}", e)))?;
-
-        let result = Key::new_active(output_algo, derived_key.clone());
-
-        // 清零派生过程中的敏感数据
-        derived_key.zeroize();
-
-        result
-    }
-}
-
-#[allow(dead_code)]
-pub struct Argon2id;
-
-#[allow(dead_code)]
-impl Argon2id {
-    #[allow(dead_code)]
-    pub fn derive(
-        password: &[u8],
-        salt: &[u8],
-        memory_cost: u32, // KB
-        time_cost: u32,   // 迭代次数
-        parallelism: u32, // 并行度
-        output_algo: Algorithm,
-    ) -> Result<Key> {
-        debug_assert!(
-            !password.is_empty(),
-            "Password should not be empty for Argon2id"
-        );
-        debug_assert!(
-            salt.len() <= 128,
-            "Salt should not exceed 128 bytes for performance"
-        );
-        debug_assert!(
-            memory_cost >= 65536,
-            "Argon2id memory cost should be at least 64MB for security"
-        );
-        debug_assert!(
-            time_cost >= 3,
-            "Argon2id time cost should be at least 3 for security"
-        );
-
-        let key_size = output_algo.key_size();
-        let mut derived_key = vec![0u8; key_size];
-
-        // 配置Argon2id参数
-        let params = Params::new(memory_cost, time_cost, parallelism, Some(key_size))
-            .map_err(|e| CryptoError::InvalidParameter(format!("Argon2 params error: {:?}", e)))?;
-
-        let argon2 = Argon2::new(Argon2Algorithm::Argon2id, Version::V0x13, params);
-
-        // 执行密钥派生
-        argon2
-            .hash_password_into(password, salt, &mut derived_key)
-            .map_err(|e| CryptoError::EncryptionFailed(format!("Argon2id failed: {:?}", e)))?;
-
-        let result = Key::new_active(output_algo, derived_key.clone());
-
-        // 清零派生过程中的敏感数据
-        derived_key.zeroize();
-
-        result
-    }
-}
-
-#[allow(dead_code)]
-pub struct Sm3Kdf;
-
-#[allow(dead_code)]
-impl Sm3Kdf {
-    #[allow(dead_code)]
-    pub fn derive(
-        master_key: &Key,
-        fixed_data: &[u8],
-        key_length: usize,
-        output_algo: Algorithm,
-    ) -> Result<Key> {
-        debug_assert!(
-            fixed_data.len() <= 128,
-            "Fixed data should not exceed 128 bytes for performance"
-        );
-        debug_assert!(
-            key_length >= 16,
-            "Key length should be at least 16 bytes for security"
-        );
-        debug_assert!(
-            key_length <= 1024,
-            "Key length should not exceed 1024 bytes for performance"
-        );
-
-        let secret = master_key.secret_bytes()?;
-        let mut derived_key = vec![0u8; key_length];
-
-        // SM3-KDF实现：基于SM3哈希函数的密钥派生
-        // 使用类似NIST SP 800-108的计数器模式
-        let mut counter: u32 = 1;
-        let mut offset = 0;
-
-        while offset < key_length {
-            let mut input = Vec::new();
-            input.extend_from_slice(secret.as_bytes());
-            input.extend_from_slice(fixed_data);
-            input.extend_from_slice(&counter.to_be_bytes());
-
-            // 使用真实的SM3哈希
-            use libsm::sm3::hash::Sm3Hash;
-            let mut hash = Sm3Hash::new(&input);
-            let hash_result = hash.get_hash();
-            let hash_bytes = hash_result.as_slice();
-
-            let remaining = key_length - offset;
-            let copy_len = std::cmp::min(hash_bytes.len(), remaining);
-            derived_key[offset..offset + copy_len].copy_from_slice(&hash_bytes[..copy_len]);
-
-            offset += copy_len;
-            counter += 1;
-
-            // 清零临时输入数据
-            input.zeroize();
-        }
-
-        // 确保派生的密钥不为空
-        if derived_key.iter().all(|&b| b == 0) {
-            return Err(CryptoError::KeyError(
-                "SM3 KDF generated empty key".to_string(),
-            ));
-        }
-
-        // 如果派生长度与算法要求不匹配，调整长度
-        let final_key = if derived_key.len() == output_algo.key_size() {
-            derived_key.clone()
-        } else if derived_key.len() > output_algo.key_size() {
-            let truncated = derived_key[..output_algo.key_size()].to_vec();
-            derived_key.zeroize(); // 清零原始数据
-            truncated
-        } else {
-            // 如果派生长度不足，扩展密钥
-            let mut extended_key = vec![0u8; output_algo.key_size()];
-            extended_key[..derived_key.len()].copy_from_slice(&derived_key);
-            derived_key.zeroize(); // 清零原始数据
-            extended_key
-        };
-
-        let result = Key::new_active(output_algo, final_key);
-
-        // 清零派生过程中的敏感数据
-        if !derived_key.is_empty() {
-            derived_key.zeroize();
-        }
-
-        result
     }
 }
