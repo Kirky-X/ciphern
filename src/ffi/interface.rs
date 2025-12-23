@@ -28,6 +28,7 @@ pub enum CiphernError {
     KeyLifecycleError = -8,
     BufferTooSmall = -9,
     InvalidKeySize = -10,
+    NullPointer = -11,
     UnknownError = -999,
 }
 
@@ -46,6 +47,7 @@ impl CiphernError {
             CiphernError::KeyLifecycleError => "Key lifecycle error",
             CiphernError::BufferTooSmall => "Buffer too small",
             CiphernError::InvalidKeySize => "Invalid key size",
+            CiphernError::NullPointer => "Null pointer",
             CiphernError::UnknownError => "Unknown error",
         }
     }
@@ -135,6 +137,7 @@ impl CiphernBuffer {
     /// 2. `len` 和 `capacity` 正确
     /// 3. 此函数转移所有权，调用后原始结构不应再被使用
     #[allow(dead_code)]
+    #[allow(clippy::wrong_self_convention)]
     pub unsafe fn to_vec(self) -> Vec<u8> {
         if self.data.is_null() || self.capacity == 0 {
             return Vec::new();

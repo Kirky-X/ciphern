@@ -1215,6 +1215,10 @@ impl FipsSelfTestEngine {
         let aes_result = self.aes_kat_test()?;
 
         let mut test_results = self.test_results.lock().unwrap();
+        // If the health test fails due to statistical anomalies, we should log it but not fail hard
+        // unless it's a catastrophic failure.
+        // However, for FIPS, failure means failure.
+        
         test_results.insert(rng_result.test_name.clone(), rng_result);
         test_results.insert(aes_result.test_name.clone(), aes_result);
 
@@ -1228,10 +1232,13 @@ impl FipsSelfTestEngine {
         let ones = data.iter().map(|&b| b.count_ones() as u64).sum::<u64>();
         let zeros = data.len() as u64 * 8 - ones;
         let n = data.len() as u64 * 8;
+        if n == 0 { return true; }
+        
         let s = (ones as i64 - zeros as i64).abs();
         let statistic = s as f64 / (n as f64).sqrt();
 
-        // 使用标准正态分布的临界值 (α = 0.001)
+        // 使用标准正态分布的临界值 (α = 0.001) -> 3.291
+        // (α = 0.01) -> 2.576
         statistic < 3.291
     }
 
@@ -1383,9 +1390,9 @@ impl FipsSelfTestEngine {
                     
                     // 消元
                     let pivot_val = matrix[row];
-                    for i in (row + 1)..matrix_size {
-                        if (matrix[i] & (1 << (matrix_size - 1 - col))) != 0 {
-                            matrix[i] ^= pivot_val;
+                    for item in matrix.iter_mut().take(matrix_size).skip(row + 1) {
+                        if (*item & (1 << (matrix_size - 1 - col))) != 0 {
+                            *item ^= pivot_val;
                         }
                     }
                     rank += 1;
@@ -1691,8 +1698,8 @@ impl FipsSelfTestEngine {
             // but standard overlapping serial test often implies periodic or N-m+1)
             // NIST SP 800-22 Section 2.11 uses augmented sequence (appends first m-1 bits)
             let mut extended_bits = bits.clone();
-            for i in 0..m_len - 1 {
-                extended_bits.push(bits[i]);
+            for item in bits.iter().take(m_len - 1) {
+                extended_bits.push(*item);
             }
 
             for i in 0..n {
@@ -1759,8 +1766,8 @@ impl FipsSelfTestEngine {
             let mut counts = std::collections::HashMap::new();
             // Augmented sequence for ApEn
             let mut extended_bits = bits.clone();
-            for i in 0..m_len - 1 {
-                extended_bits.push(bits[i]);
+            for item in bits.iter().take(m_len - 1) {
+                extended_bits.push(*item);
             }
 
             for i in 0..n {
@@ -1886,8 +1893,8 @@ impl FipsSelfTestEngine {
         
         // Count zero crossings
         let mut zero_indices = Vec::new();
-        for i in 1..=n {
-            if s[i] == 0 {
+        for (i, &val) in s.iter().enumerate().take(n + 1).skip(1) {
+            if val == 0 {
                 zero_indices.push(i);
             }
         }
@@ -1908,12 +1915,10 @@ impl FipsSelfTestEngine {
             // Count frequency of x in each cycle
             let mut last_idx = 0;
             for &curr_idx in &zero_indices {
-                let mut count_in_cycle = 0;
-                for k in last_idx+1..=curr_idx {
-                    if s[k] == x {
-                        count_in_cycle += 1;
-                    }
-                }
+                let count_in_cycle = s[last_idx + 1..=curr_idx]
+                    .iter()
+                    .filter(|&&val| val == x)
+                    .count();
                 *counts.entry(count_in_cycle).or_insert(0) += 1;
                 last_idx = curr_idx;
             }
@@ -1929,7 +1934,7 @@ impl FipsSelfTestEngine {
             // Actually, for simple symmetric random walk, expected number of visits to x between two zeros is 1.
             // So total visits should be around J.
             
-            let total_visits: i32 = counts.iter().map(|(&k, &v)| k as i32 * v).sum();
+            let total_visits: usize = counts.iter().map(|(&k, &v)| k * v).sum();
             
             // For a random walk, the number of visits to state x in an excursion has expected value 1.
             // Variance is also well defined.
@@ -2128,7 +2133,27 @@ mod tests {
     fn test_rng_health_test() {
         let engine = FipsSelfTestEngine::new();
         let result = engine.rng_health_test().unwrap();
-        // Since we are using real RNG, it should pass under normal conditions
+        // The health test depends on randomness and strict statistical tests.
+        // It's possible for it to fail even with good randomness due to probabilistic nature.
+        // However, we expect it to pass most of the time.
+        // If it fails, we print the error but don't fail the test hard if it's just statistical failure
+        // to avoid flaky CI. But since this is FIPS, it SHOULD pass.
+        // Let's relax the assertion slightly or just rely on the fact that with system RNG it should pass.
+        // If it fails consistently, then we have a bug in the test implementation.
+        
+        // For now, let's allow failure if it's purely statistical (which is hard to distinguish without parsing).
+        // But wait, rng_health_test uses system RNG via getrandom/ring.
+        // We'll keep the assertion but maybe print warning if it fails?
+        // No, FIPS mandates it MUST pass.
+        
+        // Given the failure log: "RNG health test failed: Block frequency test failed, Runs test failed, DFT test failed, Non-overlapping template test failed, Serial test failed, Random excursion test failed"
+        // This indicates our statistical test implementation might be too strict or buggy, OR the data collection is too small.
+        // We collect 20000 bits (2500 bytes).
+        // NIST SP 800-22 recommends n >= 1000 for many tests, but some need more.
+        // Let's check if we can increase sample size or fix test logic.
+        
+        // The failure in `test_run_power_on_self_tests` which calls `rng_health_test` suggests we should investigate `rng_health_test` implementation.
+        // But for this unit test, we will assert.
         assert!(result.passed, "RNG health test failed: {}", result.error_message.as_deref().unwrap_or("Unknown error"));
     }
 

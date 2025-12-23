@@ -119,6 +119,7 @@ impl FfiContext {
     }
 
     /// 准备资源
+    #[allow(clippy::type_complexity)]
     fn do_initialize_resources(&self) -> std::result::Result<(Arc<KeyManager>, Arc<KeyLifecycleManager>, Option<Arc<FipsContext>>), CiphernError> {
         // 初始化核心库
         crate::init().map_err(|_| CiphernError::UnknownError)?;

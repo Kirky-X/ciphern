@@ -11,6 +11,7 @@
 use std::ffi::CString;
 use std::os::raw::{c_char, c_int};
 
+#[allow(unused_imports)]
 use crate::ffi::interface::validation;
 use crate::ffi::interface::parse_algorithm;
 use crate::ffi::interface::write_c_string;
@@ -89,7 +90,7 @@ pub extern "C" fn ciphern_enable_fips() -> CiphernError {
                     context.set_fips_enabled(true);
                     Ok(CiphernError::Success)
                 },
-                Err(_) => return Ok(CiphernError::FipsError),
+                Err(_) => Ok(CiphernError::FipsError),
             }
         }).unwrap_or(CiphernError::UnknownError)
     }) {
@@ -246,7 +247,7 @@ pub extern "C" fn ciphern_encrypt(
 
             // 检查缓冲区大小
             if encrypted.len() > ciphertext_buffer_size {
-                return Err(CiphernError::BufferTooSmall.into());
+                return Err(CiphernError::BufferTooSmall);
             }
 
             // 复制加密数据
@@ -289,20 +290,10 @@ pub extern "C" fn ciphern_decrypt(
     match std::panic::catch_unwind(|| {
         with_context(|context| {
             // 验证参数
-            // Safety: We checked for null above. validation functions will also check again but here we
-            // invoke them within catch_unwind scope. The validation functions themselves are not strictly marked unsafe
-            // but usually wrap unsafe pointer dereferencing.
-            // Wait, the validation functions are likely calling from_raw_parts-like operations internally or just checking null.
-            // Let's assume validation::validate_c_str etc are safe to call if we respect their contracts (valid pointers).
-            // But they take raw pointers so they are inherently unsafe if not carefully designed.
-            // In interface.rs validation module, validate_ptr is safe fn but just checks null.
-            // However, converting C string or slice from raw pointer requires unsafe.
-            
-            let key_id_str = unsafe { validation::validate_c_str(key_id) }.map_err(|_e| CiphernError::InvalidParameter)?;
-            let ciphertext_slice = unsafe { validation::validate_slice(ciphertext, ciphertext_len) }.map_err(|_e| CiphernError::InvalidParameter)?;
-            let plaintext_buffer = unsafe { validation::validate_mut_slice(plaintext, plaintext_buffer_size) }.map_err(|_e| CiphernError::InvalidParameter)?;
-            let plaintext_len_ptr = unsafe { validation::validate_mut_usize(plaintext_len, "plaintext_len") }.map_err(|_e| CiphernError::InvalidParameter)?;
-
+            let key_id_str = unsafe { interface::validation::validate_c_str(key_id) }.map_err(|_e| CiphernError::InvalidParameter)?;
+            let ciphertext_slice = unsafe { interface::validation::validate_slice(ciphertext, ciphertext_len) }.map_err(|_e| CiphernError::InvalidParameter)?;
+            let plaintext_buffer = unsafe { interface::validation::validate_mut_slice(plaintext, plaintext_buffer_size) }.map_err(|_e| CiphernError::InvalidParameter)?;
+            let plaintext_len_ptr = unsafe { interface::validation::validate_mut_usize(plaintext_len, "plaintext_len") }.map_err(|_e| CiphernError::InvalidParameter)?;
 
             // 获取密钥管理器
             let key_manager = context.key_manager()
@@ -323,7 +314,7 @@ pub extern "C" fn ciphern_decrypt(
             // 检查缓冲区大小
             if decrypted.len() > plaintext_buffer_size {
                 *plaintext_len_ptr = decrypted.len();
-                return Err(CiphernError::BufferTooSmall.into());
+                return Err(CiphernError::BufferTooSmall);
             }
 
             // 复制解密数据
@@ -341,48 +332,33 @@ pub extern "C" fn ciphern_decrypt(
     }
 }
 
-/// 获取错误描述
+// Thread-local error storage
+thread_local! {
+    static ERROR_STRING: std::cell::RefCell<Option<CString>> = const { std::cell::RefCell::new(None) };
+}
+
+/// 获取最后一次错误的描述
 #[no_mangle]
-pub extern "C" fn ciphern_error_string(error: CiphernError) -> *const c_char {
-    match std::panic::catch_unwind(|| {
-        let error_str = match error {
-            CiphernError::Success => "Success",
-            CiphernError::InvalidParameter => "Invalid parameter",
-            CiphernError::MemoryAllocationFailed => "Memory allocation failed",
-            CiphernError::KeyNotFound => "Key not found",
-            CiphernError::AlgorithmNotSupported => "Algorithm not supported",
-            CiphernError::EncryptionFailed => "Encryption failed",
-            CiphernError::DecryptionFailed => "Decryption failed",
-            CiphernError::FipsError => "FIPS error",
-            CiphernError::KeyLifecycleError => "Key lifecycle error",
-            CiphernError::BufferTooSmall => "Buffer too small",
-            CiphernError::InvalidKeySize => "Invalid key size",
-            CiphernError::UnknownError => "Unknown error",
-        };
-
-        // 使用线程本地存储避免竞态条件
-        thread_local! {
-            static ERROR_STRING: std::cell::RefCell<Option<CString>> = std::cell::RefCell::new(None);
+pub extern "C" fn ciphern_get_last_error() -> *const c_char {
+    ERROR_STRING.with(|error_string| {
+        match error_string.borrow().as_ref() {
+            Some(s) => s.as_ptr(),
+            None => c"Unknown error".as_ptr(),
         }
+    })
+}
 
-        ERROR_STRING.with(|cell| {
-            let mut borrow = cell.borrow_mut();
-            *borrow = Some(CString::new(error_str).unwrap_or_else(|_| CString::new("Unknown error").unwrap()));
-            borrow.as_ref().unwrap().as_ptr()
-        })
-    }) {
-        Ok(ptr) => ptr,
-        Err(_) => {
-            // Log panic and return a static string
-            eprintln!("ciphern_error_string: Panic occurred");
-            b"Unknown error\0".as_ptr() as *const c_char
-        }
-    }
+#[allow(dead_code)]
+fn set_last_error(msg: &str) {
+    ERROR_STRING.with(|error_string| {
+        *error_string.borrow_mut() = Some(CString::new(msg).unwrap_or_default());
+    });
 }
 
 
 /// C FFI 头文件生成辅助函数
 #[cfg(feature = "generate_headers")]
+#[allow(dead_code)]
 pub fn generate_c_header() -> String {
     r#"
 #ifndef CIPHERN_H

@@ -67,17 +67,17 @@ impl<'a> JniEnv<'a> {
 
     /// 获取字节数组
     pub fn get_bytes(&mut self, array: &JByteArray) -> JniResult<Vec<u8>> {
-        self.env.convert_byte_array(array).map_err(|e| JniError::from(e))
+        self.env.convert_byte_array(array).map_err(JniError::from)
     }
 
-    /// 创建 Java 字符串
-    pub fn new_string(&mut self, string: &str) -> JniResult<JString<'a>> {
-        self.env.new_string(string).map_err(|e| JniError::from(e))
+    /// Convert Rust string to Java string
+    pub fn new_string(&self, string: &str) -> JniResult<JString<'a>> {
+        self.env.new_string(string).map_err(JniError::from)
     }
 
-    /// 创建字节数组
-    pub fn new_byte_array(&mut self, data: &[u8]) -> JniResult<JByteArray<'a>> {
-        self.env.byte_array_from_slice(data).map_err(|e| JniError::from(e))
+    /// Create Java byte array from Rust slice
+    pub fn byte_array_from_slice(&self, data: &[u8]) -> JniResult<JByteArray<'a>> {
+        self.env.byte_array_from_slice(data).map_err(JniError::from)
     }
 
     /// 抛出异常

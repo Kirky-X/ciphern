@@ -8,7 +8,7 @@ use crate::key::Key;
 use crate::types::Algorithm;
 use argon2::{Algorithm as Argon2Algorithm, Argon2, Params, Version};
 use hmac::Hmac;
-use libsm::sm3::hash::{Digest, Sm3Hash};
+use libsm::sm3::hash::Sm3Hash;
 use pbkdf2::pbkdf2;
 use ring::hkdf;
 use sha2::Sha256;
@@ -215,7 +215,7 @@ impl Sm3Kdf {
         let secret_bytes = secret.as_bytes();
         
         // Calculate number of blocks needed: ceil(key_len / HASH_LEN)
-        let n = (key_len + HASH_LEN - 1) / HASH_LEN;
+        let n = key_len.div_ceil(HASH_LEN);
         
         // Counter is 32-bit big-endian integer, starting from 1
         // If n >= 2^32, we can't represent the counter. 
@@ -239,21 +239,16 @@ impl Sm3Kdf {
         // Let's assume input Z is constructed by caller or we use (secret || data).
         // For general KDF usage here: H(secret || data || ct)
         
-        use libsm::sm3::hash::{Sm3Hash, Digest};
+        // use libsm::sm3::hash::{Sm3Hash, Digest};
 
         for i in 1..=n {
-            let mut hasher = Sm3Hash::new(&[]);
+            let mut input = Vec::with_capacity(secret_bytes.len() + data.len() + 4);
+            input.extend_from_slice(secret_bytes);
+            input.extend_from_slice(data);
+            input.extend_from_slice(&(i as u32).to_be_bytes());
             
-            // Feed secret
-            hasher.update(secret_bytes);
-            
-            // Feed data
-            hasher.update(data);
-            
-            // Feed counter (32-bit big-endian)
-            hasher.update(&(i as u32).to_be_bytes());
-            
-            let hash = hasher.finalize();
+            let mut hasher = Sm3Hash::new(&input);
+            let hash = hasher.get_hash();
             derived_key.extend_from_slice(&hash);
         }
         
