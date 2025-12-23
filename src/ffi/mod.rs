@@ -384,13 +384,13 @@ pub extern "C" fn ciphern_error_string(error: CiphernError) -> *const c_char {
 /// C FFI 头文件生成辅助函数
 #[cfg(feature = "generate_headers")]
 pub fn generate_c_header() -> String {
-    format!(r#"
+    r#"
 #ifndef CIPHERN_H
 #define CIPHERN_H
 
 #include <stddef.h>
 
-typedef enum {{
+typedef enum {
     CIPHERN_SUCCESS = 0,
     CIPHERN_INVALID_PARAMETER = -1,
     CIPHERN_MEMORY_ALLOCATION_FAILED = -2,
@@ -403,10 +403,10 @@ typedef enum {{
     CIPHERN_BUFFER_TOO_SMALL = -9,
     CIPHERN_INVALID_KEY_SIZE = -10,
     CIPHERN_UNKNOWN_ERROR = -999,
-}} CiphernError;
+} CiphernError;
 
 #ifdef __cplusplus
-extern "C" {{
+extern "C" {
 #endif
 
 // 初始化和清理
@@ -444,11 +444,11 @@ CiphernError ciphern_decrypt(
 const char* ciphern_error_string(CiphernError error);
 
 #ifdef __cplusplus
-}}
+}
 #endif
 
 #endif // CIPHERN_H
-"#)
+"#.to_string()
 }
 
 #[cfg(test)]

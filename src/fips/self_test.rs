@@ -1609,7 +1609,7 @@ impl FipsSelfTestEngine {
         // Expected value for M=500: ~250
         // Using standard distribution buckets for chi-squared test
         // Buckets: <=-2.5, -2.5..-1.5, -1.5..-0.5, -0.5..0.5, 0.5..1.5, 1.5..2.5, >2.5
-        let mut buckets = vec![0; 7];
+        let mut buckets = [0; 7];
         let pi = [0.01047, 0.03125, 0.12500, 0.50000, 0.25000, 0.06250, 0.020833];
         
         let mu = block_size as f64 / 2.0 + (9.0 + if block_size % 2 == 0 { 1.0 } else { -1.0 }) / 36.0 
