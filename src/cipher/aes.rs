@@ -15,18 +15,10 @@ use aes_gcm::aead::{Aead, AeadCore, KeyInit, Payload};
 use aes_gcm::{aes::Aes192, AesGcm};
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
-/// AES key length enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AesKeyLength {
-    Aes128,
-    Aes192,
-    Aes256,
-}
-
 /// Unified AES-GCM Provider supporting AES-128, AES-192, and AES-256
 pub struct AesGcmProvider {
     base: BaseCipherProvider,
-    key_length: AesKeyLength,
+    algorithm: Algorithm,
 }
 
 /// Type alias for backward compatibility
@@ -34,12 +26,7 @@ pub type Aes256GcmProvider = AesGcmProvider;
 
 impl SymmetricCipher for AesGcmProvider {
     fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        let expected_algorithm = match self.key_length {
-            AesKeyLength::Aes128 => Algorithm::AES128GCM,
-            AesKeyLength::Aes192 => Algorithm::AES192GCM,
-            AesKeyLength::Aes256 => Algorithm::AES256GCM,
-        };
-        if key.algorithm() != expected_algorithm {
+        if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),
             ));
@@ -49,12 +36,7 @@ impl SymmetricCipher for AesGcmProvider {
     }
 
     fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>> {
-        let expected_algorithm = match self.key_length {
-            AesKeyLength::Aes128 => Algorithm::AES128GCM,
-            AesKeyLength::Aes192 => Algorithm::AES192GCM,
-            AesKeyLength::Aes256 => Algorithm::AES256GCM,
-        };
-        if key.algorithm() != expected_algorithm {
+        if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),
             ));
@@ -64,11 +46,7 @@ impl SymmetricCipher for AesGcmProvider {
     }
 
     fn algorithm(&self) -> Algorithm {
-        match self.key_length {
-            AesKeyLength::Aes128 => Algorithm::AES128GCM,
-            AesKeyLength::Aes192 => Algorithm::AES192GCM,
-            AesKeyLength::Aes256 => Algorithm::AES256GCM,
-        }
+        self.algorithm
     }
 
     fn encrypt_with_nonce(
@@ -78,12 +56,7 @@ impl SymmetricCipher for AesGcmProvider {
         nonce: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        let expected_algorithm = match self.key_length {
-            AesKeyLength::Aes128 => Algorithm::AES128GCM,
-            AesKeyLength::Aes192 => Algorithm::AES192GCM,
-            AesKeyLength::Aes256 => Algorithm::AES256GCM,
-        };
-        if key.algorithm() != expected_algorithm {
+        if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),
             ));
@@ -95,8 +68,8 @@ impl SymmetricCipher for AesGcmProvider {
         let operation = || {
             let secret = key.secret_bytes()?;
 
-            match self.key_length {
-                AesKeyLength::Aes128 => {
+            match self.algorithm {
+                Algorithm::AES128GCM => {
                     let cipher =
                         AesGcm::<aes_gcm::aes::Aes128, U12>::new_from_slice(secret.as_bytes())
                             .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
@@ -112,7 +85,7 @@ impl SymmetricCipher for AesGcmProvider {
                         )
                         .map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
                 }
-                AesKeyLength::Aes192 => {
+                Algorithm::AES192GCM => {
                     let cipher = AesGcm::<Aes192, U12>::new_from_slice(secret.as_bytes())
                         .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
                     let nonce_val = nonce.into();
@@ -127,7 +100,7 @@ impl SymmetricCipher for AesGcmProvider {
                         )
                         .map_err(|_| CryptoError::EncryptionFailed("Encryption failed".into()))
                 }
-                AesKeyLength::Aes256 => {
+                Algorithm::AES256GCM => {
                     let unbound_key = UnboundKey::new(&AES_256_GCM, secret.as_bytes())
                         .map_err(|_| CryptoError::EncryptionFailed("Invalid Key".into()))?;
                     let less_safe_key = LessSafeKey::new(unbound_key);
@@ -144,6 +117,9 @@ impl SymmetricCipher for AesGcmProvider {
 
                     Ok(in_out)
                 }
+                _ => Err(CryptoError::UnsupportedAlgorithm(
+                    "Unsupported AES algorithm".into(),
+                )),
             }
         };
 
@@ -154,29 +130,35 @@ impl SymmetricCipher for AesGcmProvider {
 impl AesGcmProvider {
     /// Create a new AES-256 GCM provider with default configuration (backward compatibility)
     pub fn new() -> Self {
-        Self::with_key_length(AesKeyLength::Aes256)
+        Self::with_algorithm(Algorithm::AES256GCM)
     }
 
-    /// Create a new AES-GCM provider with specified key length
-    pub fn with_key_length(key_length: AesKeyLength) -> Self {
-        Self {
-            base: BaseCipherProvider::new(),
-            key_length,
+    /// Create a new AES-GCM provider with specified algorithm
+    pub fn with_algorithm(algorithm: Algorithm) -> Self {
+        match algorithm {
+            Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => Self {
+                base: BaseCipherProvider::new(),
+                algorithm,
+            },
+            _ => panic!("Unsupported algorithm for AesGcmProvider: {:?}", algorithm),
         }
     }
 
     /// Create a new AES-GCM provider with custom side-channel configuration
     #[allow(dead_code)]
     pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
-        Self::with_key_length_and_config(AesKeyLength::Aes256, config)
+        Self::with_algorithm_and_config(Algorithm::AES256GCM, config)
     }
 
-    /// Create a new AES-GCM provider with specified key length and side-channel configuration
+    /// Create a new AES-GCM provider with specified algorithm and side-channel configuration
     #[allow(dead_code)]
-    pub fn with_key_length_and_config(key_length: AesKeyLength, config: SideChannelConfig) -> Self {
-        Self {
-            base: BaseCipherProvider::with_side_channel_config(config),
-            key_length,
+    pub fn with_algorithm_and_config(algorithm: Algorithm, config: SideChannelConfig) -> Self {
+        match algorithm {
+            Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => Self {
+                base: BaseCipherProvider::with_side_channel_config(config),
+                algorithm,
+            },
+            _ => panic!("Unsupported algorithm for AesGcmProvider: {:?}", algorithm),
         }
     }
 
@@ -192,10 +174,13 @@ impl AesGcmProvider {
         plaintext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        match self.key_length {
-            AesKeyLength::Aes128 => self.encrypt_with_aes128(key_bytes, plaintext, aad),
-            AesKeyLength::Aes192 => self.encrypt_with_aes192(key_bytes, plaintext, aad),
-            AesKeyLength::Aes256 => self.encrypt_with_aes256(key_bytes, plaintext, aad),
+        match self.algorithm {
+            Algorithm::AES128GCM => self.encrypt_with_aes128(key_bytes, plaintext, aad),
+            Algorithm::AES192GCM => self.encrypt_with_aes192(key_bytes, plaintext, aad),
+            Algorithm::AES256GCM => self.encrypt_with_aes256(key_bytes, plaintext, aad),
+            _ => Err(CryptoError::UnsupportedAlgorithm(
+                "Unsupported AES algorithm".into(),
+            )),
         }
     }
 
@@ -300,10 +285,13 @@ impl AesGcmProvider {
         ciphertext: &[u8],
         aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        match self.key_length {
-            AesKeyLength::Aes128 => self.decrypt_with_aes128(key_bytes, ciphertext, aad),
-            AesKeyLength::Aes192 => self.decrypt_with_aes192(key_bytes, ciphertext, aad),
-            AesKeyLength::Aes256 => self.decrypt_with_aes256(key_bytes, ciphertext, aad),
+        match self.algorithm {
+            Algorithm::AES128GCM => self.decrypt_with_aes128(key_bytes, ciphertext, aad),
+            Algorithm::AES192GCM => self.decrypt_with_aes192(key_bytes, ciphertext, aad),
+            Algorithm::AES256GCM => self.decrypt_with_aes256(key_bytes, ciphertext, aad),
+            _ => Err(CryptoError::UnsupportedAlgorithm(
+                "Unsupported AES algorithm".into(),
+            )),
         }
     }
 
@@ -455,7 +443,7 @@ mod tests {
     #[test]
     fn test_aes128_encryption_decryption() {
         let provider = AesGcmProvider::aes128();
-        assert_eq!(provider.key_length(), AesKeyLength::Aes128);
+        assert_eq!(provider.algorithm(), Algorithm::AES128GCM);
 
         let key_data = vec![0u8; 16]; // AES-128 uses 16-byte keys
         let key = Key::new_active(Algorithm::AES128GCM, key_data).unwrap();
@@ -475,7 +463,7 @@ mod tests {
     #[test]
     fn test_aes192_encryption_decryption() {
         let provider = AesGcmProvider::aes192();
-        assert_eq!(provider.key_length(), AesKeyLength::Aes192);
+        assert_eq!(provider.algorithm(), Algorithm::AES192GCM);
 
         let key_data = vec![0u8; 24]; // AES-192 uses 24-byte keys
         let key = Key::new_active(Algorithm::AES192GCM, key_data).unwrap();
@@ -495,7 +483,7 @@ mod tests {
     #[test]
     fn test_aes256_encryption_decryption() {
         let provider = AesGcmProvider::aes256();
-        assert_eq!(provider.key_length(), AesKeyLength::Aes256);
+        assert_eq!(provider.algorithm(), Algorithm::AES256GCM);
 
         let key_data = vec![0u8; 32]; // AES-256 uses 32-byte keys
         let key = Key::new_active(Algorithm::AES256GCM, key_data).unwrap();
@@ -516,7 +504,7 @@ mod tests {
     fn test_backward_compatibility() {
         // Test that Aes256GcmProvider still works as a type alias
         let provider: Aes256GcmProvider = Aes256GcmProvider::new();
-        assert_eq!(provider.key_length(), AesKeyLength::Aes256);
+        assert_eq!(provider.algorithm(), Algorithm::AES256GCM);
 
         let key_data = vec![0u8; 32];
         let key = Key::new_active(Algorithm::AES256GCM, key_data).unwrap();
@@ -628,41 +616,41 @@ mod tests {
 impl AesGcmProvider {
     /// Create a new AES-128 GCM provider
     pub fn aes128() -> Self {
-        Self::with_key_length(AesKeyLength::Aes128)
+        Self::with_algorithm(Algorithm::AES128GCM)
     }
 
     /// Create a new AES-192 GCM provider
     pub fn aes192() -> Self {
-        Self::with_key_length(AesKeyLength::Aes192)
+        Self::with_algorithm(Algorithm::AES192GCM)
     }
 
     /// Create a new AES-256 GCM provider
     pub fn aes256() -> Self {
-        Self::with_key_length(AesKeyLength::Aes256)
+        Self::with_algorithm(Algorithm::AES256GCM)
     }
 
     /// Create a new AES-128 GCM provider with custom side-channel configuration
     #[allow(dead_code)]
     pub fn aes128_with_config(config: SideChannelConfig) -> Self {
-        Self::with_key_length_and_config(AesKeyLength::Aes128, config)
+        Self::with_algorithm_and_config(Algorithm::AES128GCM, config)
     }
 
     /// Create a new AES-192 GCM provider with custom side-channel configuration
     #[allow(dead_code)]
     pub fn aes192_with_config(config: SideChannelConfig) -> Self {
-        Self::with_key_length_and_config(AesKeyLength::Aes192, config)
+        Self::with_algorithm_and_config(Algorithm::AES192GCM, config)
     }
 
     /// Create a new AES-256 GCM provider with custom side-channel configuration
     #[allow(dead_code)]
     pub fn aes256_with_config(config: SideChannelConfig) -> Self {
-        Self::with_key_length_and_config(AesKeyLength::Aes256, config)
+        Self::with_algorithm_and_config(Algorithm::AES256GCM, config)
     }
 
-    /// Get the key length this provider is configured for
+    /// Get the algorithm this provider is configured for
     #[allow(dead_code)]
-    pub fn key_length(&self) -> AesKeyLength {
-        self.key_length
+    pub fn algorithm_type(&self) -> Algorithm {
+        self.algorithm
     }
 }
 
