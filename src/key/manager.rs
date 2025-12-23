@@ -14,8 +14,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 // PKCS#8 key generation for signature algorithms
-use ring::signature::{Ed25519KeyPair, EcdsaKeyPair};
 use ring::rand::SystemRandom;
+use ring::signature::{EcdsaKeyPair, Ed25519KeyPair};
 use rsa::{pkcs8::EncodePrivateKey, RsaPrivateKey};
 
 /// 增强的密钥管理器，支持完整的生命周期管理
@@ -54,8 +54,9 @@ impl KeyManager {
             Algorithm::Ed25519 => {
                 // 生成Ed25519密钥对
                 let rng = SystemRandom::new();
-                let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)
-                    .map_err(|e| CryptoError::KeyError(format!("Failed to generate Ed25519 PKCS#8 key: {}", e)))?;
+                let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng).map_err(|e| {
+                    CryptoError::KeyError(format!("Failed to generate Ed25519 PKCS#8 key: {}", e))
+                })?;
                 Ok(pkcs8_bytes.as_ref().to_vec())
             }
             Algorithm::ECDSAP256 | Algorithm::ECDSAP384 => {
@@ -64,12 +65,18 @@ impl KeyManager {
                 let signing_alg = match algorithm {
                     Algorithm::ECDSAP256 => &ring::signature::ECDSA_P256_SHA256_FIXED_SIGNING,
                     Algorithm::ECDSAP384 => &ring::signature::ECDSA_P384_SHA384_FIXED_SIGNING,
-                    _ => return Err(CryptoError::UnsupportedAlgorithm(format!("Unsupported ECDSA algorithm: {:?}", algorithm))),
+                    _ => {
+                        return Err(CryptoError::UnsupportedAlgorithm(format!(
+                            "Unsupported ECDSA algorithm: {:?}",
+                            algorithm
+                        )))
+                    }
                 };
-                
-                let pkcs8_bytes = EcdsaKeyPair::generate_pkcs8(signing_alg, &rng)
-                    .map_err(|e| CryptoError::KeyError(format!("Failed to generate ECDSA PKCS#8 key: {}", e)))?;
-                
+
+                let pkcs8_bytes = EcdsaKeyPair::generate_pkcs8(signing_alg, &rng).map_err(|e| {
+                    CryptoError::KeyError(format!("Failed to generate ECDSA PKCS#8 key: {}", e))
+                })?;
+
                 Ok(pkcs8_bytes.as_ref().to_vec())
             }
             Algorithm::RSA2048 | Algorithm::RSA3072 | Algorithm::RSA4096 => {
@@ -81,14 +88,15 @@ impl KeyManager {
                     Algorithm::RSA4096 => 4096,
                     _ => 2048,
                 };
-                
-                let private_key = RsaPrivateKey::new(&mut rng, key_size)
-                    .map_err(|e| CryptoError::KeyError(format!("Failed to generate RSA key: {}", e)))?;
-                
-                let pkcs8_bytes = private_key
-                    .to_pkcs8_der()
-                    .map_err(|e| CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e)))?;
-                
+
+                let private_key = RsaPrivateKey::new(&mut rng, key_size).map_err(|e| {
+                    CryptoError::KeyError(format!("Failed to generate RSA key: {}", e))
+                })?;
+
+                let pkcs8_bytes = private_key.to_pkcs8_der().map_err(|e| {
+                    CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e))
+                })?;
+
                 Ok(pkcs8_bytes.as_bytes().to_vec())
             }
             _ => {
