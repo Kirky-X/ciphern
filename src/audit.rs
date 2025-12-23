@@ -19,14 +19,15 @@ lazy_static! {
         "crypto_operations_total",
         "Total number of cryptographic operations"
     )
-    .unwrap();
+    .expect("Failed to create CRYPTO_OPERATIONS_TOTAL metric");
     pub static ref CRYPTO_OPERATION_LATENCY: Histogram = Histogram::with_opts(HistogramOpts::new(
         "crypto_operation_latency_seconds",
         "Latency of cryptographic operations in seconds"
     ))
-    .unwrap();
+    .expect("Failed to create CRYPTO_OPERATION_LATENCY metric");
     pub static ref SECURITY_ALERTS_TOTAL: Counter =
-        Counter::new("security_alerts_total", "Total number of security alerts").unwrap();
+        Counter::new("security_alerts_total", "Total number of security alerts")
+            .expect("Failed to create SECURITY_ALERTS_TOTAL metric");
 }
 
 // 注册指标到注册表
@@ -848,16 +849,16 @@ mod tests {
 
         // Verify we have at least the logs we expect
         assert!(
-            keygen_logs.len() >= 1,
+            !keygen_logs.is_empty(),
             "Should have at least 1 KEY_GENERATE log"
         );
         assert!(
-            encrypt_logs.len() >= 1,
+            !encrypt_logs.is_empty(),
             "Should have at least 1 ENCRYPT log"
         );
 
         // Parse and verify one of the KEY_GENERATE logs
-        let audit_log: AuditLog = serde_json::from_str(&keygen_logs[0]).unwrap();
+        let audit_log: AuditLog = serde_json::from_str(keygen_logs[0]).unwrap();
         assert_eq!(audit_log.operation, "KEY_GENERATE");
         assert_eq!(audit_log.status, "SUCCESS");
     }
@@ -916,7 +917,7 @@ mod tests {
         let logs = AuditLogger::get_logs();
         // Check that at least 1 log is present (other tests might be running concurrently)
         assert!(
-            logs.len() >= 1,
+            !logs.is_empty(),
             "Expected at least 1 log, got {}",
             logs.len()
         );

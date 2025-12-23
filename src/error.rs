@@ -85,6 +85,7 @@ impl From<crate::ffi::interface::CiphernError> for CryptoError {
             KeyLifecycleError => CryptoError::KeyError("Key lifecycle error".into()),
             BufferTooSmall => CryptoError::InternalError("Buffer too small".into()),
             InvalidKeySize => CryptoError::InvalidKeySize { expected: 0, actual: 0 }, // Lossy conversion
+            NullPointer => CryptoError::InvalidParameter("Null pointer".into()),
             UnknownError => CryptoError::UnknownError,
         }
     }
