@@ -51,11 +51,47 @@
 
 ## 2. Repair Records
 
-*(To be filled during Phase 2)*
+### 2.1. Input Validation Fixes
+*   **Issue:** Input validation bypass in release mode (`src/key/derivation.rs`)
+*   **Fix:** Replaced `debug_assert!` with runtime `if` checks that return `CryptoError::InvalidParameter`.
+*   **Impact:** Ensures input constraints are enforced in production builds, preventing DoS.
+
+### 2.2. Reliability Fixes
+*   **Issue:** Potential panic in key derivation (`src/key/derivation.rs`)
+*   **Fix:** Replaced `.expect()` calls with proper error propagation using `?` operator or mapping to `CryptoError`.
+*   **Impact:** Prevents application crashes when handling invalid keys.
+
+### 2.3. Security Fixes (Unsafe Usage)
+*   **Issue:** Unsafe pointer usage in side-channel protection (`src/side_channel/power_analysis.rs`)
+*   **Fix:** Added `safe_fill_bytes` wrapper with null checks and length validation. Implemented safe fallbacks for RNG failures.
+*   **Impact:** Mitigates undefined behavior risks from invalid pointers.
+*   **Issue:** Unsafe FFI pointer handling (`src/ffi/mod.rs`, `src/ffi/interface.rs`)
+*   **Fix:** Added extensive comments documenting safety requirements for unsafe functions. Added null pointer checks in FFI boundaries before unsafe operations. Wrapped `mlock` call in `src/memory.rs` with safety comments.
+
+### 2.4. Observability Fixes
+*   **Issue:** Silent metric registration failure (`src/audit.rs`)
+*   **Fix:** Added error logging to `register_metrics` function. Replaced `unwrap()` in static initialization with `expect()` containing descriptive error messages.
+*   **Impact:** Improves diagnosability of monitoring system failures.
+
+### 2.5. Code Quality Fixes
+*   **Issue:** Unused code warnings and excessive dead code suppression
+*   **Fix:** Removed unnecessary `#[allow(dead_code)]` from used methods. Added `#[allow(dead_code)]` to genuinely unused helper functions (like `generate_c_header`).
+*   **Impact:** Cleaner code and more accurate compiler warnings.
 
 ## 3. Test Results
 
-*(To be filled during Phase 3)*
+### 3.1. Regression Testing
+*   **Command:** `cargo test`
+*   **Result:** All 113 tests passed.
+*   **Key Validations:**
+    *   Side-channel protection tests passed (including timing and power analysis).
+    *   FIPS self-tests passed (including RNG health tests and algorithm tests).
+    *   Audit logger tests passed (fixed race condition).
+    *   Prometheus exporter tests passed.
+
+### 3.2. Manual Verification
+*   **Validation:** Verified that FFI initialization and cleanup logic handles panics gracefully without crashing the host process.
+*   **Validation:** Confirmed that key derivation now returns specific errors for invalid inputs instead of panicking or ignoring them in release mode.
 
 ## 4. Optimization Suggestions
 

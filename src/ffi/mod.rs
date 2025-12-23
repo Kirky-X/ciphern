@@ -289,10 +289,20 @@ pub extern "C" fn ciphern_decrypt(
     match std::panic::catch_unwind(|| {
         with_context(|context| {
             // 验证参数
+            // Safety: We checked for null above. validation functions will also check again but here we
+            // invoke them within catch_unwind scope. The validation functions themselves are not strictly marked unsafe
+            // but usually wrap unsafe pointer dereferencing.
+            // Wait, the validation functions are likely calling from_raw_parts-like operations internally or just checking null.
+            // Let's assume validation::validate_c_str etc are safe to call if we respect their contracts (valid pointers).
+            // But they take raw pointers so they are inherently unsafe if not carefully designed.
+            // In interface.rs validation module, validate_ptr is safe fn but just checks null.
+            // However, converting C string or slice from raw pointer requires unsafe.
+            
             let key_id_str = unsafe { validation::validate_c_str(key_id) }.map_err(|_e| CiphernError::InvalidParameter)?;
             let ciphertext_slice = unsafe { validation::validate_slice(ciphertext, ciphertext_len) }.map_err(|_e| CiphernError::InvalidParameter)?;
             let plaintext_buffer = unsafe { validation::validate_mut_slice(plaintext, plaintext_buffer_size) }.map_err(|_e| CiphernError::InvalidParameter)?;
             let plaintext_len_ptr = unsafe { validation::validate_mut_usize(plaintext_len, "plaintext_len") }.map_err(|_e| CiphernError::InvalidParameter)?;
+
 
             // 获取密钥管理器
             let key_manager = context.key_manager()
@@ -372,7 +382,6 @@ pub extern "C" fn ciphern_error_string(error: CiphernError) -> *const c_char {
 
 
 /// C FFI 头文件生成辅助函数
-#[allow(dead_code)]
 #[cfg(feature = "generate_headers")]
 pub fn generate_c_header() -> String {
     format!(r#"

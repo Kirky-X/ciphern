@@ -127,6 +127,13 @@ impl CiphernBuffer {
     }
 
     /// 转换为 Vec
+    /// 
+    /// # Safety
+    /// 
+    /// 调用者必须确保:
+    /// 1. `data` 指针有效且由 `Vec::from_raw_parts` 分配
+    /// 2. `len` 和 `capacity` 正确
+    /// 3. 此函数转移所有权，调用后原始结构不应再被使用
     #[allow(dead_code)]
     pub unsafe fn to_vec(self) -> Vec<u8> {
         if self.data.is_null() || self.capacity == 0 {
@@ -137,12 +144,23 @@ impl CiphernBuffer {
     }
 
     /// 从原始指针创建（不拥有所有权）
+    /// 
+    /// # Safety
+    /// 
+    /// 调用者必须确保指针有效性
     #[allow(dead_code)]
     pub unsafe fn from_raw_parts(data: *mut u8, len: usize, capacity: usize) -> Self {
         Self { data, len, capacity }
     }
 
     /// 释放缓冲区
+    /// 
+    /// # Safety
+    /// 
+    /// 调用者必须确保:
+    /// 1. `data` 指针有效且由 Rust 分配
+    /// 2. `capacity` 正确
+    /// 3. 未被 double free
     #[allow(dead_code)]
     pub unsafe fn free(self) {
         if !self.data.is_null() && self.capacity > 0 {
@@ -173,6 +191,12 @@ impl CiphernString {
     }
 
     /// 释放字符串
+    /// 
+    /// # Safety
+    /// 
+    /// 调用者必须确保:
+    /// 1. `data` 指针有效且由 `CString` 分配
+    /// 2. 未被 double free
     #[allow(dead_code)]
     pub unsafe fn free(self) {
         if !self.data.is_null() {
