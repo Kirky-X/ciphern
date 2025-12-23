@@ -380,7 +380,7 @@ impl FipsSelfTestEngine {
         let test_name = "ecdsa_p256_signature_test".to_string();
         let timestamp = std::time::SystemTime::now();
 
-        use crate::provider::registry::REGISTRY;
+        use crate::cipher::provider::REGISTRY;
 
         // 使用 NIST 向量或生成临时密钥进行测试
         let algo = Algorithm::ECDSAP256;
@@ -412,7 +412,7 @@ impl FipsSelfTestEngine {
         let test_name = "rsa_2048_signature_test".to_string();
         let timestamp = std::time::SystemTime::now();
 
-        use crate::provider::registry::REGISTRY;
+        use crate::cipher::provider::REGISTRY;
 
         let algo = Algorithm::RSA2048;
         let signer = REGISTRY.get_signer(algo)?;
@@ -776,7 +776,7 @@ impl FipsSelfTestEngine {
         #[cfg(feature = "encrypt")]
         use crate::key::Key;
         #[cfg(feature = "encrypt")]
-        use crate::provider::registry::REGISTRY;
+        use crate::cipher::provider::REGISTRY;
 
         let mut all_passed = true;
         let mut error_messages = Vec::new();
@@ -888,7 +888,7 @@ impl FipsSelfTestEngine {
         let timestamp = std::time::SystemTime::now();
 
         use crate::key::Key;
-        use crate::provider::registry::REGISTRY;
+        use crate::cipher::provider::REGISTRY;
 
         let mut all_passed = true;
         let mut error_messages = Vec::new();
@@ -1029,7 +1029,7 @@ impl FipsSelfTestEngine {
         let timestamp = std::time::SystemTime::now();
 
         use crate::key::Key;
-        use crate::provider::registry::REGISTRY;
+        use crate::cipher::provider::REGISTRY;
 
         let signer = REGISTRY.get_signer(Algorithm::Ed25519)?;
 

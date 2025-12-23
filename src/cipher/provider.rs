@@ -3,19 +3,43 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use super::{Signer, SymmetricCipher};
+use crate::error::{Result, CryptoError};
+use crate::key::Key;
+use crate::types::Algorithm;
+use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
+use lazy_static::lazy_static;
+
 use crate::cipher::aes::AesGcmProvider;
 use crate::cipher::sm4::Sm4GcmProvider;
-use crate::error::{CryptoError, Result};
 use crate::signer::ecdsa::EcdsaProvider;
 use crate::signer::ed25519::Ed25519Provider;
 use crate::signer::rsa::RsaProvider;
 use crate::signer::sm2::Sm2Provider;
-use crate::types::Algorithm;
-use lazy_static::lazy_static;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 
+/// Symmetric Cipher Trait
+pub trait SymmetricCipher: Send + Sync {
+    fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>>;
+    fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>>;
+    fn algorithm(&self) -> Algorithm;
+
+    /// Specific for CAVP/KAT tests where IV must be provided
+    fn encrypt_with_nonce(
+        &self,
+        key: &Key,
+        plaintext: &[u8],
+        nonce: &[u8],
+        aad: Option<&[u8]>,
+    ) -> Result<Vec<u8>>;
+}
+
+/// Signer Trait
+pub trait Signer: Send + Sync {
+    fn sign(&self, key: &Key, message: &[u8]) -> Result<Vec<u8>>;
+    fn verify(&self, key: &Key, message: &[u8], signature: &[u8]) -> Result<bool>;
+}
+
+/// Provider Registry
 pub struct ProviderRegistry {
     symmetric: RwLock<HashMap<Algorithm, Arc<dyn SymmetricCipher>>>,
     signers: RwLock<HashMap<Algorithm, Arc<dyn Signer>>>,

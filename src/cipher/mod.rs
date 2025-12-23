@@ -9,7 +9,9 @@ pub mod mode;
 pub mod pkcs7;
 pub mod sm4;
 pub mod streaming;
+pub mod provider;
 
 // 重新导出流式加密相关类型
 
 // 重新导出基础提供者类型
+pub use provider::{SymmetricCipher, Signer, ProviderRegistry, REGISTRY};

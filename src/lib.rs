@@ -13,7 +13,7 @@ pub mod cipher;
 pub mod error;
 pub mod fips;
 #[cfg(feature = "encrypt")]
-pub mod provider;
+pub use cipher::provider;
 #[cfg(feature = "encrypt")]
 pub mod key;
 pub mod memory;
@@ -74,7 +74,7 @@ impl Cipher {
         // FIPS 模式验证
         fips::validate_algorithm_fips(&algorithm)?;
 
-        let provider = provider::registry::REGISTRY.get_symmetric(algorithm)?;
+        let provider = cipher::provider::REGISTRY.get_symmetric(algorithm)?;
         Ok(Self {
             provider,
             algorithm,
@@ -179,7 +179,7 @@ impl Signer {
     /// Create a new signer instance
     pub fn new(algorithm: Algorithm) -> Result<Self> {
         fips::validate_algorithm_fips(&algorithm)?;
-        let provider = provider::registry::REGISTRY.get_signer(algorithm)?;
+        let provider = cipher::provider::REGISTRY.get_signer(algorithm)?;
         Ok(Self {
             provider,
             algorithm,
