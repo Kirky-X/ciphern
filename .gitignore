@@ -35,3 +35,4 @@ Thumbs.db
 *.pem
 db.sqlite
 secret/
+.trae/
