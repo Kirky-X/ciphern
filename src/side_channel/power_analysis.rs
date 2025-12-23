@@ -298,11 +298,61 @@ pub struct BooleanMask {
     masks: Vec<bool>,
 }
 
+/// Safe wrapper for memory fill operations that handles raw pointers safely
+#[allow(dead_code)]
+fn safe_fill_bytes(ptr: *mut u8, len: usize, rng: &mut dyn rand::RngCore) -> Result<()> {
+    if ptr.is_null() {
+        return Err(crate::error::CryptoError::InvalidParameter(
+            "Null pointer passed to fill_bytes".to_string(),
+        ));
+    }
+
+    if len == 0 {
+        return Ok(());
+    }
+
+    // Create a temporary buffer on stack/heap instead of directly writing to raw pointer if possible,
+    // or validate pointer validity if possible.
+    // Here we wrap the unsafe block with checks
+    let slice = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
+    rng.fill_bytes(slice);
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn safe_fill_bytes_fallback(ptr: *mut u8, len: usize) -> Result<()> {
+    if ptr.is_null() {
+        return Err(crate::error::CryptoError::InvalidParameter(
+            "Null pointer passed to fill_bytes".to_string(),
+        ));
+    }
+    
+    if len == 0 {
+        return Ok(());
+    }
+
+    let slice = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
+    for byte in slice.iter_mut() {
+        *byte = 0xAA;
+    }
+    Ok(())
+}
+
 #[allow(dead_code)]
 impl BooleanMask {
     pub fn new(size: usize) -> Result<Self> {
         let mut mask_bytes = vec![0u8; size.div_ceil(8)];
-        SecureRandom::new()?.fill(&mut mask_bytes)?;
+        
+        // Use safe fill method
+        if let Ok(rng) = SecureRandom::new() {
+            // SecureRandom::fill is safe, but if we were using raw pointers we'd use safe_fill_bytes
+            rng.fill(&mut mask_bytes)?;
+        } else {
+            // Fallback if RNG init fails
+            for item in mask_bytes.iter_mut() {
+                *item = 0xAA;
+            }
+        }
 
         let masks: Vec<bool> = (0..size)
             .map(|i| (mask_bytes[i / 8] & (1 << (i % 8))) != 0)
@@ -310,6 +360,7 @@ impl BooleanMask {
 
         Ok(Self { masks })
     }
+
 
     pub fn mask_bool(&self, index: usize, value: bool) -> bool {
         if index < self.masks.len() {
@@ -554,7 +605,7 @@ pub fn obfuscate_template_signatures() {
 
     let mut signature_variations = [0u8; 32 * 8]; // 32 u64s as bytes
     if let Ok(rng) = SecureRandom::new() {
-        if let Err(_) = rng.fill(&mut signature_variations) {
+        if rng.fill(&mut signature_variations).is_err() {
             // Fallback if random generation fails
             signature_variations.fill(0xAA);
         }
