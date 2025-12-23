@@ -40,7 +40,7 @@
 - **国际标准**: AES-128/192/256-GCM, ECDSA-P256/P384/P521, RSA-2048/3072/4096, Ed25519
 - **国密标准**: SM2, SM3, SM4-GCM
 - **哈希函数**: SHA-256/384/512, SHA3-256/384/512, SM3
-- **密钥派生**: HKDF, PBKDF2, Argon2id, SM3-KDF
+- **密钥派生**: HKDF, PBKDF2, Argon2id, Sm3Kdf
 
 ---
 
@@ -78,6 +78,8 @@ Python 绑定正在开发中，需要手动编译：
 
 ```rust
 use ciphern::{Cipher, Algorithm, KeyManager};
+#[cfg(feature = "hash")]
+use ciphern::Hash;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化库
@@ -108,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### 数字签名 (Rust)
 
 ```rust
-use ciphern::{Signer, Algorithm, KeyManager};
+use ciphern::{Cipher, Algorithm, KeyManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化库
@@ -120,8 +122,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 生成密钥对 (以 ECDSA-P256 为例)
     let key_id = km.generate_key(Algorithm::ECDSAP256)?;
     
-    // 创建签名器
-    let signer = Signer::new(Algorithm::ECDSAP256)?;
+    // 创建签名器（使用Cipher结构）
+    let signer = Cipher::new(Algorithm::ECDSAP256)?;
     
     // 签名
     let message = b"Important message";
@@ -139,7 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### 国密算法 (Rust)
 
 ```rust
-use ciphern::{Cipher, Algorithm, KeyManager, Hash};
+use ciphern::{Cipher, Algorithm, KeyManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化库
@@ -152,8 +154,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cipher = Cipher::new(Algorithm::SM4GCM)?;
     let ciphertext = cipher.encrypt(&km, &key_id, b"国密加密测试")?;
     
-    // SM3 哈希
-    let hash = Hash::sm3(b"数据完整性验证")?;
+    // 解密验证
+    let plaintext = cipher.decrypt(&km, &key_id, &ciphertext)?;
+    assert_eq!(plaintext, b"国密加密测试");
+    
+    // SM3 哈希（需要启用 "hash" 特性）
+    #[cfg(feature = "hash")]
+    {
+        let hash = Hash::sm3(b"数据完整性验证")?;
+        println!("SM3 哈希值: {:?}", hash);
+    }
     
     println!("✅ 国密算法运行成功!");
     Ok(())
@@ -227,12 +237,12 @@ db.save_encrypted_field(user.id, "ssn", &encrypted_ssn)?;
 保护 API 请求和响应的机密性和完整性
 
 ```rust
-use ciphern::{Signer, Algorithm, KeyManager};
+use ciphern::{Cipher, Algorithm, KeyManager};
 
 ciphern::init()?;
 let km = KeyManager::new()?;
 let key_id = km.generate_key(Algorithm::ECDSAP384)?;
-let signer = Signer::new(Algorithm::ECDSAP384)?;
+let signer = Cipher::new(Algorithm::ECDSAP384)?;
 let signature = signer.sign(&km, &key_id, &request_body)?;
 
 http_request
@@ -288,23 +298,37 @@ assert!(result.is_err()); // CryptoError::FipsError
 ### 审计日志与监控
 
 ```rust
-use ciphern::audit::{AuditLogger, AuditEvent, PerformanceMetrics};
-use std::sync::Arc;
+use ciphern::audit::AuditLogger;
 
 // 初始化库
 ciphern::init()?;
 
-// 创建审计日志器
-let audit_logger = Arc::new(AuditLogger::new());
+// 记录加密操作
+AuditLogger::log(
+    "ENCRYPT",
+    Some(ciphern::Algorithm::Aes256Gcm),
+    Some("key-123"),
+    Ok(()),
+)?;
 
-// 记录事件
-let event = AuditEvent::new("encryption", "AES256GCM", "success");
-audit_logger.log_event(event)?;
+// 记录密钥生成操作
+AuditLogger::log_key_operation(
+    "KEY_GENERATE",
+    ciphern::Algorithm::Aes256Gcm,
+    "key-456",
+    Some("tenant-789"),
+    true,
+    "Key generated successfully",
+)?;
 
-// 获取性能指标
-let metrics = audit_logger.get_performance_metrics()?;
-println!("Throughput: {:.2} ops/sec", metrics.avg_throughput_ops_per_sec);
-println!("Cache hit rate: {:.1}%", metrics.avg_cache_hit_rate * 100.0);
+// 记录未授权访问尝试
+AuditLogger::log_unauthorized_access(
+    "DECRYPT",
+    Some(ciphern::Algorithm::Aes256Gcm),
+    Some("key-123"),
+    Some("tenant-789"),
+    "Invalid permissions for decryption operation",
+)?;
 ```
 
 ### 自定义算法插件
@@ -320,18 +344,7 @@ use ciphern::plugin::{Plugin, CipherPlugin};
 
 ### 性能指标
 
-当前版本基于纯 Rust 实现，性能数据可通过审计系统获取：
-
-```rust
-use ciphern::audit::{AuditLogger, PerformanceMetrics};
-
-let audit_logger = AuditLogger::new();
-let metrics = audit_logger.get_performance_metrics()?;
-
-println!("平均吞吐量: {:.2} ops/sec", metrics.avg_throughput_ops_per_sec);
-println!("平均延迟: {:.2} μs", metrics.avg_latency_us);
-println!("缓存命中率: {:.1}%", metrics.avg_cache_hit_rate * 100.0);
-```
+当前版本基于纯 Rust 实现，提供基础的加密功能实现。性能监控功能通过内部审计系统自动收集操作指标。
 
 > 注：SIMD 优化和硬件加速功能正在开发中，当前版本提供基础的加密功能实现
 
@@ -433,7 +446,7 @@ cargo build --target aarch64-apple-darwin --release
 - [x] 核心加密功能 (AES-128/192/256-GCM, SM4-GCM)
 - [x] 数字签名 (ECDSA-P256/P384/P521, RSA-2048/3072/4096, Ed25519, SM2)
 - [x] 哈希函数 (SHA-256/384/512, SHA3-256/384/512, SM3)
-- [x] 密钥派生 (HKDF, PBKDF2, Argon2id, SM3-KDF)
+- [x] 密钥派生 (HKDF, PBKDF2, Argon2id, Sm3Kdf)
 - [x] 基础密钥管理
 - [x] Rust API
 - [x] 审计日志系统

@@ -7,27 +7,27 @@
 //!
 //! Enterprise-grade, security-first Rust cryptographic library.
 
-pub mod audit;
+pub(crate) mod audit;
 #[cfg(feature = "encrypt")]
-pub mod cipher;
-pub mod error;
-pub mod fips;
+pub(crate) mod cipher;
+pub(crate) mod error;
+pub(crate) mod fips;
 #[cfg(feature = "encrypt")]
-pub use cipher::provider;
+pub(crate) use cipher::provider;
 #[cfg(feature = "encrypt")]
-pub mod key;
-pub mod memory;
+pub(crate) mod key;
+pub(crate) mod memory;
 
-pub mod random;
+pub(crate) mod random;
 
 pub(crate) mod ffi;
 #[cfg(feature = "plugin")]
-pub mod plugin;
+pub(crate) mod plugin;
 #[cfg(feature = "encrypt")]
-pub mod side_channel;
+pub(crate) mod side_channel;
 #[cfg(feature = "encrypt")]
-pub mod signer;
-pub mod types;
+pub(crate) mod signer;
+pub(crate) mod types;
 
 // 重新导出 FIPS 相关类型
 pub use fips::{get_fips_approved_algorithms, is_fips_enabled, FipsContext, FipsError, FipsMode};
@@ -36,6 +36,8 @@ pub use error::CryptoError;
 pub use error::Result;
 #[cfg(feature = "encrypt")]
 pub use key::manager::KeyManager;
+#[cfg(feature = "encrypt")]
+pub use key::{Key, KeyState};
 pub use types::Algorithm;
 
 /// Initialize the library (e.g., FIPS self-tests)
@@ -60,7 +62,7 @@ pub fn init() -> Result<()> {
 /// High-level Cipher API
 #[cfg(feature = "encrypt")]
 pub struct Cipher {
-    provider: std::sync::Arc<dyn provider::SymmetricCipher>,
+    provider: std::sync::Arc<dyn cipher::provider::SymmetricCipher>,
     algorithm: Algorithm,
 }
 
@@ -79,12 +81,6 @@ impl Cipher {
             provider,
             algorithm,
         })
-    }
-
-    /// Access internal provider for specialized tests (CAVP/KAT)
-    #[must_use]
-    pub fn get_implementation(&self) -> std::sync::Arc<dyn provider::SymmetricCipher> {
-        self.provider.clone()
     }
 
     /// Encrypt data using the specified key
@@ -170,7 +166,7 @@ impl Cipher {
 /// High-level Signer API
 #[cfg(feature = "encrypt")]
 pub struct Signer {
-    provider: std::sync::Arc<dyn provider::Signer>,
+    provider: std::sync::Arc<dyn cipher::provider::Signer>,
     algorithm: Algorithm,
 }
 
@@ -193,10 +189,25 @@ impl Signer {
 
     /// Sign a message using the specified key
     pub fn sign(&self, key_manager: &KeyManager, key_id: &str, message: &[u8]) -> Result<Vec<u8>> {
-        key_manager.with_key(key_id, |key| self.provider.sign(key, message))
+        let start = std::time::Instant::now();
+        let result = key_manager.with_key(key_id, |key| self.provider.sign(key, message));
+
+        // Record metrics
+        audit::CRYPTO_OPERATIONS_TOTAL.inc();
+        audit::CRYPTO_OPERATION_LATENCY.observe(start.elapsed().as_secs_f64());
+
+        // Audit log
+        audit::AuditLogger::log(
+            "SIGN",
+            Some(self.algorithm),
+            Some(key_id),
+            if result.is_ok() { Ok(()) } else { Err("Failed") },
+        );
+
+        result
     }
 
-    /// Verify a signature using the specified key
+    /// Verify a signature
     pub fn verify(
         &self,
         key_manager: &KeyManager,
@@ -204,7 +215,22 @@ impl Signer {
         message: &[u8],
         signature: &[u8],
     ) -> Result<bool> {
-        key_manager.with_key(key_id, |key| self.provider.verify(key, message, signature))
+        let start = std::time::Instant::now();
+        let result = key_manager.with_key(key_id, |key| self.provider.verify(key, message, signature));
+
+        // Record metrics
+        audit::CRYPTO_OPERATIONS_TOTAL.inc();
+        audit::CRYPTO_OPERATION_LATENCY.observe(start.elapsed().as_secs_f64());
+
+        // Audit log
+        audit::AuditLogger::log(
+            "VERIFY",
+            Some(self.algorithm),
+            Some(key_id),
+            if result.is_ok() { Ok(()) } else { Err("Failed") },
+        );
+
+        result
     }
 }
 
@@ -218,6 +244,22 @@ impl Hash {
     pub fn sha256(data: &[u8]) -> Result<Vec<u8>> {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
+        hasher.update(data);
+        Ok(hasher.finalize().to_vec())
+    }
+
+    /// Calculate SHA-384 hash
+    pub fn sha384(data: &[u8]) -> Result<Vec<u8>> {
+        use sha2::{Digest, Sha384};
+        let mut hasher = Sha384::new();
+        hasher.update(data);
+        Ok(hasher.finalize().to_vec())
+    }
+
+    /// Calculate SHA-512 hash
+    pub fn sha512(data: &[u8]) -> Result<Vec<u8>> {
+        use sha2::{Digest, Sha512};
+        let mut hasher = Sha512::new();
         hasher.update(data);
         Ok(hasher.finalize().to_vec())
     }

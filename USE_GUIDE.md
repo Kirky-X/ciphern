@@ -42,75 +42,26 @@ ciphern = { version = "0.1", features = ["fips"] }
 
 | 特性        | 描述              | 建议场景  |
 |-----------|-----------------|-------|
-| `default` | 标准库 + FIPS 支持   | 通用场景  |
-| `std`     | 启用标准库支持         | 默认启用  |
-| `fips`    | FIPS 140-3 合规模式 | 金融、政府 |
+| `default` | 包含 std, fips, hash, encrypt, kdf | 默认全功能版本 |
+| `std`     | 启用标准库支持         | 基础依赖  |
+| `fips`    | FIPS 140-3 合规支持 | 金融、政府 |
+| `hash`    | 启用哈希算法 (SHA/SM3) | 数据完整性校验 |
+| `encrypt` | 启用加解密与签名接口   | 核心加密功能 |
+| `kdf`     | 启用密钥派生功能      | 密钥管理高级场景 |
+| `plugin`  | 启用动态插件加载      | 自定义算法扩展 |
 
-### 1.2 配置文件
+### 1.2 初始化
 
-Ciphern 支持通过配置文件自定义行为。
+在使用任何功能前，建议调用 `init()` 函数以确保系统自检（如 FIPS 自检）和审计日志初始化。
 
-```toml
-# ciphern.toml
+```rust
+use ciphern::Result;
 
-[general]
-# 算法优先级 (按顺序尝试)
-algorithm_priority = ["AES256GCM", "SM4GCM"]
-
-# 线程池大小 (0 = 自动检测)
-thread_pool_size = 0
-
-[keys]
-# 默认密钥长度
-default_key_size = 32
-
-# 密钥缓存大小
-cache_size = 100
-
-# 默认轮换策略
-[keys.rotation]
-max_age_days = 90
-max_operations = 1000000
-auto_rotate = true
-
-[random]
-# 熵源配置
-entropy_source = "hardware"  # hardware, os, hybrid
-min_entropy_bits = 256
-
-[memory]
-# 内存保护
-enable_mlock = true
-enable_canary = true
-canary_check_interval_ms = 1000
-
-[audit]
-enabled = true
-log_success = false
-log_failure = true
-output = "file"  # file, syslog, siem
-
-[audit.file]
-path = "/var/log/ciphern/audit.log"
-rotation_size_mb = 100
-
-[fips]
-# FIPS 模式 (需要编译时启用 fips 特性)
-enabled = false
-strict_mode = true  # 严格模式禁止非批准算法
-```
-
-### 1.3 环境变量
-
-```bash
-# 配置文件路径
-export CIPHERN_CONFIG=/etc/ciphern/config.toml
-
-# 日志级别
-export RUST_LOG=ciphern=info
-
-# FIPS 模式
-export CIPHERN_FIPS=1
+fn main() -> Result<()> {
+    // 初始化系统
+    ciphern::init()?;
+    Ok(())
+}
 ```
 
 ---
@@ -125,21 +76,21 @@ Ciphern 支持多种加密算法，分为国际标准和国密标准。
 
 | 算法              | 密钥长度    | 性能 | 使用场景   |
 |-----------------|---------|----|--------|
-| **AES-128-GCM** | 128 bit | 极快 | 通用数据加密 |
-| **AES-192-GCM** | 192 bit | 极快 | 通用数据加密 |
-| **AES-256-GCM** | 256 bit | 极快 | 通用数据加密 |
-| **SM4-GCM**     | 128 bit | 快  | 国密合规场景 |
+| **AES128GCM**   | 128 bit | 极快 | 通用数据加密 |
+| **AES192GCM**   | 192 bit | 极快 | 通用数据加密 |
+| **AES256GCM**   | 256 bit | 极快 | 通用数据加密 |
+| **SM4GCM**      | 128 bit | 快  | 国密合规场景 |
 
 #### 非对称加密与签名
 
 | 算法             | 安全级别    | 性能 | 使用场景   |
 |----------------|---------|----|--------|
-| **ECDSA-P256** | 128 bit | 快  | 数字签名   |
-| **ECDSA-P384** | 192 bit | 快  | 数字签名   |
-| **ECDSA-P521** | 256 bit | 快  | 数字签名   |
-| **RSA-2048**   | 112 bit | 慢  | 兼容性场景  |
-| **RSA-3072**   | 128 bit | 慢  | 兼容性场景  |
-| **RSA-4096**   | 152 bit | 慢  | 兼容性场景  |
+| **ECDSAP256**  | 128 bit | 快  | 数字签名   |
+| **ECDSAP384**  | 192 bit | 快  | 数字签名   |
+| **ECDSAP521**  | 256 bit | 快  | 数字签名   |
+| **RSA2048**    | 112 bit | 慢  | 兼容性场景  |
+| **RSA3072**    | 128 bit | 慢  | 兼容性场景  |
+| **RSA4096**    | 152 bit | 慢  | 兼容性场景  |
 | **SM2**        | 128 bit | 中  | 国密数字签名 |
 | **Ed25519**    | 128 bit | 极快 | 高性能签名  |
 
@@ -147,10 +98,10 @@ Ciphern 支持多种加密算法，分为国际标准和国密标准。
 
 | 算法           | 输出长度    | 性能 | 使用场景  |
 |--------------|---------|----|-------|
-| **SHA-256**  | 256 bit | 快  | 通用哈希  |
-| **SHA-384**  | 384 bit | 快  | 通用哈希  |
-| **SHA-512**  | 512 bit | 快  | 通用哈希  |
-| **SHA3-256** | 256 bit | 快  | 高安全哈希 |
+| **SHA256**   | 256 bit | 快  | 通用哈希  |
+| **SHA384**   | 384 bit | 快  | 通用哈希  |
+| **SHA512**   | 512 bit | 快  | 通用哈希  |
+| **SHA3_256** | 256 bit | 快  | 高安全哈希 |
 | **SM3**      | 256 bit | 中  | 国密合规  |
 
 ### 2.2 密钥管理器 (KeyManager)
@@ -167,20 +118,23 @@ Ciphern 支持多种加密算法，分为国际标准和国密标准。
 use ciphern::{Cipher, Algorithm, KeyManager, Result};
 
 fn main() -> Result<()> {
-    // 1. 初始化密钥管理器
+    // 1. 初始化系统
+    ciphern::init()?;
+
+    // 2. 初始化密钥管理器
     let km = KeyManager::new()?;
     
-    // 2. 生成密钥并获得 ID
+    // 3. 生成密钥并获得 ID
     let key_id = km.generate_key(Algorithm::AES256GCM)?;
     
-    // 3. 创建加密器
+    // 4. 创建加密器
     let cipher = Cipher::new(Algorithm::AES256GCM)?;
     
-    // 4. 执行加密
+    // 5. 执行加密
     let plaintext = b"Sensitive data";
     let ciphertext = cipher.encrypt(&km, &key_id, plaintext)?;
     
-    // 5. 执行解密
+    // 6. 执行解密
     let decrypted = cipher.decrypt(&km, &key_id, &ciphertext)?;
     assert_eq!(plaintext, &decrypted[..]);
     
@@ -194,10 +148,13 @@ fn main() -> Result<()> {
 use ciphern::{Signer, Algorithm, KeyManager, Result};
 
 fn main() -> Result<()> {
-    let km = KeyManager::new()?;
-    let key_id = km.generate_key(Algorithm::ECDSA_P384)?;
+    // 初始化
+    ciphern::init()?;
     
-    let signer = Signer::new(Algorithm::ECDSA_P384)?;
+    let km = KeyManager::new()?;
+    let key_id = km.generate_key(Algorithm::ECDSAP384)?;
+    
+    let signer = Signer::new(Algorithm::ECDSAP384)?;
     let message = b"Message to sign";
     
     // 签名
@@ -213,7 +170,7 @@ fn main() -> Result<()> {
 
 ### 3.3 消息摘要与哈希
 
-Ciphern 支持多种哈希算法，包括国际标准的 SHA 系列和国密标准的 SM3。
+Ciphern 支持多种哈希算法，包括国际标准的 SHA 系列和国密标准的 SM3。注意需要启用 `hash` 特性。
 
 #### 计算 SM3 哈希
 
@@ -228,17 +185,36 @@ fn main() -> Result<()> {
 }
 ```
 
-#### 计算 SHA-256 哈希
+#### 计算 SHA512 哈希
 
 ```rust
 use ciphern::{Hash, Result};
 
 fn main() -> Result<()> {
     let data = b"abc";
-    let hash = Hash::sha256(data)?;
-    println!("SHA-256: {:x?}", hash);
+    let hash = Hash::sha512(data)?;
+    println!("SHA-512: {:x?}", hash);
     Ok(())
 }
+```
+
+### 3.4 密钥别名管理
+
+Ciphern 支持为密钥设置易读的别名，方便管理和检索。
+
+```rust
+let km = KeyManager::new()?;
+
+// 生成带别名的密钥
+let key_id = km.generate_key_with_alias(Algorithm::AES256GCM, "master-key")?;
+
+// 之后可以通过别名获取密钥 ID
+let resolved_id = km.resolve_alias("master-key")?;
+assert_eq!(key_id, resolved_id);
+
+// 也可以直接通过别名进行加解密
+let cipher = Cipher::new(Algorithm::AES256GCM)?;
+let ciphertext = cipher.encrypt(&km, "master-key", b"data")?;
 ```
 
 ---
@@ -257,11 +233,15 @@ fn key_lifecycle_example() -> Result<()> {
     let key_id = km.generate_key(Algorithm::AES256GCM)?;
     println!("Generated Key ID: {}", key_id);
     
-    // 2. 导出密钥 (受控操作)
-    // let key_bytes = km.export_key(&key_id)?;
+    // 2. 激活密钥 (新生成的密钥默认已激活)
+    km.activate_key(&key_id)?;
     
-    // 3. 删除密钥
-    // km.delete_key(&key_id)?;
+    // 3. 暂停密钥
+    km.suspend_key(&key_id)?;
+    
+    // 4. 获取密钥信息
+    let key = km.get_key(&key_id)?;
+    println!("Key State: {:?}", key.state());
     
     Ok(())
 }
@@ -384,10 +364,10 @@ Ciphern 通过 `KeyManager` 支持基于 ID 的密钥生成，便于在多租户
 ```rust
 fn multi_tenant_example(km: &KeyManager) -> Result<()> {
     // 为租户 A 生成密钥
-    let key_a = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-a-key")?;
+    let key_id_a = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-a-key-1")?;
 
     // 为租户 B 生成密钥
-    let key_b = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-b-key")?;
+    let key_id_b = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-b-key-1")?;
 
     Ok(())
 }
@@ -395,9 +375,12 @@ fn multi_tenant_example(km: &KeyManager) -> Result<()> {
 
 #### 租户访问控制
 
+在应用层，您可以根据当前上下文租户 ID 来拼接密钥 ID，从而实现逻辑隔离。
+
 ```rust
-// 创建带 ID 的密钥以实现隔离
-let key_id = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-a-key-1")?;
+let tenant_id = "tenant-123";
+let key_id = format!("{}-db-key", tenant_id);
+let ciphertext = cipher.encrypt(&km, &key_id, plaintext)?;
 ```
 
 ### 4.6 密钥派生与分层
@@ -405,28 +388,18 @@ let key_id = km.generate_key_with_id(Algorithm::AES256GCM, "tenant-a-key-1")?;
 #### HKDF 密钥派生
 
 ```rust
-use ciphern::key::manager::KeyManager;
+use ciphern::KeyManager;
 use ciphern::Algorithm;
 
 fn derive_keys_example(km: &KeyManager) -> Result<()> {
     // 主密钥 ID
     let master_key_id = km.generate_key(Algorithm::AES256GCM)?;
     
-    // 派生操作通常由 Provider 内部处理
-    // 这里仅作为逻辑示例
-    let derived_key_id = km.generate_key(Algorithm::HKDF)?;
+    // 派生算法示例
+    let kdf_key_id = km.generate_key(Algorithm::HKDF)?;
     
     Ok(())
 }
-```
-
-#### PBKDF2 密码派生
-
-```rust
-use ciphern::Algorithm;
-
-// PBKDF2 派生逻辑通常集成在 KeyManager 或特定 Provider 中
-let key_id = km.generate_key(Algorithm::PBKDF2)?;
 ```
 
 ---
@@ -437,6 +410,8 @@ let key_id = km.generate_key(Algorithm::PBKDF2)?;
 
 #### 启用 FIPS 模式
 
+在 `Cargo.toml` 中启用 `fips` 特性，并确保在代码中调用了 `ciphern::init()`。
+
 ```toml
 # Cargo.toml
 [dependencies]
@@ -444,16 +419,16 @@ ciphern = { version = "0.1", features = ["fips"] }
 ```
 
 ```rust
-use ciphern::fips;
+use ciphern::{fips, Result};
 
 fn main() -> Result<()> {
+    // 初始化（将触发 FIPS 自检）
+    ciphern::init()?;
+
     // 检查 FIPS 模式是否启用
-    if fips::is_fips_enabled() {
+    if ciphern::is_fips_enabled() {
         println!("✅ FIPS mode enabled");
     }
-
-    // 只能使用 FIPS 批准的算法
-    let cipher = Cipher::new(Algorithm::AES256GCM)?;  // ✅ 允许
 
     Ok(())
 }
@@ -463,109 +438,60 @@ fn main() -> Result<()> {
 
 | 类别   | 批准算法                                   | 不批准算法        |
 |------|----------------------------------------|--------------|
-| 对称加密 | AES-128/192/256-GCM                    | SM4          |
-| 非对称  | ECDSA-P256/384/521, RSA-2048/3072/4096 | SM2, Ed25519 |
-| 哈希   | SHA-256/384/512, SHA3-256/384/512      | SM3          |
-| KDF  | HKDF, PBKDF2                           | 自定义 KDF      |
+| 对称加密 | AES128GCM, AES192GCM, AES256GCM        | SM4GCM       |
+| 非对称  | ECDSAP256, ECDSAP384, ECDSAP521, RSA2048, RSA3072, RSA4096 | SM2, Ed25519 |
+| 哈希   | SHA256, SHA384, SHA512, SHA3_256       | SM3          |
+| KDF  | HKDF, PBKDF2                           | Sm3Kdf       |
 
 ### 5.2 性能优化
 
 #### 自动检测与使用
 
-Ciphern 会自动检测 CPU 特性并使用最优实现：
+Ciphern 会自动检测 CPU 特性并使用最优实现（如 AES-NI, AVX2, ARM Crypto Extensions）。
 
-- x86_64: AES-NI + AVX2
-- ARM64: ARM Crypto Extensions
-- Fallback: 纯软件实现
+#### 性能监控 (Prometheus)
 
-```rust
-use ciphern::Cipher;
-
-let cipher = Cipher::new(Algorithm::AES256GCM) ?;
-let ciphertext = cipher.encrypt( & km, & key_id, & large_data) ?;  // 自动优化
-```
-
-#### 性能对比
+Ciphern 内部集成了 Prometheus 指标。
 
 ```rust
-use std::time::Instant;
+use ciphern::audit::REGISTRY;
 
-fn benchmark_simd() {
-    let data = vec![0u8; 100 * 1024 * 1024]; // 100MB
-    let key = Key::generate(Algorithm::AES256GCM).unwrap();
-    let cipher = Cipher::new(Algorithm::AES256GCM, &key).unwrap();
-    
-    let start = Instant::now();
-    let _ = cipher.encrypt(&data).unwrap();
-    let duration = start.elapsed();
-    
-    let throughput = (data.len() as f64 / duration.as_secs_f64()) / (1024.0 * 1024.0);
-    println!("Throughput: {:.2} MB/s", throughput);
-    
-    // 预期: > 3 GB/s (AVX2), > 1.5 GB/s (SSE), > 500 MB/s (Scalar)
-}
+// 获取指标
+let metrics = REGISTRY.gather();
 ```
 
 ### 5.3 审计日志
 
 #### 启用审计
 
-```toml
-# ciphern.toml
-[audit]
-enabled = true
-```
+在 `ciphern::init()` 调用后，审计日志会自动按需记录。
 
 ```rust
 use ciphern::audit::AuditLogger;
 
-// 初始化审计日志
-AuditLogger::init();
-
-// 执行操作会自动触发审计
-// 也可以手动记录
-AuditLogger::log("CUSTOM_OP", None, None, Ok(()));
+// 记录自定义操作
+AuditLogger::log("CUSTOM_OP", Some(Algorithm::AES256GCM), Some("key-1"), Ok(()));
 ```
 
-#### SIEM 集成
+### 5.4 侧信道防护
 
-```toml
-# ciphern.toml
-[audit.siem]
-enabled = true
-endpoint = "siem.company.com:514"
-```
+Ciphern 实现了针对侧信道攻击的防护，包括恒定时间操作以防止定时攻击。
 
 ```rust
-use securevault::audit::{AuditLogger, SiemConfig, SiemTransport};
+use ciphern::side_channel::constant_time::constant_time_eq;
 
-let siem_config = SiemConfig {
-    transport: SiemTransport::SyslogTcp("10.0.1.100:514".parse()?),
-    format: LogFormat::CEF,
-};
-
-AuditLogger::configure_siem(siem_config)?;
-```
-
-### 5.4 性能监控
-
-#### Prometheus 指标
-
-Ciphern 内部集成了 Prometheus 指标。
-
-```rust
-use ciphern::audit::{REGISTRY, CRYPTO_OPERATIONS_TOTAL};
-
-// 获取指标
-let metrics = REGISTRY.gather();
+// 示例：恒定时间比较
+let a = b"password";
+let b = b"password";
+let is_equal = constant_time_eq(a, b);
 ```
 
 ### 5.5 自定义插件
 
-#### 实现自定义算法插件
+注意需要启用 `plugin` 特性。
 
 ```rust
-use ciphern::plugin::{Plugin, CipherPlugin, PluginMetadata};
+use ciphern::plugin::{Plugin, CipherPlugin};
 use ciphern::provider::SymmetricCipher;
 use ciphern::types::Algorithm;
 use ciphern::error::Result;
@@ -624,15 +550,20 @@ import dev.ciphern.*;
 
 public class Example {
     public static void main(String[] args) {
-        try (KeyManager km = new KeyManager()) {
-            String keyId = km.generateKey(Algorithm.AES256GCM);
+        try {
+            // 初始化
+            Ciphern.init();
             
-            try (Cipher cipher = new Cipher(Algorithm.AES256GCM)) {
-                byte[] plaintext = "Hello, Java!".getBytes();
-                byte[] ciphertext = cipher.encrypt(km, keyId, plaintext);
-                byte[] decrypted = cipher.decrypt(km, keyId, ciphertext);
+            try (KeyManager km = new KeyManager()) {
+                String keyId = km.generateKey(Algorithm.AES256GCM);
                 
-                System.out.println("Decrypted: " + new String(decrypted));
+                try (Cipher cipher = new Cipher(Algorithm.AES256GCM)) {
+                    byte[] plaintext = "Hello, Java!".getBytes();
+                    byte[] ciphertext = cipher.encrypt(km, keyId, plaintext);
+                    byte[] decrypted = cipher.decrypt(km, keyId, ciphertext);
+                    
+                    System.out.println("Decrypted: " + new String(decrypted));
+                }
             }
         } catch (CryptoException e) {
             e.printStackTrace();
@@ -652,9 +583,11 @@ pip install ciphern
 #### 基础使用
 
 ```python
-from ciphern import Cipher, Algorithm, KeyManager
+from ciphern import Cipher, Algorithm, KeyManager, init
 
 # 初始化
+init()
+
 km = KeyManager()
 key_id = km.generate_key(Algorithm.AES256GCM)
 
@@ -666,24 +599,6 @@ decrypted = cipher.decrypt(km, key_id, ciphertext)
 assert plaintext == decrypted
 ```
 
-#### 异步支持 (Asyncio)
-
-```python
-import asyncio
-from ciphern.aio import Cipher, KeyManager
-
-async def encrypt_async():
-    km = await KeyManager.new()
-    key_id = await km.generate_key(Algorithm.AES256GCM)
-    cipher = await Cipher.new(Algorithm.AES256GCM)
-    
-    plaintext = b"Async data"
-    ciphertext = await cipher.encrypt(km, key_id, plaintext)
-    return ciphertext
-
-asyncio.run(encrypt_async())
-```
-
 ---
 
 ## 7. 生产环境部署
@@ -692,24 +607,17 @@ asyncio.run(encrypt_async())
 
 #### 线程池配置
 
-```toml
-# ciphern.toml
-[general]
-thread_pool_size = 8  # 根据 CPU 核心数调整
-```
+Ciphern 使用 Tokio 作为异步运行时，可以通过环境变量或运行时句柄配置线程池。
 
-#### 密钥缓存
-
-```toml
-[keys]
-cache_size = 1000  # 缓存最近使用的 1000 个密钥
-cache_ttl_seconds = 300  # 5 分钟 TTL
+```bash
+# 设置 Tokio 工作线程数
+export TOKIO_WORKER_THREADS=8
 ```
 
 #### SIMD 优化
 
 ```bash
-# 编译时启用 CPU 特性
+# 编译时启用 CPU 特性以获得最佳性能
 RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
 
@@ -717,63 +625,31 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 #### 内存保护
 
-```toml
-[memory]
-enable_mlock = true  # 防止 swap
-enable_canary = true  # 内存篡改检测
-canary_check_interval_ms = 1000
+Ciphern 默认启用内存保护。在 Linux 环境下，确保应用有足够的权限使用 `mlock`。
+
+```bash
+# 提升内存锁定限制 (Linux)
+# 编辑 /etc/security/limits.conf
+* soft memlock unlimited
+* hard memlock unlimited
 ```
 
 #### 文件权限
 
-```bash
-# 配置文件权限
-sudo chmod 600 /etc/ciphern/config.toml
-sudo chown root:root /etc/ciphern/config.toml
+确保密钥存储目录权限正确：
 
-# 日志目录权限
-sudo mkdir -p /var/log/ciphern
-sudo chmod 700 /var/log/ciphern
+```bash
+# 密钥存储目录权限
+chmod 700 /path/to/keys
 ```
 
 ### 7.3 监控与告警
 
-#### Prometheus + Grafana
+#### Prometheus 关键指标
 
-```yaml
-# prometheus.yml
-scrape_configs:
-  - job_name: 'ciphern'
-    static_configs:
-      - targets: ['localhost:9090']
-```
-
-**关键指标**:
-
-- `crypto_encrypt_duration_seconds`: 加密延迟
-- `crypto_key_cache_hit_ratio`: 密钥缓存命中率
-- `crypto_memory_usage_bytes`: 内存使用量
-- `crypto_error_total`: 错误计数
-
-#### 告警规则
-
-```yaml
-# alerts.yml
-groups:
-  - name: securevault
-    rules:
-      - alert: HighEncryptionLatency
-        expr: histogram_quantile(0.99, crypto_operations_duration_seconds) > 0.1
-        for: 5m
-        annotations:
-          summary: "Encryption P99 latency > 100ms"
-      
-      - alert: FrequentDecryptionFailures
-        expr: rate(crypto_error_total[5m]) > 10
-        for: 2m
-        annotations:
-          summary: "High rate of decryption failures"
-```
+- `crypto_operations_total`: 操作总数 (加密/解密/签名等)
+- `crypto_operation_duration_seconds`: 操作延迟
+- `crypto_errors_total`: 错误总数
 
 ---
 
@@ -781,65 +657,18 @@ groups:
 
 ### 8.1 常见错误
 
-#### 错误: DecryptionFailed
+#### 错误: `DecryptionFailed`
 
 **原因**:
+- 使用了错误的密钥 ID。
+- 密文被篡改。
+- 算法参数不匹配。
 
-- 使用了错误的密钥 ID
-- 密文被篡改
-- 密钥已失效
-
-**解决方案**:
-
-```rust
-match cipher.decrypt(&km, &key_id, &ciphertext) {
-    Err(e) => {
-        eprintln!("Decryption failed: {:?}", e);
-    }
-    Ok(plaintext) => { /* 成功 */ }
-}
-```
-
-#### 错误: InsufficientEntropy
+#### 错误: `FipsSelfTestFailed`
 
 **原因**:
-
-- 熵源不可用 (嵌入式设备)
-- 系统启动时熵池未初始化
-
-**解决方案**:
-
-```bash
-# Linux: 安装 rng-tools
-sudo apt-get install rng-tools
-sudo systemctl enable rngd
-sudo systemctl start rngd
-
-# 检查可用熵
-cat /proc/sys/kernel/random/entropy_avail
-```
-
-#### 错误: MemoryProtectionFailed
-
-**原因**:
-
-- 权限不足 (mlock 需要特权)
-- 内存限制过低
-
-**解决方案**:
-
-```bash
-# 提升内存锁定限制
-sudo vi /etc/security/limits.conf
-# 添加:
-* soft memlock unlimited
-* hard memlock unlimited
-
-# 或者在配置中禁用 mlock
-# ciphern.toml
-[memory]
-enable_mlock = false
-```
+- 启用 FIPS 模式时，启动自检失败。
+- 环境不满足 FIPS 要求。
 
 ### 8.2 调试技巧
 
@@ -848,219 +677,32 @@ enable_mlock = false
 ```bash
 # 设置日志级别
 export RUST_LOG=ciphern=debug
-# 启用回溯
-export RUST_BACKTRACE=1
-
-# 运行应用
 ./your_application
-```
-
-#### 性能分析
-
-```bash
-# 使用 perf 分析热点
-perf record -g ./your_application
-perf report
-
-# 使用 flamegraph
-cargo flamegraph --bin your_application
-```
-
-#### 内存泄漏检测
-
-```bash
-# Valgrind
-valgrind --leak-check=full --show-leak-kinds=all ./your_application
-
-# AddressSanitizer
-RUSTFLAGS="-Z sanitizer=address" cargo build
-./target/debug/your_application
 ```
 
 ---
 
 ## 9. 最佳实践
 
-### 9.1 密钥管理最佳实践
+### 9.1 安全建议
 
-#### ✅ DO: 密钥轮换
-
-```rust
-// 推荐定期轮换密钥
-let new_key_id = km.generate_key(Algorithm::AES256GCM)?;
-```
-
-#### ✅ DO: 密钥派生
-
-```rust
-// 使用 KDF 算法派生密钥
-let derived_key_id = km.generate_key(Algorithm::HKDF)?;
-```
-
-#### ❌ DON'T: 硬编码密钥
-
-```rust
-// ❌ 错误
-let key_data = b"hardcoded_key_1234567890123456";
-
-// ✅ 正确
-let key_id = km.generate_key(Algorithm::AES256GCM)?;
-```
-
-#### ❌ DON'T: 重用 IV/Nonce
-
-```rust
-// ❌ 错误 - 永远不要重用 IV
-let nonce = [0u8; 12];  // 固定 nonce
-for data in dataset {
-    cipher.encrypt_with_iv(data, &nonce)?;  // 危险!
-}
-
-// ✅ 正确 - Ciphern 自动生成随机 IV
-for data in dataset {
-    cipher.encrypt(&km, &key_id, data)?;  // 每次加密使用新 IV
-}
-```
-
-### 9.2 性能最佳实践
-
-#### ✅ DO: 复用 Cipher 实例
-
-```rust
-// ✅ 好 - 复用 cipher
-let cipher = Cipher::new(Algorithm::AES256GCM)?;
-for data in dataset {
-    let ciphertext = cipher.encrypt(&km, &key_id, data)?;
-}
-```
-
-#### ✅ DO: 批量操作
-
-```rust
-// 批量加密比单独加密更高效
-let ciphertexts: Result<Vec<_>> = plaintexts
-    .iter()
-    .map(|p| cipher.encrypt(&km, &key_id, p))
-    .collect();
-```
-
-### 9.3 安全最佳实践
-
-#### ✅ DO: 使用 AEAD 模式
-
-```rust
-// ✅ 使用认证加密 (AES-GCM)
-let cipher = Cipher::new(Algorithm::AES256GCM)?;
-
-// ❌ 避免仅加密模式 (如 AES-CBC)
-```
-
-#### ✅ DO: 验证签名
-
-```rust
-// ✅ 始终验证签名
-let is_valid = signer.verify(&km, &key_id, message, &signature)?;
-if !is_valid {
-    return Err("Invalid signature");
-}
-
-// ❌ 不要盲目信任未验证的数据
-```
-
-#### ✅ DO: 清理敏感数据
-
-```rust
-use zeroize::Zeroize;
-
-let mut sensitive_data = vec![0u8; 32];
-// ... 使用 sensitive_data ...
-sensitive_data.zeroize();  // 显式擦除
-```
+1. **始终调用 `init()`**: 确保系统正确初始化。
+2. **使用别名**: 为关键密钥设置别名，避免在代码中硬编码密钥 ID。
+3. **启用审计**: 在生产环境中启用审计日志以满足合规性要求。
+4. **定期更新**: 及时更新 Ciphern 以获取最新的安全补丁。
 
 ---
 
-## 10. 常见问题
+## 10. 常见问题 (FAQ)
 
-### Q1: Ciphern 与其他加密库有何不同?
+**Q: 如何选择加密算法？**
+A: 推荐使用 `AES256GCM` 处理对称加密，`ECDSAP384` 处理数字签名。
 
-**A**: Ciphern 的独特之处在于:
+**Q: 是否支持 SM 系列算法？**
+A: 是的，Ciphern 支持 SM2, SM3, SM4 算法（注意：非 FIPS 批准）。
 
-1. **安全优先**: 内存保护、侧信道防护、FIPS 合规
-2. **国密支持**: 同时支持国际和国密标准
-3. **企业级**: 统一密钥管理、审计日志
-4. **易用性**: 统一接口、丰富文档、多语言支持
-
-### Q2: 如何选择加密算法?
-
-**A**:
-
-- **通用场景**: AES-256-GCM (快速、安全、广泛支持)
-- **国密合规**: SM4-GCM (符合中国商用密码标准)
-- **数字签名**: ECDSA-P384 (安全性与性能平衡)
-- **高性能签名**: Ed25519 (速度最快)
-
-### Q3: 密钥应该存储在哪里?
-
-**A**:
-
-1. **最佳**: 硬件安全模块 (HSM) 或 KMS (如 AWS KMS, Azure Key Vault)
-2. **次选**: 加密文件系统,使用主密钥加密
-3. **开发环境**: 环境变量 (不要提交到 Git)
-
-### Q4: 如何处理密钥轮换期间的旧数据?
-
-**A**:
-
-```rust
-// 使用旧密钥解密
-let decrypted = cipher.decrypt(&km, &old_key_id, &ciphertext)?;
-
-// 用新密钥重新加密
-let new_ciphertext = cipher.encrypt(&km, &new_key_id, &decrypted)?;
-```
-
-### Q5: FIPS 模式会影响性能吗?
-
-**A**: 略有影响但可接受:
-
-- FIPS 自检在启动时运行一次 (~100ms)
-- 运行时仅禁用非批准算法,批准算法性能无影响
-- 建议仅在合规要求的环境启用 FIPS
-
-### Q6: 如何在 Docker 容器中使用?
-
-**A**:
-
-```dockerfile
-FROM rust:1.75
-
-# 安装依赖
-RUN apt-get update && apt-get install -y \
-    libssl-dev \
-    pkg-config
-
-# 复制应用
-COPY . /app
-WORKDIR /app
-
-# 编译
-RUN cargo build --release
-
-# 运行
-CMD ["./target/release/your_app"]
-```
-
-### Q7: 支持哪些平台?
-
-**A**:
-
-- **Tier 1** (完全支持): Linux x86_64, Windows x86_64, macOS x86_64/ARM64
-- **Tier 2** (社区支持): Linux ARM64, Linux ARMv7 (嵌入式)
-- **实验性**: WebAssembly (WASM)
-
-### Q8: 如何贡献代码?
-
-**A**: 欢迎贡献!请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)
+**Q: 密钥如何持久化？**
+A: 默认情况下，`KeyManager` 会将密钥持久化到配置的存储路径中。
 
 ---
 
@@ -1068,19 +710,15 @@ CMD ["./target/release/your_app"]
 
 ### A. 完整 API 参考
 
-详见 [API Documentation](https://docs.rs/ciphern)
+请参考生成的 Rust 文档：
+```bash
+cargo doc --open
+```
 
-### B. 示例代码索引
+### B. 文档版本
 
-- [基础加密](tests/unit/cipher_test.rs)
-- [数字签名](tests/unit/signature_test.rs)
-- [密钥管理](tests/unit/key_test.rs)
-- [端到端集成](tests/integration/end_to_end_test.rs)
-
-------
-
-**文档版本**: v0.1.0
-**最后更新**: 2025-12-22
-**反馈**: 如有问题或建议,请提交 [Issue](https://github.com/Kirky-X/ciphern/issues)
+**版本**: v0.1.0
+**更新日期**: 2025-12-23
+**反馈**: [GitHub Issues](https://github.com/Kirky-X/ciphern/issues)
 
 [⬆ 回到顶部](#ciphern-用户指南)

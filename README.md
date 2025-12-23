@@ -40,7 +40,7 @@
 - **International Standards**: AES-128/192/256-GCM, ECDSA-P256/P384/P521, RSA-2048/3072/4096, Ed25519
 - **National Standards**: SM2, SM3, SM4-GCM
 - **Hash Functions**: SHA-256/384/512, SHA3-256/384/512, SM3
-- **Key Derivation**: HKDF, PBKDF2, Argon2id, SM3-KDF
+- **Key Derivation**: HKDF, PBKDF2, Argon2id, Sm3Kdf
 
 ---
 
@@ -78,6 +78,8 @@ Python bindings are under development, requiring manual compilation:
 
 ```rust
 use ciphern::{Cipher, Algorithm, KeyManager};
+#[cfg(feature = "hash")]
+use ciphern::Hash;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the library
@@ -108,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### Digital Signature (Rust)
 
 ```rust
-use ciphern::{Signer, Algorithm, KeyManager};
+use ciphern::{Cipher, Algorithm, KeyManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the library
@@ -120,15 +122,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Generate a key pair (using ECDSA-P256 as an example)
     let key_id = km.generate_key(Algorithm::ECDSAP256)?;
     
-    // Create a signer
-    let signer = Signer::new(Algorithm::ECDSAP256)?;
+    // Create a cipher for signing
+    let cipher = Cipher::new(Algorithm::ECDSAP256)?;
     
     // Sign
     let message = b"Important message";
-    let signature = signer.sign(&km, &key_id, message)?;
+    let signature = cipher.sign(&km, &key_id, message)?;
     
     // Verify
-    let is_valid = signer.verify(&km, &key_id, message, &signature)?;
+    let is_valid = cipher.verify(&km, &key_id, message, &signature)?;
     assert!(is_valid);
     
     println!("✅ Signature verified!");
@@ -139,7 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### National Standard Algorithms (Rust)
 
 ```rust
-use ciphern::{Cipher, Algorithm, KeyManager, Hash};
+use ciphern::{Cipher, Algorithm, KeyManager};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the library
@@ -152,8 +154,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cipher = Cipher::new(Algorithm::SM4GCM)?;
     let ciphertext = cipher.encrypt(&km, &key_id, b"GuoMi encryption test")?;
     
-    // SM3 Hash
-    let hash = Hash::sm3(b"Data integrity verification")?;
+    // SM4 Decryption verification
+    let decrypted = cipher.decrypt(&km, &key_id, &ciphertext)?;
+    assert_eq!(b"GuoMi encryption test", &decrypted[..]);
+    
+    // SM3 Hash (requires "hash" feature)
+    #[cfg(feature = "hash")]
+    {
+        let hash = Hash::sm3(b"Data integrity verification")?;
+        println!("SM3 hash: {:?}", hash);
+    }
     
     println!("✅ National standard algorithms executed successfully!");
     Ok(())
@@ -227,13 +237,13 @@ db.save_encrypted_field(user.id, "ssn", &encrypted_ssn)?;
 Protect the confidentiality and integrity of API requests and responses
 
 ```rust
-use ciphern::{Signer, Algorithm, KeyManager};
+use ciphern::{Cipher, Algorithm, KeyManager};
 
 ciphern::init()?;
 let km = KeyManager::new()?;
 let key_id = km.generate_key(Algorithm::ECDSAP384)?;
-let signer = Signer::new(Algorithm::ECDSAP384)?;
-let signature = signer.sign(&km, &key_id, &request_body)?;
+let cipher = Cipher::new(Algorithm::ECDSAP384)?;
+let signature = cipher.sign(&km, &key_id, &request_body)?;
 
 http_request
     .header("X-Signature", base64::encode(&signature))
@@ -288,18 +298,14 @@ assert!(result.is_err()); // CryptoError::FipsError
 ### Audit Logging and Monitoring
 
 ```rust
-use ciphern::audit::{AuditLogger, AuditEvent, PerformanceMetrics};
+use ciphern::audit::AuditLogger;
 use std::sync::Arc;
 
 // Initialize the library
 ciphern::init()?;
 
-// Create an audit logger
-let audit_logger = Arc::new(AuditLogger::new());
-
 // Log an event
-let event = AuditEvent::new("encryption", "AES256GCM", "success");
-audit_logger.log_event(event)?;
+AuditLogger::log("ENCRYPT", Some(ciphern::Algorithm::Aes256Gcm), Some("key-123"), Ok(()))?;
 
 // Get performance metrics
 let metrics = audit_logger.get_performance_metrics()?;
@@ -323,14 +329,10 @@ use ciphern::plugin::{Plugin, CipherPlugin};
 The current version is based on a pure Rust implementation. Performance data can be obtained through the audit system:
 
 ```rust
-use ciphern::audit::{AuditLogger, PerformanceMetrics};
+// Performance monitoring is handled internally by the audit system
 
-let audit_logger = AuditLogger::new();
-let metrics = audit_logger.get_performance_metrics()?;
-
-println!("Average Throughput: {:.2} ops/sec", metrics.avg_throughput_ops_per_sec);
-println!("Average Latency: {:.2} μs", metrics.avg_latency_us);
-println!("Cache Hit Rate: {:.1}%", metrics.avg_cache_hit_rate * 100.0);
+// The current version collects performance metrics internally
+// Performance data is available through internal monitoring systems
 ```
 
 > Note: SIMD optimization and hardware acceleration features are under development. The current version provides a basic implementation of cryptographic functions.
@@ -433,7 +435,7 @@ cargo build --target aarch64-apple-darwin --release
 - [x] Core encryption (AES-128/192/256-GCM, SM4-GCM)
 - [x] Digital signatures (ECDSA-P256/P384/P521, RSA-2048/3072/4096, Ed25519, SM2)
 - [x] Hash functions (SHA-256/384/512, SHA3-256/384/512, SM3)
-- [x] Key derivation (HKDF, PBKDF2, Argon2id, SM3-KDF)
+- [x] Key derivation (HKDF, PBKDF2, Argon2id, Sm3Kdf)
 - [x] Basic key management
 - [x] Rust API
 - [x] Audit logging system
