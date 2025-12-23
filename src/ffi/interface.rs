@@ -1,14 +1,14 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
 //! FFI Interface Definitions
-//! 
+//!
 //! Unified interface definitions for all FFI bindings
 
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char};
+use std::os::raw::c_char;
 use std::ptr;
 use std::slice;
 use zeroize::Zeroize;
@@ -101,10 +101,10 @@ impl CiphernBuffer {
         let mut vec = Vec::with_capacity(capacity);
         let data = vec.as_mut_ptr();
         let capacity = vec.capacity();
-        
+
         // 防止 Vec 被释放
         std::mem::forget(vec);
-        
+
         Ok(Self {
             data,
             len: 0,
@@ -118,9 +118,9 @@ impl CiphernBuffer {
         let data = vec.as_mut_ptr();
         let len = vec.len();
         let capacity = vec.capacity();
-        
+
         std::mem::forget(vec);
-        
+
         Self {
             data,
             len,
@@ -129,9 +129,9 @@ impl CiphernBuffer {
     }
 
     /// 转换为 Vec
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// 调用者必须确保:
     /// 1. `data` 指针有效且由 `Vec::from_raw_parts` 分配
     /// 2. `len` 和 `capacity` 正确
@@ -142,24 +142,28 @@ impl CiphernBuffer {
         if self.data.is_null() || self.capacity == 0 {
             return Vec::new();
         }
-        
+
         Vec::from_raw_parts(self.data, self.len, self.capacity)
     }
 
     /// 从原始指针创建（不拥有所有权）
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// 调用者必须确保指针有效性
     #[allow(dead_code)]
     pub unsafe fn from_raw_parts(data: *mut u8, len: usize, capacity: usize) -> Self {
-        Self { data, len, capacity }
+        Self {
+            data,
+            len,
+            capacity,
+        }
     }
 
     /// 释放缓冲区
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// 调用者必须确保:
     /// 1. `data` 指针有效且由 Rust 分配
     /// 2. `capacity` 正确
@@ -186,17 +190,14 @@ impl CiphernString {
         let cstring = CString::new(s).map_err(|_| CiphernError::InvalidParameter)?;
         let len = cstring.as_bytes_with_nul().len();
         let data = cstring.into_raw();
-        
-        Ok(Self {
-            data,
-            len,
-        })
+
+        Ok(Self { data, len })
     }
 
     /// 释放字符串
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// 调用者必须确保:
     /// 1. `data` 指针有效且由 `CString` 分配
     /// 2. 未被 double free
@@ -232,7 +233,11 @@ pub mod validation {
 
     /// 验证缓冲区大小
     #[allow(dead_code)]
-    pub fn validate_buffer_size(size: usize, min_size: usize, name: &str) -> Result<(), CiphernError> {
+    pub fn validate_buffer_size(
+        size: usize,
+        min_size: usize,
+        name: &str,
+    ) -> Result<(), CiphernError> {
         if size < min_size {
             eprintln!("FFI: Buffer '{}' too small: {} < {}", name, size, min_size);
             return Err(CiphernError::BufferTooSmall);
@@ -255,46 +260,64 @@ pub mod validation {
     }
 
     /// 验证切片
-    pub unsafe fn validate_slice<'a>(data: *const u8, len: usize) -> Result<&'a [u8], CiphernError> {
+    pub unsafe fn validate_slice<'a>(
+        data: *const u8,
+        len: usize,
+    ) -> Result<&'a [u8], CiphernError> {
         create_slice(data, len, "slice")
     }
 
     /// 验证可变切片
-    pub unsafe fn validate_mut_slice<'a>(data: *mut u8, len: usize) -> Result<&'a mut [u8], CiphernError> {
+    pub unsafe fn validate_mut_slice<'a>(
+        data: *mut u8,
+        len: usize,
+    ) -> Result<&'a mut [u8], CiphernError> {
         create_mut_slice(data, len, "mut_slice")
     }
-    
+
     /// 验证可变 usize 指针
-    pub unsafe fn validate_mut_usize<'a>(ptr: *mut usize, name: &str) -> Result<&'a mut usize, CiphernError> {
+    pub unsafe fn validate_mut_usize<'a>(
+        ptr: *mut usize,
+        name: &str,
+    ) -> Result<&'a mut usize, CiphernError> {
         validate_mut_ptr(ptr, name)?;
         Ok(&mut *ptr)
     }
 
     /// 安全转换 C 字符串
-    pub unsafe fn c_str_to_str<'a>(ptr: *const c_char, name: &str) -> Result<&'a str, CiphernError> {
+    pub unsafe fn c_str_to_str<'a>(
+        ptr: *const c_char,
+        name: &str,
+    ) -> Result<&'a str, CiphernError> {
         validate_ptr(ptr, name)?;
-        
-        CStr::from_ptr(ptr)
-            .to_str()
-            .map_err(|_| {
-                eprintln!("FFI: Invalid UTF-8 in parameter '{}'", name);
-                CiphernError::InvalidParameter
-            })
+
+        CStr::from_ptr(ptr).to_str().map_err(|_| {
+            eprintln!("FFI: Invalid UTF-8 in parameter '{}'", name);
+            CiphernError::InvalidParameter
+        })
     }
 
     /// 安全创建切片
-    pub unsafe fn create_slice<'a>(data: *const u8, len: usize, name: &str) -> Result<&'a [u8], CiphernError> {
+    pub unsafe fn create_slice<'a>(
+        data: *const u8,
+        len: usize,
+        name: &str,
+    ) -> Result<&'a [u8], CiphernError> {
         validate_ptr(data, name)?;
         validate_length(len, 1024 * 1024, name)?; // 1MB limit
-        
+
         Ok(slice::from_raw_parts(data, len))
     }
 
     /// 安全创建可变切片
-    pub unsafe fn create_mut_slice<'a>(data: *mut u8, len: usize, name: &str) -> Result<&'a mut [u8], CiphernError> {
+    pub unsafe fn create_mut_slice<'a>(
+        data: *mut u8,
+        len: usize,
+        name: &str,
+    ) -> Result<&'a mut [u8], CiphernError> {
         validate_mut_ptr(data, name)?;
         validate_length(len, 1024 * 1024, name)?; // 1MB limit
-        
+
         Ok(slice::from_raw_parts_mut(data, len))
     }
 }
@@ -330,7 +353,7 @@ pub mod memory {
         if src.len() > dst_size {
             return Err(CiphernError::BufferTooSmall);
         }
-        
+
         ptr::copy_nonoverlapping(src.as_ptr(), dst, src.len());
         Ok(src.len())
     }
@@ -384,9 +407,9 @@ pub mod algorithm {
 
 pub use algorithm::parse_algorithm;
 #[allow(unused_imports)]
-pub use validation::*;
-#[allow(unused_imports)]
 pub use memory::*;
+#[allow(unused_imports)]
+pub use validation::*;
 
 #[cfg(feature = "plugin")]
 pub mod plugin_interface {
@@ -409,14 +432,21 @@ pub mod plugin_interface {
 
     /// 获取插件信息
     #[no_mangle]
-    pub unsafe extern "C" fn ciphern_plugin_get_info(_name: *const c_char, _buf: *mut c_char, _len: usize) -> CiphernError {
+    pub unsafe extern "C" fn ciphern_plugin_get_info(
+        _name: *const c_char,
+        _buf: *mut c_char,
+        _len: usize,
+    ) -> CiphernError {
         // Implementation placeholder
         CiphernError::AlgorithmNotSupported
     }
 
     /// 注册算法
     #[no_mangle]
-    pub unsafe extern "C" fn ciphern_plugin_register_algorithm(_name: *const c_char, _algo_type: c_int) -> CiphernError {
+    pub unsafe extern "C" fn ciphern_plugin_register_algorithm(
+        _name: *const c_char,
+        _algo_type: c_int,
+    ) -> CiphernError {
         // Implementation placeholder
         CiphernError::AlgorithmNotSupported
     }
@@ -439,7 +469,8 @@ mod tests {
 
     #[test]
     fn test_error_conversion() {
-        let error = CiphernError::from_result::<()>(Err(crate::CryptoError::KeyNotFound("test".into())));
+        let error =
+            CiphernError::from_result::<()>(Err(crate::CryptoError::KeyNotFound("test".into())));
         assert_eq!(error, CiphernError::KeyNotFound);
     }
 
@@ -447,7 +478,7 @@ mod tests {
     fn test_buffer_management() {
         let data = vec![1, 2, 3, 4, 5];
         let buffer = CiphernBuffer::from_vec(data.clone());
-        
+
         unsafe {
             let recovered = buffer.to_vec();
             assert_eq!(recovered, data);
@@ -457,8 +488,14 @@ mod tests {
     #[test]
     fn test_algorithm_parsing() {
         use crate::Algorithm;
-        assert_eq!(algorithm::parse_algorithm("AES128GCM").unwrap(), Algorithm::AES128GCM);
-        assert_eq!(algorithm::parse_algorithm("aes256gcm").unwrap(), Algorithm::AES256GCM);
+        assert_eq!(
+            algorithm::parse_algorithm("AES128GCM").unwrap(),
+            Algorithm::AES128GCM
+        );
+        assert_eq!(
+            algorithm::parse_algorithm("aes256gcm").unwrap(),
+            Algorithm::AES256GCM
+        );
         assert!(algorithm::parse_algorithm("INVALID").is_err());
     }
 }

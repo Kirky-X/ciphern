@@ -1,14 +1,14 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
 //! Java JNI (Java Native Interface) 模块
-//! 
+//!
 //! 为 Java 提供本地接口支持
 
 use jni::objects::{JByteArray, JClass, JObject, JString};
-use jni::sys::{jint};
+use jni::sys::jint;
 use jni::JNIEnv;
 use std::ffi::CStr;
 
@@ -24,10 +24,7 @@ pub extern "system" fn Java_com_ciphern_Ciphern_init<'local>(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_ciphern_Ciphern_cleanup(
-    _env: JNIEnv,
-    _class: JClass,
-) {
+pub extern "system" fn Java_com_ciphern_Ciphern_cleanup(_env: JNIEnv, _class: JClass) {
     JniInitializer::cleanup();
 }
 
@@ -42,7 +39,11 @@ pub extern "system" fn Java_com_ciphern_Ciphern_generateKey<'local>(
     // 获取算法名称
     let algo_cstring = match jni_env.get_cstring(&algorithm) {
         Ok(cstring) => cstring,
-        Err(_) => return jni_env.new_string("").unwrap_or_else(|_| JObject::null().into()),
+        Err(_) => {
+            return jni_env
+                .new_string("")
+                .unwrap_or_else(|_| JObject::null().into())
+        }
     };
 
     // 生成密钥
@@ -60,11 +61,15 @@ pub extern "system" fn Java_com_ciphern_Ciphern_generateKey<'local>(
                     .to_string_lossy()
                     .into_owned()
             };
-            jni_env.new_string(&key_id).unwrap_or_else(|_| JObject::null().into())
+            jni_env
+                .new_string(&key_id)
+                .unwrap_or_else(|_| JObject::null().into())
         }
         error => {
             let _ = jni_env.handle_ciphern_error(error);
-            jni_env.new_string("").unwrap_or_else(|_| JObject::null().into())
+            jni_env
+                .new_string("")
+                .unwrap_or_else(|_| JObject::null().into())
         }
     }
 }
@@ -81,18 +86,26 @@ pub extern "system" fn Java_com_ciphern_Ciphern_encrypt<'local>(
     // 获取参数
     let key_id_cstring = match jni_env.get_cstring(&key_id) {
         Ok(cstring) => cstring,
-        Err(_) => return jni_env.byte_array_from_slice(&[]).unwrap_or_else(|_| JObject::null().into()),
+        Err(_) => {
+            return jni_env
+                .byte_array_from_slice(&[])
+                .unwrap_or_else(|_| JObject::null().into())
+        }
     };
 
     let plaintext_bytes = match jni_env.get_bytes(&plaintext) {
         Ok(bytes) => bytes,
-        Err(_) => return jni_env.byte_array_from_slice(&[]).unwrap_or_else(|_| JObject::null().into()),
+        Err(_) => {
+            return jni_env
+                .byte_array_from_slice(&[])
+                .unwrap_or_else(|_| JObject::null().into())
+        }
     };
 
     // 执行加密
     let mut ciphertext_buffer = JniBuffer::create_encrypt_buffer(plaintext_bytes.len());
     let mut ciphertext_len: usize = 0;
-    
+
     let result = ciphern_encrypt(
         key_id_cstring.as_ptr(),
         plaintext_bytes.as_ptr(),
@@ -105,11 +118,15 @@ pub extern "system" fn Java_com_ciphern_Ciphern_encrypt<'local>(
     match result {
         CiphernError::Success => {
             JniBuffer::truncate_buffer(&mut ciphertext_buffer, ciphertext_len);
-            jni_env.byte_array_from_slice(&ciphertext_buffer).unwrap_or_else(|_| JObject::null().into())
+            jni_env
+                .byte_array_from_slice(&ciphertext_buffer)
+                .unwrap_or_else(|_| JObject::null().into())
         }
         error => {
             let _ = jni_env.handle_ciphern_error(error);
-            jni_env.byte_array_from_slice(&[]).unwrap_or_else(|_| JObject::null().into())
+            jni_env
+                .byte_array_from_slice(&[])
+                .unwrap_or_else(|_| JObject::null().into())
         }
     }
 }
@@ -127,18 +144,26 @@ pub extern "system" fn Java_com_ciphern_Ciphern_decrypt<'local>(
     // 获取参数
     let key_id_cstring = match jni_env.get_cstring(&key_id) {
         Ok(cstring) => cstring,
-        Err(_) => return jni_env.byte_array_from_slice(&[]).unwrap_or_else(|_| JObject::null().into()),
+        Err(_) => {
+            return jni_env
+                .byte_array_from_slice(&[])
+                .unwrap_or_else(|_| JObject::null().into())
+        }
     };
 
     let ciphertext_bytes = match jni_env.get_bytes(&ciphertext) {
         Ok(bytes) => bytes,
-        Err(_) => return jni_env.byte_array_from_slice(&[]).unwrap_or_else(|_| JObject::null().into()),
+        Err(_) => {
+            return jni_env
+                .byte_array_from_slice(&[])
+                .unwrap_or_else(|_| JObject::null().into())
+        }
     };
 
     // 执行解密
     let mut plaintext_buffer = JniBuffer::create_decrypt_buffer(ciphertext_bytes.len());
     let mut plaintext_len: usize = 0;
-    
+
     let result = ciphern_decrypt(
         key_id_cstring.as_ptr(),
         ciphertext_bytes.as_ptr(),
@@ -151,11 +176,15 @@ pub extern "system" fn Java_com_ciphern_Ciphern_decrypt<'local>(
     match result {
         CiphernError::Success => {
             JniBuffer::truncate_buffer(&mut plaintext_buffer, plaintext_len);
-            jni_env.byte_array_from_slice(&plaintext_buffer).unwrap_or_else(|_| JObject::null().into())
+            jni_env
+                .byte_array_from_slice(&plaintext_buffer)
+                .unwrap_or_else(|_| JObject::null().into())
         }
         error => {
             let _ = jni_env.handle_ciphern_error(error);
-            jni_env.byte_array_from_slice(&[]).unwrap_or_else(|_| JObject::null().into())
+            jni_env
+                .byte_array_from_slice(&[])
+                .unwrap_or_else(|_| JObject::null().into())
         }
     }
 }

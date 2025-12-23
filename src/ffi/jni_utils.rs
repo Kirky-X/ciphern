@@ -1,19 +1,19 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
 //! JNI 工具模块
-//! 
+//!
 //! 提供统一的JNI类型转换和错误处理工具，减少代码重复
 
-use jni::JNIEnv;
+use jni::errors::Error as JniErrorType;
 use jni::objects::{JByteArray, JString};
 use jni::sys::jint;
-use jni::errors::Error as JniErrorType;
+use jni::JNIEnv;
 use std::ffi::CString;
 
-use super::{CiphernError, ciphern_init, ciphern_cleanup};
+use super::{ciphern_cleanup, ciphern_init, CiphernError};
 
 /// JNI 结果类型别名
 pub type JniResult<T> = Result<T, JniError>;
@@ -60,8 +60,7 @@ impl<'a> JniEnv<'a> {
 
     /// 获取字符串并转换为 CString
     pub fn get_cstring(&mut self, string: &JString) -> JniResult<CString> {
-        let rust_string: String = self.env.get_string(string)?
-            .into();
+        let rust_string: String = self.env.get_string(string)?.into();
         CString::new(rust_string).map_err(|_| JniError::InvalidString)
     }
 
@@ -82,7 +81,9 @@ impl<'a> JniEnv<'a> {
 
     /// 抛出异常
     pub fn throw_exception(&mut self, class_name: &str, message: &str) -> JniResult<()> {
-        self.env.throw_new(class_name, message).map_err(|_e| JniError::Jni(()))
+        self.env
+            .throw_new(class_name, message)
+            .map_err(|_e| JniError::Jni(()))
     }
 
     /// 处理 CiphernError 并抛出对应的 Java 异常

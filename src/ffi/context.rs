@@ -1,17 +1,17 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
 //! FFI Context Management
-//! 
+//!
 //! Centralized context management for FFI operations
 
-use std::sync::{Arc, Mutex, RwLock};
-use once_cell::sync::Lazy;
 use crate::ffi::CiphernError;
 use crate::fips::{FipsContext, FipsMode};
 use crate::key::{KeyLifecycleManager, KeyManager};
+use once_cell::sync::Lazy;
+use std::sync::{Arc, Mutex, RwLock};
 
 /// FFI 上下文状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,7 +81,9 @@ impl FfiContext {
             match inner.state {
                 ContextState::Ready => return Ok(()),
                 ContextState::Initializing => return Err(CiphernError::UnknownError),
-                ContextState::ShuttingDown | ContextState::Error => return Err(CiphernError::UnknownError),
+                ContextState::ShuttingDown | ContextState::Error => {
+                    return Err(CiphernError::UnknownError)
+                }
                 _ => {}
             }
         }
@@ -110,7 +112,7 @@ impl FfiContext {
                 inner.fips_context = fc;
                 inner.state = ContextState::Ready;
                 Ok(())
-            },
+            }
             Err(e) => {
                 inner.state = ContextState::Error;
                 Err(e)
@@ -120,29 +122,35 @@ impl FfiContext {
 
     /// 准备资源
     #[allow(clippy::type_complexity)]
-    fn do_initialize_resources(&self) -> std::result::Result<(Arc<KeyManager>, Arc<KeyLifecycleManager>, Option<Arc<FipsContext>>), CiphernError> {
+    fn do_initialize_resources(
+        &self,
+    ) -> std::result::Result<
+        (
+            Arc<KeyManager>,
+            Arc<KeyLifecycleManager>,
+            Option<Arc<FipsContext>>,
+        ),
+        CiphernError,
+    > {
         // 初始化核心库
         crate::init().map_err(|_| CiphernError::UnknownError)?;
 
         // 创建密钥管理器
-        let key_manager = KeyManager::new()
-            .map_err(|_| CiphernError::MemoryAllocationFailed)?;
+        let key_manager = KeyManager::new().map_err(|_| CiphernError::MemoryAllocationFailed)?;
         let key_manager = Arc::new(key_manager);
 
         // 创建生命周期管理器
-        let lifecycle_manager = KeyLifecycleManager::new()
-            .map_err(|_| CiphernError::MemoryAllocationFailed)?;
+        let lifecycle_manager =
+            KeyLifecycleManager::new().map_err(|_| CiphernError::MemoryAllocationFailed)?;
         let lifecycle_manager = Arc::new(lifecycle_manager);
 
         // 如果需要，初始化 FIPS 上下文
         let fips_context = if self.config.enable_fips {
             // 启用 FIPS 模式
-            FipsContext::enable()
-                .map_err(|_| CiphernError::FipsError)?;
+            FipsContext::enable().map_err(|_| CiphernError::FipsError)?;
 
             // 创建 FIPS 上下文
-            let ctx = FipsContext::new(FipsMode::Enabled)
-                .map_err(|_| CiphernError::FipsError)?;
+            let ctx = FipsContext::new(FipsMode::Enabled).map_err(|_| CiphernError::FipsError)?;
             Some(Arc::new(ctx))
         } else {
             None
@@ -154,14 +162,14 @@ impl FfiContext {
     /// 清理上下文
     pub fn cleanup(&self) {
         let mut inner = self.inner.write().unwrap();
-        
+
         inner.state = ContextState::ShuttingDown;
-        
+
         // 清理资源
         inner.key_manager = None;
         inner.lifecycle_manager = None;
         inner.fips_context = None;
-        
+
         inner.state = ContextState::Uninitialized;
     }
 
@@ -181,7 +189,10 @@ impl FfiContext {
         if inner.state != ContextState::Ready {
             return Err(CiphernError::UnknownError);
         }
-        inner.lifecycle_manager.clone().ok_or(CiphernError::UnknownError)
+        inner
+            .lifecycle_manager
+            .clone()
+            .ok_or(CiphernError::UnknownError)
     }
 
     /// 获取 FIPS 上下文
@@ -200,7 +211,7 @@ impl FfiContext {
     /// 设置 FIPS 启用状态
     pub fn set_fips_enabled(&self, enabled: bool) {
         let mut inner = self.inner.write().unwrap();
-        
+
         if enabled && inner.fips_context.is_none() {
             // 如果启用且当前没有FIPS上下文，尝试初始化
             if let Ok(fips_context) = FipsContext::new(FipsMode::Enabled) {
@@ -220,14 +231,13 @@ impl FfiContext {
 }
 
 /// 全局 FFI 上下文
-static GLOBAL_CONTEXT: Lazy<Arc<Mutex<Option<Arc<FfiContext>>>>> = Lazy::new(|| {
-    Arc::new(Mutex::new(None))
-});
+static GLOBAL_CONTEXT: Lazy<Arc<Mutex<Option<Arc<FfiContext>>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(None)));
 
 /// 获取或创建全局上下文
 pub fn get_context() -> std::result::Result<Arc<FfiContext>, CiphernError> {
     let mut global = GLOBAL_CONTEXT.lock().unwrap();
-    
+
     if let Some(ref context) = *global {
         return Ok(context.clone());
     }
@@ -236,7 +246,7 @@ pub fn get_context() -> std::result::Result<Arc<FfiContext>, CiphernError> {
     let config = ContextConfig::default();
     let context = Arc::new(FfiContext::new(config));
     *global = Some(context.clone());
-    
+
     Ok(context)
 }
 
@@ -251,7 +261,7 @@ pub fn cleanup_context() {
     if let Ok(context) = get_context() {
         context.cleanup();
     }
-    
+
     // 清除全局引用
     let mut global = GLOBAL_CONTEXT.lock().unwrap();
     *global = None;
@@ -285,16 +295,16 @@ mod tests {
     fn test_context_lifecycle() {
         // 注意：这个测试需要小心处理全局状态
         // 在实际测试中，可能需要使用测试专用的上下文管理
-        
+
         let config = ContextConfig::default();
         let context = Arc::new(FfiContext::new(config));
-        
+
         assert_eq!(context.state(), ContextState::Uninitialized);
-        
+
         // 测试初始化
         assert!(context.initialize().is_ok());
         assert_eq!(context.state(), ContextState::Ready);
-        
+
         // 测试清理
         context.cleanup();
         assert_eq!(context.state(), ContextState::Uninitialized);
@@ -307,7 +317,7 @@ mod tests {
             max_keys: 500,
             key_lifecycle_policy: crate::key::KeyLifecyclePolicy::default(),
         };
-        
+
         let context = FfiContext::new(config);
         assert_eq!(context.state(), ContextState::Uninitialized);
     }

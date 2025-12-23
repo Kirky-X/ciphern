@@ -20,14 +20,14 @@ pub mod memory;
 
 pub mod random;
 
+pub(crate) mod ffi;
+#[cfg(feature = "plugin")]
+pub mod plugin;
 #[cfg(feature = "encrypt")]
 pub mod side_channel;
 #[cfg(feature = "encrypt")]
 pub mod signer;
 pub mod types;
-pub(crate) mod ffi;
-#[cfg(feature = "plugin")]
-pub mod plugin;
 
 // 重新导出 FIPS 相关类型
 pub use fips::{get_fips_approved_algorithms, is_fips_enabled, FipsContext, FipsError, FipsMode};
@@ -236,7 +236,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 static GLOBAL_FIPS_CONTEXT: OnceLock<Arc<Mutex<Option<FipsContext>>>> = OnceLock::new();
 
 /// 获取全局 FIPS 上下文
-/// 
+///
 /// 返回一个线程安全的全局 FIPS 上下文引用。如果启用了 FIPS 模式且上下文尚未初始化，
 /// 将会尝试初始化一个新的上下文。
 #[cfg(feature = "fips")]
@@ -246,9 +246,7 @@ fn get_fips_context() -> Option<FipsContext> {
         return None;
     }
 
-    let context_lock = GLOBAL_FIPS_CONTEXT.get_or_init(|| {
-        Arc::new(Mutex::new(None))
-    });
+    let context_lock = GLOBAL_FIPS_CONTEXT.get_or_init(|| Arc::new(Mutex::new(None)));
 
     let mut context_guard = context_lock.lock().ok()?;
 

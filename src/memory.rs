@@ -56,7 +56,7 @@ impl SecretBytes {
         }
         let ptr = self.inner.as_mut_ptr() as *mut c_void;
         let len = self.inner.len();
-        
+
         // Safety: ptr is valid (from vec), len is correct. mlock expects valid pointer and length.
         let ret = unsafe { mlock(ptr, len) };
         if ret != 0 {

@@ -1,5 +1,5 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
@@ -49,8 +49,11 @@ pub struct PluginLoadError {
 
 impl std::fmt::Display for PluginLoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Plugin '{}' load error: {} (recoverable: {})", 
-               self.plugin_name, self.reason, self.recoverable)
+        write!(
+            f,
+            "Plugin '{}' load error: {} (recoverable: {})",
+            self.plugin_name, self.reason, self.recoverable
+        )
     }
 }
 

@@ -101,7 +101,6 @@ impl Hkdf {
     }
 }
 
-
 #[allow(dead_code)]
 pub struct Pbkdf2;
 
@@ -149,11 +148,7 @@ pub struct Argon2id;
 #[allow(dead_code)]
 impl Argon2id {
     #[allow(dead_code)]
-    pub fn derive(
-        password: &[u8],
-        salt: &[u8],
-        output_algo: Algorithm,
-    ) -> Result<Key> {
+    pub fn derive(password: &[u8], salt: &[u8], output_algo: Algorithm) -> Result<Key> {
         let key_size = output_algo.key_size();
         let mut derived_key = vec![0u8; key_size];
 
@@ -177,22 +172,22 @@ impl Argon2id {
 }
 
 /// SM3 Key Derivation Function (KDF) implementation
-/// 
+///
 /// This implementation follows the GB/T 32918.4-2016 standard.
 pub struct Sm3Kdf;
 
 impl Sm3Kdf {
     /// Derive a key using SM3-KDF
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `master_key` - The master key to derive from
     /// * `data` - The input data (Z || other info)
     /// * `key_len` - The desired length of the derived key in bytes
     /// * `output_algo` - The algorithm for the derived key
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns the derived key
     pub fn derive(
         master_key: &Key,
@@ -202,7 +197,7 @@ impl Sm3Kdf {
     ) -> Result<Key> {
         // SM3 produces 32-byte (256-bit) hash
         const HASH_LEN: usize = 32;
-        
+
         // Check if key length is valid (limit to reasonable size, e.g., 1024 bytes)
         if key_len == 0 || key_len > 1024 {
             return Err(CryptoError::InvalidParameter(format!(
@@ -213,19 +208,21 @@ impl Sm3Kdf {
 
         let secret = master_key.secret_bytes()?;
         let secret_bytes = secret.as_bytes();
-        
+
         // Calculate number of blocks needed: ceil(key_len / HASH_LEN)
         let n = key_len.div_ceil(HASH_LEN);
-        
+
         // Counter is 32-bit big-endian integer, starting from 1
-        // If n >= 2^32, we can't represent the counter. 
+        // If n >= 2^32, we can't represent the counter.
         // With key_len limit of 1024, n is at most 32, so we are safe.
         if n > (u32::MAX as usize) {
-            return Err(CryptoError::InvalidParameter("Key length too large".to_string()));
+            return Err(CryptoError::InvalidParameter(
+                "Key length too large".to_string(),
+            ));
         }
 
         let mut derived_key = Vec::with_capacity(key_len);
-        
+
         // KDF = H(Z || ct) || H(Z || ct+1) ...
         // Note: The standard typically defines input as Z || ct where Z is seed/secret
         // But implementation details vary. Based on typical SM3 KDF:
@@ -238,7 +235,7 @@ impl Sm3Kdf {
         // but to strictly follow standard KDF often takes a single input stream.
         // Let's assume input Z is constructed by caller or we use (secret || data).
         // For general KDF usage here: H(secret || data || ct)
-        
+
         // use libsm::sm3::hash::{Sm3Hash, Digest};
 
         for i in 1..=n {
@@ -246,20 +243,20 @@ impl Sm3Kdf {
             input.extend_from_slice(secret_bytes);
             input.extend_from_slice(data);
             input.extend_from_slice(&(i as u32).to_be_bytes());
-            
+
             let mut hasher = Sm3Hash::new(&input);
             let hash = hasher.get_hash();
             derived_key.extend_from_slice(&hash);
         }
-        
+
         // Truncate to requested length
         derived_key.truncate(key_len);
-        
+
         let result = Key::new_active(output_algo, derived_key.clone());
-        
+
         // Zeroize intermediate buffer
         derived_key.zeroize();
-        
+
         result
     }
 }

@@ -545,14 +545,14 @@ mod tests {
         let detector = ErrorInjectionDetector::new();
 
         // Update with some data
-            detector.update(0x1234567890ABCDEF);
-            detector.update(0xFEDCBA0987654321);
+        detector.update(0x1234567890ABCDEF);
+        detector.update(0xFEDCBA0987654321);
 
-            // Sleep to avoid false positive from timing anomaly detector (too fast)
-            std::thread::sleep(std::time::Duration::from_micros(10));
+        // Sleep to avoid false positive from timing anomaly detector (too fast)
+        std::thread::sleep(std::time::Duration::from_micros(10));
 
-            // Normal operation should not detect faults
-            assert!(!detector.detect_fault());
+        // Normal operation should not detect faults
+        assert!(!detector.detect_fault());
 
         // Test with many updates (but below fault threshold)
         for i in 0..1000 {
@@ -668,11 +668,17 @@ mod tests {
 
         // Normal readings should pass
         assert!(shield.add_sensor_reading(SensorType::Voltage, 3300).is_ok());
-        assert!(shield.add_sensor_reading(SensorType::Electromagnetic, 500).is_ok());
+        assert!(shield
+            .add_sensor_reading(SensorType::Electromagnetic, 500)
+            .is_ok());
         assert!(shield.check_all().is_ok());
 
         // Faulty readings should fail
-        assert!(shield.add_sensor_reading(SensorType::Voltage, 3000).is_err());
-        assert!(shield.add_sensor_reading(SensorType::Electromagnetic, 1500).is_err());
+        assert!(shield
+            .add_sensor_reading(SensorType::Voltage, 3000)
+            .is_err());
+        assert!(shield
+            .add_sensor_reading(SensorType::Electromagnetic, 1500)
+            .is_err());
     }
 }

@@ -1,5 +1,5 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
@@ -32,7 +32,7 @@ impl PluginManager {
         let mut plugins = self.plugins.write().map_err(|_| {
             CryptoError::PluginError("Failed to acquire plugin registry lock".into())
         })?;
-        
+
         plugins.insert(plugin.name().to_string(), plugin.clone());
         Ok(())
     }
@@ -41,7 +41,7 @@ impl PluginManager {
         let mut cipher_plugins = self.cipher_plugins.write().map_err(|_| {
             CryptoError::PluginError("Failed to acquire cipher plugin registry lock".into())
         })?;
-        
+
         for algo in plugin.supported_algorithms() {
             cipher_plugins.insert(algo, plugin.clone());
         }
@@ -58,37 +58,38 @@ impl PluginManager {
     }
 
     pub fn list_plugins(&self) -> Vec<String> {
-        self.plugins.read()
+        self.plugins
+            .read()
             .map(|plugins| plugins.keys().cloned().collect())
             .unwrap_or_default()
     }
 
     pub fn health_check_all(&self) -> HashMap<String, bool> {
         let mut results = HashMap::new();
-        
+
         if let Ok(plugins) = self.plugins.read() {
             for (name, plugin) in plugins.iter() {
                 let health = plugin.health_check().unwrap_or(false);
                 results.insert(name.clone(), health);
             }
         }
-        
+
         results
     }
 
     pub fn monitor_plugins(&self) -> Result<()> {
         let start_time = Instant::now();
         let mut failure_counts: HashMap<String, u32> = HashMap::new();
-        
+
         loop {
             std::thread::sleep(self.health_check_interval);
-            
+
             let health_results = self.health_check_all();
-            
+
             for (name, is_healthy) in health_results {
                 if !is_healthy {
                     *failure_counts.entry(name.clone()).or_insert(0) += 1;
-                    
+
                     if failure_counts[&name] >= self.max_failures {
                         self.handle_plugin_failure(&name)?;
                         failure_counts.remove(&name);
@@ -97,29 +98,29 @@ impl PluginManager {
                     failure_counts.remove(&name);
                 }
             }
-            
+
             // Stop monitoring after reasonable time for testing
             if start_time.elapsed() > Duration::from_secs(300) {
                 break;
             }
         }
-        
+
         Ok(())
     }
 
     fn handle_plugin_failure(&self, plugin_name: &str) -> Result<()> {
         eprintln!("Plugin '{}' failed health check - unloading", plugin_name);
-        
+
         // Remove from registries
         if let Ok(mut plugins) = self.plugins.write() {
             plugins.remove(plugin_name);
         }
-        
+
         // Remove associated cipher plugins
         if let Ok(mut cipher_plugins) = self.cipher_plugins.write() {
             cipher_plugins.retain(|_, plugin| plugin.name() != plugin_name);
         }
-        
+
         Ok(())
     }
 
@@ -127,12 +128,12 @@ impl PluginManager {
         let plugins = self.plugins.read().map_err(|_| {
             CryptoError::PluginError("Failed to acquire plugin registry lock for shutdown".into())
         })?;
-        
+
         for (name, _plugin) in plugins.iter() {
             println!("Unloading plugin: {}", name);
             // In a real implementation, we would call a cleanup method on the plugin
         }
-        
+
         Ok(())
     }
 }

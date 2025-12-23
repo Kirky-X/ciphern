@@ -111,7 +111,7 @@ impl Default for OperationMetrics {
 }
 
 impl OperationMetrics {
-#[allow(dead_code)]
+    #[allow(dead_code)]
     fn update(&mut self, latency_us: u64, data_size: usize, cache_hit: bool) {
         self.total_latency_us += latency_us;
         self.min_latency_us = self.min_latency_us.min(latency_us);
@@ -125,7 +125,7 @@ impl OperationMetrics {
         }
     }
 
-#[allow(dead_code)]
+    #[allow(dead_code)]
     fn to_stats(&self) -> PerformanceStats {
         let avg_latency = if self.operation_count > 0 {
             self.total_latency_us as f64 / self.operation_count as f64
@@ -190,7 +190,7 @@ impl PerformanceMonitor {
     }
 
     /// Record performance metrics for an operation
-#[allow(dead_code)]
+    #[allow(dead_code)]
     pub fn record_operation(
         &self,
         operation: &str,
@@ -818,7 +818,10 @@ mod tests {
     #[test]
     fn test_audit_logger_basic() {
         // Use a unique key for this test to avoid interference from other tests running in parallel
-        let test_key = format!("test_key_basic_{}", Utc::now().timestamp_nanos_opt().unwrap_or(0));
+        let test_key = format!(
+            "test_key_basic_{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        );
 
         // Log some operations
         AuditLogger::log(
@@ -833,7 +836,7 @@ mod tests {
             Some(&test_key),
             Err("test error"),
         );
-        
+
         // Wait briefly for async logging to propagate (though sync buffer is immediate)
         thread::sleep(std::time::Duration::from_millis(100));
 
@@ -853,11 +856,13 @@ mod tests {
         // Verify we have at least the logs we expect
         assert!(
             !keygen_logs.is_empty(),
-            "Should have at least 1 KEY_GENERATE log for key {}", test_key
+            "Should have at least 1 KEY_GENERATE log for key {}",
+            test_key
         );
         assert!(
             !encrypt_logs.is_empty(),
-            "Should have at least 1 ENCRYPT log for key {}", test_key
+            "Should have at least 1 ENCRYPT log for key {}",
+            test_key
         );
 
         // Parse and verify one of the KEY_GENERATE logs
@@ -869,7 +874,10 @@ mod tests {
     #[test]
     fn test_audit_logger_concurrent() {
         // Use a unique prefix for this test
-        let test_prefix = format!("concurrent_key_{}", Utc::now().timestamp_nanos_opt().unwrap_or(0));
+        let test_prefix = format!(
+            "concurrent_key_{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        );
         let test_prefix_clone = test_prefix.clone();
 
         // Log operations concurrently
@@ -899,16 +907,18 @@ mod tests {
         thread::sleep(std::time::Duration::from_millis(200));
 
         let logs = AuditLogger::get_logs();
-        
+
         // Count logs belonging to this test run
-        let test_logs: Vec<_> = logs.iter()
+        let test_logs: Vec<_> = logs
+            .iter()
             .filter(|log| log.contains(&test_prefix))
             .collect();
 
         // Check that at least 100 logs are present
         assert!(
             test_logs.len() >= 100,
-            "Expected at least 100 logs for this test, found {}", test_logs.len()
+            "Expected at least 100 logs for this test, found {}",
+            test_logs.len()
         );
     }
 

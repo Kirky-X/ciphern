@@ -326,7 +326,7 @@ fn safe_fill_bytes_fallback(ptr: *mut u8, len: usize) -> Result<()> {
             "Null pointer passed to fill_bytes".to_string(),
         ));
     }
-    
+
     if len == 0 {
         return Ok(());
     }
@@ -342,7 +342,7 @@ fn safe_fill_bytes_fallback(ptr: *mut u8, len: usize) -> Result<()> {
 impl BooleanMask {
     pub fn new(size: usize) -> Result<Self> {
         let mut mask_bytes = vec![0u8; size.div_ceil(8)];
-        
+
         // Use safe fill method
         if let Ok(rng) = SecureRandom::new() {
             // SecureRandom::fill is safe, but if we were using raw pointers we'd use safe_fill_bytes
@@ -360,7 +360,6 @@ impl BooleanMask {
 
         Ok(Self { masks })
     }
-
 
     pub fn mask_bool(&self, index: usize, value: bool) -> bool {
         if index < self.masks.len() {
@@ -888,7 +887,11 @@ mod tests {
             let original = i as u8;
             let (masked, mask) = mask_value(original).unwrap();
             let unmasked = unmask_value(masked, mask);
-            assert_eq!(unmasked, original, "XOR masking failed for value {}", original);
+            assert_eq!(
+                unmasked, original,
+                "XOR masking failed for value {}",
+                original
+            );
 
             // Masked value should be different from original when mask is non-zero
             if mask != 0 {
@@ -907,11 +910,18 @@ mod tests {
         for &value in &test_values {
             let masked = mask.mask(value);
             let unmasked = mask.unmask(masked);
-            assert_eq!(unmasked, value, "Multiplicative masking failed for value 0x{:08x}", value);
+            assert_eq!(
+                unmasked, value,
+                "Multiplicative masking failed for value 0x{:08x}",
+                value
+            );
 
             // Masked value should be different from original (except for 0)
             if value != 0 {
-                assert_ne!(masked, value, "Multiplicative mask should change non-zero values");
+                assert_ne!(
+                    masked, value,
+                    "Multiplicative mask should change non-zero values"
+                );
             }
         }
     }
@@ -948,10 +958,18 @@ mod tests {
 
         // Check that we get a reasonable distribution of mask values
         let zero_count = mask_counts.iter().filter(|&&c| c == 0).count();
-        assert!(zero_count < 200, "Too many mask values never used: {}", zero_count);
+        assert!(
+            zero_count < 200,
+            "Too many mask values never used: {}",
+            zero_count
+        );
 
         let max_count = *mask_counts.iter().max().unwrap();
-        assert!(max_count < 20, "Mask value used too frequently: {}", max_count);
+        assert!(
+            max_count < 20,
+            "Mask value used too frequently: {}",
+            max_count
+        );
     }
 
     #[test]
@@ -972,7 +990,11 @@ mod tests {
                 changed_count += 1;
             }
         }
-        assert!(changed_count > 800, "Masking should change most bytes, only changed {}", changed_count);
+        assert!(
+            changed_count > 800,
+            "Masking should change most bytes, only changed {}",
+            changed_count
+        );
     }
 
     #[test]

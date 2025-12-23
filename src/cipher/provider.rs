@@ -3,12 +3,12 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use crate::error::{Result, CryptoError};
+use crate::error::{CryptoError, Result};
 use crate::key::Key;
 use crate::types::Algorithm;
-use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
 use lazy_static::lazy_static;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use crate::cipher::aes::AesGcmProvider;
 use crate::cipher::sm4::Sm4GcmProvider;

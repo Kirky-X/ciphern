@@ -16,8 +16,8 @@ use ciphern::cipher::aes::{Aes256GcmProvider, AesGcmProvider};
 use ciphern::cipher::sm4::Sm4GcmProvider;
 use ciphern::key::Key;
 use ciphern::provider::SymmetricCipher;
-use ciphern::types::Algorithm;
 use ciphern::side_channel::SideChannelConfig;
+use ciphern::types::Algorithm;
 use std::time::{Duration, Instant};
 
 /// 侧信道防护测试配置
@@ -481,15 +481,18 @@ impl SideChannelProtectionTester {
         }
 
         let n = measurements.len() as f64;
-        
+
         // Calculate mean and variance for measurements (x)
         let mean_x = measurements.iter().sum::<f64>() / n;
-        let var_x = measurements.iter().map(|x| (x - mean_x).powi(2)).sum::<f64>();
+        let var_x = measurements
+            .iter()
+            .map(|x| (x - mean_x).powi(2))
+            .sum::<f64>();
 
         // We assume we are correlating against the Hamming weight model or linear model of index
         // In the original code, it was correlating against index `i`.
         // Let y = i (the index, representing time or operation sequence)
-        
+
         let mean_y = (n - 1.0) / 2.0;
         // Sum of (i - mean_y)^2
         // = Sum(i^2) - 2*mean_y*Sum(i) + n*mean_y^2
@@ -737,9 +740,9 @@ mod tests {
         use ciphern::side_channel::cache_protection::CachePartition;
         let partition = CachePartition::new(4, 2);
         let data = partition.allocate_in_partition(256);
-        
+
         println!("Data length: {}", data.len());
-        
+
         // Check that only partition-aligned locations are touched
         let mut touched_count = 0;
         for &byte in &data {
@@ -747,9 +750,9 @@ mod tests {
                 touched_count += 1;
             }
         }
-        
+
         println!("Touched count: {}", touched_count);
-        
+
         // Manual calculation for n=256
         let manual_calc = 256;
         assert_eq!(touched_count, manual_calc);

@@ -391,10 +391,8 @@ impl Default for EmbeddedPowerProtectorBuilder {
 
 #[cfg(test)]
 mod tests {
+    use super::{EmbeddedPowerConfig, EmbeddedPowerProtector, EmbeddedPowerProtectorBuilder};
     use crate::error::CryptoError;
-    use super::{
-        EmbeddedPowerConfig, EmbeddedPowerProtector, EmbeddedPowerProtectorBuilder,
-    };
 
     #[test]
     fn test_embedded_power_protector_creation() {

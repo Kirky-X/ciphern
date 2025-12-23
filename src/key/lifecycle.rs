@@ -184,7 +184,9 @@ impl KeyLifecycleManager {
 
         // 检查活跃版本
         if let Some(active_version) = key_versions.iter().find(|v| v.is_active) {
-            let policy = self.get_policy(active_version.algorithm).unwrap_or_default();
+            let policy = self
+                .get_policy(active_version.algorithm)
+                .unwrap_or_default();
             let now = Utc::now();
 
             // 检查是否过期
@@ -319,27 +321,30 @@ impl KeyLifecycleManager {
         // 由于这里只能确认密钥存在，我们只能返回一般性警告
         if policy.rotation_warning_period > Duration::zero() {
             // 尝试从 schedule 中获取时间信息
-            let schedule = self.rotation_schedule.read().map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+            let schedule = self
+                .rotation_schedule
+                .read()
+                .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
             if let Some(next_rotation) = schedule.get(key_id) {
-                 let now = Utc::now();
-                 let duration = *next_rotation - now;
-                 if duration > Duration::zero() {
-                     if duration < policy.rotation_warning_period {
-                         return Ok(Some(format!(
+                let now = Utc::now();
+                let duration = *next_rotation - now;
+                if duration > Duration::zero() {
+                    if duration < policy.rotation_warning_period {
+                        return Ok(Some(format!(
                             "Key {} is expiring in less than {:?}. Please rotate soon.",
                             key_id, duration
                         )));
-                     }
-                 } else {
-                     // 已经过期
-                     return Ok(Some(format!(
+                    }
+                } else {
+                    // 已经过期
+                    return Ok(Some(format!(
                         "Key {} has expired. Please rotate immediately.",
                         key_id
                     )));
-                 }
+                }
             } else {
-                 // 没有轮换计划，可能是新导入的密钥
-                 return Ok(Some(format!(
+                // 没有轮换计划，可能是新导入的密钥
+                return Ok(Some(format!(
                     "Key {} exists but has no rotation schedule. It may be unmanaged.",
                     key_id
                 )));
@@ -417,7 +422,9 @@ impl KeyLifecycleManager {
             if let Some(key_versions) = versions.get(key_id) {
                 if let Some(active_version) = key_versions.iter().find(|v| v.is_active) {
                     // 使用正确的算法进行轮换
-                    if let Ok(new_key_id) = self.rotate_key(key_manager, key_id, active_version.algorithm) {
+                    if let Ok(new_key_id) =
+                        self.rotate_key(key_manager, key_id, active_version.algorithm)
+                    {
                         rotated_keys.push(new_key_id);
                     }
                 }

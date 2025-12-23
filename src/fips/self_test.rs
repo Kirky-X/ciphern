@@ -60,7 +60,8 @@ impl FipsSelfTestEngine {
     }
 
     pub fn is_in_error_state(&self) -> bool {
-        self.in_error_state.load(std::sync::atomic::Ordering::SeqCst)
+        self.in_error_state
+            .load(std::sync::atomic::Ordering::SeqCst)
     }
 
     pub fn can_perform_crypto_operations(&self) -> bool {
@@ -71,8 +72,12 @@ impl FipsSelfTestEngine {
         // Implementation for KAT verification
         // For testing purpose, we can simulate failure for specific test vector
         if test_vector == b"invalid test vector" {
-            self.in_error_state.store(true, std::sync::atomic::Ordering::SeqCst);
-            return Err(crate::error::CryptoError::FipsError(format!("KAT failed for {}", algorithm)));
+            self.in_error_state
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            return Err(crate::error::CryptoError::FipsError(format!(
+                "KAT failed for {}",
+                algorithm
+            )));
         }
         Ok(())
     }
@@ -464,7 +469,7 @@ impl FipsSelfTestEngine {
 
         // 生成足够的随机数进行NIST测试
         // 增加到 100,000 字节，以获得更稳定的统计特性，避免误报
-        let mut random_bytes = vec![0u8; 100000]; 
+        let mut random_bytes = vec![0u8; 100000];
         if crate::random::SecureRandom::new()
             .and_then(|rng| rng.fill(&mut random_bytes))
             .is_err()
@@ -775,9 +780,9 @@ impl FipsSelfTestEngine {
         let timestamp = std::time::SystemTime::now();
 
         #[cfg(feature = "encrypt")]
-        use crate::key::Key;
-        #[cfg(feature = "encrypt")]
         use crate::cipher::provider::REGISTRY;
+        #[cfg(feature = "encrypt")]
+        use crate::key::Key;
 
         let mut all_passed = true;
         let mut error_messages = Vec::new();
@@ -888,8 +893,8 @@ impl FipsSelfTestEngine {
         let test_name = "rsa_pairwise_consistency".to_string();
         let timestamp = std::time::SystemTime::now();
 
-        use crate::key::Key;
         use crate::cipher::provider::REGISTRY;
+        use crate::key::Key;
 
         let mut all_passed = true;
         let mut error_messages = Vec::new();
@@ -909,24 +914,25 @@ impl FipsSelfTestEngine {
                 Algorithm::RSA2048 | Algorithm::RSA3072 | Algorithm::RSA4096 => {
                     use rand::rngs::OsRng;
                     use rsa::{pkcs8::EncodePrivateKey, RsaPrivateKey};
-                    
+
                     let bits = match algo {
                         Algorithm::RSA2048 => 2048,
                         Algorithm::RSA3072 => 3072,
                         Algorithm::RSA4096 => 4096,
                         _ => unreachable!(),
                     };
-                    
+
                     let mut rng = OsRng;
-                    let private_key_rsa = RsaPrivateKey::new(&mut rng, bits)
-                        .map_err(|e| CryptoError::KeyError(format!("Failed to generate RSA key: {}", e)))?;
-                        
-                    let pkcs8_bytes = private_key_rsa
-                        .to_pkcs8_der()
-                        .map_err(|e| CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e)))?;
-                        
+                    let private_key_rsa = RsaPrivateKey::new(&mut rng, bits).map_err(|e| {
+                        CryptoError::KeyError(format!("Failed to generate RSA key: {}", e))
+                    })?;
+
+                    let pkcs8_bytes = private_key_rsa.to_pkcs8_der().map_err(|e| {
+                        CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e))
+                    })?;
+
                     pkcs8_bytes.as_bytes().to_vec()
-                },
+                }
                 _ => {
                     return Err(CryptoError::UnsupportedAlgorithm(format!(
                         "Unsupported RSA algorithm: {:?}",
@@ -1029,8 +1035,8 @@ impl FipsSelfTestEngine {
         let test_name = "ed25519_pairwise_consistency".to_string();
         let timestamp = std::time::SystemTime::now();
 
-        use crate::key::Key;
         use crate::cipher::provider::REGISTRY;
+        use crate::key::Key;
 
         let signer = REGISTRY.get_signer(Algorithm::Ed25519)?;
 
@@ -1219,7 +1225,7 @@ impl FipsSelfTestEngine {
         // If the health test fails due to statistical anomalies, we should log it but not fail hard
         // unless it's a catastrophic failure.
         // However, for FIPS, failure means failure.
-        
+
         test_results.insert(rng_result.test_name.clone(), rng_result);
         test_results.insert(aes_result.test_name.clone(), aes_result);
 
@@ -1233,8 +1239,10 @@ impl FipsSelfTestEngine {
         let ones = data.iter().map(|&b| b.count_ones() as u64).sum::<u64>();
         let zeros = data.len() as u64 * 8 - ones;
         let n = data.len() as u64 * 8;
-        if n == 0 { return true; }
-        
+        if n == 0 {
+            return true;
+        }
+
         let s = (ones as i64 - zeros as i64).abs();
         let statistic = s as f64 / (n as f64).sqrt();
 
@@ -1269,9 +1277,8 @@ impl FipsSelfTestEngine {
 
         // NIST SP 800-22 Rev 1a 2.2.4
         // Chi-squared = 4M * sum((pi_i - 1/2)^2)
-        let chi_squared = 4.0
-            * block_size as f64
-            * proportions.iter().map(|&p| (p - 0.5).powi(2)).sum::<f64>();
+        let chi_squared =
+            4.0 * block_size as f64 * proportions.iter().map(|&p| (p - 0.5).powi(2)).sum::<f64>();
 
         // P-value = igamc(N/2, chi_squared/2)
         // Pass if P-value >= 0.01
@@ -1356,7 +1363,7 @@ impl FipsSelfTestEngine {
 
         for i in 0..num_matrices {
             let start_bit = i * matrix_size * matrix_size;
-            
+
             // 构建矩阵
             let mut matrix = Vec::with_capacity(matrix_size);
             for row in 0..matrix_size {
@@ -1365,7 +1372,7 @@ impl FipsSelfTestEngine {
                     let bit_idx = start_bit + row * matrix_size + col;
                     let byte_idx = bit_idx / 8;
                     let bit_pos = bit_idx % 8;
-                    
+
                     if byte_idx < data.len() && (data[byte_idx] & (1 << (7 - bit_pos))) != 0 {
                         row_val |= 1 << (matrix_size - 1 - col);
                     }
@@ -1377,18 +1384,20 @@ impl FipsSelfTestEngine {
             let mut rank = 0;
             let mut row = 0;
             let mut col = 0;
-            
+
             while row < matrix_size && col < matrix_size {
                 // 寻找主元
                 let mut pivot_row = row;
-                while pivot_row < matrix_size && (matrix[pivot_row] & (1 << (matrix_size - 1 - col))) == 0 {
+                while pivot_row < matrix_size
+                    && (matrix[pivot_row] & (1 << (matrix_size - 1 - col))) == 0
+                {
                     pivot_row += 1;
                 }
 
                 if pivot_row < matrix_size {
                     // 交换行
                     matrix.swap(row, pivot_row);
-                    
+
                     // 消元
                     let pivot_val = matrix[row];
                     for item in matrix.iter_mut().take(matrix_size).skip(row + 1) {
@@ -1413,10 +1422,14 @@ impl FipsSelfTestEngine {
         let p_minus_one = 0.5776;
         let p_remainder = 0.1336;
 
-        let chi_squared = 
-            (full_rank_matrices as f64 - p_full * num_matrices as f64).powi(2) / (p_full * num_matrices as f64) +
-            (rank_minus_one_matrices as f64 - p_minus_one * num_matrices as f64).powi(2) / (p_minus_one * num_matrices as f64) +
-            ((num_matrices - full_rank_matrices - rank_minus_one_matrices) as f64 - p_remainder * num_matrices as f64).powi(2) / (p_remainder * num_matrices as f64);
+        let chi_squared = (full_rank_matrices as f64 - p_full * num_matrices as f64).powi(2)
+            / (p_full * num_matrices as f64)
+            + (rank_minus_one_matrices as f64 - p_minus_one * num_matrices as f64).powi(2)
+                / (p_minus_one * num_matrices as f64)
+            + ((num_matrices - full_rank_matrices - rank_minus_one_matrices) as f64
+                - p_remainder * num_matrices as f64)
+                .powi(2)
+                / (p_remainder * num_matrices as f64);
 
         // 卡方分布临界值 (df=2, alpha=0.01) -> 9.21
         chi_squared < 9.21
@@ -1563,7 +1576,7 @@ impl FipsSelfTestEngine {
 
         // 初始化表
         let mut table = vec![0; 1 << l];
-        
+
         // 初始化阶段
         for i in 0..q {
             let mut val = 0;
@@ -1586,13 +1599,14 @@ impl FipsSelfTestEngine {
         }
 
         let fn_val = sum / k as f64;
-        
+
         // 期望值和方差 (L=7)
         // Expected value for L=7: 6.1962507
         // Variance for L=7: 3.125
         let expected = 6.1962507;
         let variance = 3.125;
-        let c = 0.7 - 0.8 / l as f64 + (4.0 + 32.0 / l as f64) * (k as f64).powf(-3.0 / l as f64) / 15.0;
+        let c = 0.7 - 0.8 / l as f64
+            + (4.0 + 32.0 / l as f64) * (k as f64).powf(-3.0 / l as f64) / 15.0;
         let sigma = c * (variance / k as f64).sqrt();
 
         let statistic = (fn_val - expected).abs() / sigma;
@@ -1609,30 +1623,33 @@ impl FipsSelfTestEngine {
 
         let n = bits.len();
         let num_blocks = n / block_size;
-        
+
         if num_blocks < 10 {
-             return true; // Not enough data
+            return true; // Not enough data
         }
-        
+
         // Expected value for M=500: ~250
         // Using standard distribution buckets for chi-squared test
         // Buckets: <=-2.5, -2.5..-1.5, -1.5..-0.5, -0.5..0.5, 0.5..1.5, 1.5..2.5, >2.5
         let mut buckets = [0; 7];
-        let pi = [0.01047, 0.03125, 0.12500, 0.50000, 0.25000, 0.06250, 0.020833];
-        
-        let mu = block_size as f64 / 2.0 + (9.0 + if block_size % 2 == 0 { 1.0 } else { -1.0 }) / 36.0 
-                 - (block_size as f64 / 3.0 + 2.0 / 9.0) / 2.0f64.powi(block_size as i32);
+        let pi = [
+            0.01047, 0.03125, 0.12500, 0.50000, 0.25000, 0.06250, 0.020833,
+        ];
+
+        let mu = block_size as f64 / 2.0
+            + (9.0 + if block_size % 2 == 0 { 1.0 } else { -1.0 }) / 36.0
+            - (block_size as f64 / 3.0 + 2.0 / 9.0) / 2.0f64.powi(block_size as i32);
 
         for i in 0..num_blocks {
             let block = &bits[i * block_size..(i + 1) * block_size];
-            
+
             // Berlekamp-Massey Algorithm
             let mut l = 0;
             let mut m = -1i32;
             let mut b = vec![0u8; block_size];
             let mut c = vec![0u8; block_size];
             let mut p = vec![0u8; block_size];
-            
+
             b[0] = 1;
             c[0] = 1;
 
@@ -1646,7 +1663,7 @@ impl FipsSelfTestEngine {
                     p.copy_from_slice(&c);
                     let shift = (j as i32 - m) as usize;
                     if shift < block_size {
-                         for k in 0..block_size - shift {
+                        for k in 0..block_size - shift {
                             c[k + shift] ^= b[k];
                         }
                     }
@@ -1659,14 +1676,22 @@ impl FipsSelfTestEngine {
             }
 
             let t = if block_size % 2 == 0 { 1.0 } else { -1.0 } * (l as f64 - mu) + 2.0 / 9.0;
-            
-            if t <= -2.5 { buckets[0] += 1; }
-            else if t <= -1.5 { buckets[1] += 1; }
-            else if t <= -0.5 { buckets[2] += 1; }
-            else if t <= 0.5 { buckets[3] += 1; }
-            else if t <= 1.5 { buckets[4] += 1; }
-            else if t <= 2.5 { buckets[5] += 1; }
-            else { buckets[6] += 1; }
+
+            if t <= -2.5 {
+                buckets[0] += 1;
+            } else if t <= -1.5 {
+                buckets[1] += 1;
+            } else if t <= -0.5 {
+                buckets[2] += 1;
+            } else if t <= 0.5 {
+                buckets[3] += 1;
+            } else if t <= 1.5 {
+                buckets[4] += 1;
+            } else if t <= 2.5 {
+                buckets[5] += 1;
+            } else {
+                buckets[6] += 1;
+            }
         }
 
         let mut chi_squared = 0.0;
@@ -1693,9 +1718,11 @@ impl FipsSelfTestEngine {
 
         // Helper to calculate psi_sq (Pearson's Chi-square statistic for m-bit blocks)
         let get_psi_sq = |m_len: usize| -> f64 {
-            if m_len == 0 { return 0.0; }
+            if m_len == 0 {
+                return 0.0;
+            }
             let mut counts = std::collections::HashMap::new();
-            // Extend data to wrap around for periodic boundary conditions (NIST usually treats as non-periodic or periodic, 
+            // Extend data to wrap around for periodic boundary conditions (NIST usually treats as non-periodic or periodic,
             // but standard overlapping serial test often implies periodic or N-m+1)
             // NIST SP 800-22 Section 2.11 uses augmented sequence (appends first m-1 bits)
             let mut extended_bits = bits.clone();
@@ -1710,16 +1737,16 @@ impl FipsSelfTestEngine {
                 }
                 *counts.entry(pattern).or_insert(0) += 1;
             }
-            
+
             let _expected = n as f64 / (1 << m_len) as f64;
             let mut sum_sq = 0.0;
-            
+
             // Sum over all possible patterns
             for i in 0..(1 << m_len) {
                 let count = *counts.get(&i).unwrap_or(&0);
                 sum_sq += (count as f64).powi(2);
             }
-            
+
             (1 << m_len) as f64 / n as f64 * sum_sq - n as f64
         };
 
@@ -1735,13 +1762,13 @@ impl FipsSelfTestEngine {
         // P-value2 = igamc(2^(m-3), delta2 / 2)
         // Since we don't have igamc readily available in no-std/minimal deps without adding crates,
         // we use the Critical Value approach for the Chi-Square distribution.
-        
+
         // delta1 follows Chi-Square with df = 2^(m-1) - 2^(m-2) = 2^(m-2)
         // delta2 follows Chi-Square with df = 2^(m-1) - 2 * 2^(m-2) + 2^(m-3) = 2^(m-3)
-        
+
         let df1 = (1 << (m - 2)) as f64;
         let df2 = (1 << (m - 3)) as f64;
-        
+
         // Critical values for alpha = 0.01
         // Approximation: CV = df + 2.33 * sqrt(2*df) + 4/3 * (2.33^2 - 1) ... simplified to:
         let threshold1 = df1 + 2.33 * (2.0 * df1).sqrt();
@@ -1758,7 +1785,8 @@ impl FipsSelfTestEngine {
             .collect();
 
         let n = bits.len();
-        if n < m * 10 { // NIST recommends N >= 10*2^m, but at least reasonable size
+        if n < m * 10 {
+            // NIST recommends N >= 10*2^m, but at least reasonable size
             return true;
         }
 
@@ -1793,10 +1821,10 @@ impl FipsSelfTestEngine {
 
         // Chi-squared statistic: chi_sq = 2 * N * (ln(2) - ApEn)
         let chi_sq = 2.0 * n as f64 * (2.0f64.ln() - apen);
-        
+
         // df = 2^m
         let df = (1 << m) as f64;
-        
+
         // Critical value for alpha = 0.01
         // Since ApEn should be close to ln(2) for random data, small chi_sq is good?
         // Wait, NIST SP 800-22 Section 2.12.7:
@@ -1806,7 +1834,7 @@ impl FipsSelfTestEngine {
         // So we reject if chi_sq is LARGE.
         // Critical value for chi-squared with df = 2^m
         let threshold = df + 2.33 * (2.0 * df).sqrt();
-        
+
         chi_sq < threshold
     }
 
@@ -1816,9 +1844,11 @@ impl FipsSelfTestEngine {
             .iter()
             .flat_map(|&b| (0..8).map(move |i| if (b >> (7 - i)) & 1 != 0 { 1 } else { -1 }))
             .collect();
-        
+
         let n = bits.len();
-        if n == 0 { return true; }
+        if n == 0 {
+            return true;
+        }
 
         // Mode 0: Forward
         let mut s = 0;
@@ -1827,7 +1857,7 @@ impl FipsSelfTestEngine {
             s += bit;
             max_s = max_s.max(s.abs());
         }
-        
+
         // Mode 1: Backward
         let mut s_rev = 0;
         let mut max_s_rev = 0;
@@ -1840,15 +1870,15 @@ impl FipsSelfTestEngine {
         // NIST SP 800-22 Section 2.13
         // We use the critical value approach derived from the distribution of the maximum of a random walk.
         // The test statistic z = max_s / sqrt(n)
-        // For alpha = 0.01, critical value for |z| is roughly 2.576 (but this is for standard normal, 
+        // For alpha = 0.01, critical value for |z| is roughly 2.576 (but this is for standard normal,
         // Cusum distribution is different).
         // NIST uses an infinite series for P-value.
         // Let's use a simplified but robust threshold based on the asymptotic distribution.
         // For a Brownian bridge/excursion, the threshold for alpha=0.01 is roughly 2.0 * sqrt(n)?
         // NIST test is typically P-value < 0.01 implies fail.
-        
+
         // Let's implement the first term of the NIST series approximation which dominates
-        // P-value approx = 1 - 4/Pi * sum ... 
+        // P-value approx = 1 - 4/Pi * sum ...
         // Or simply: if max_s is too large, it fails.
         // A commonly used bound for n=100 is z=1.6 ~ 2.0.
         // Let's use the code from STS (Statistical Test Suite) reference values.
@@ -1863,9 +1893,9 @@ impl FipsSelfTestEngine {
         // P-value < 0.01 is failure.
         // Let's stick to a statistically sound threshold: 4.0 * sqrt(n).
         // If max_s > 4.0 * sqrt(n), it's extremely unlikely for a random walk.
-        
+
         let limit = 4.0 * (n as f64).sqrt();
-        
+
         max_s as f64 <= limit && max_s_rev as f64 <= limit
     }
 
@@ -1875,23 +1905,25 @@ impl FipsSelfTestEngine {
             .iter()
             .flat_map(|&b| (0..8).map(move |i| if (b >> (7 - i)) & 1 != 0 { 1 } else { -1 }))
             .collect();
-            
+
         let n = bits.len();
-        if n == 0 { return true; }
+        if n == 0 {
+            return true;
+        }
 
         let mut s = vec![0; n + 2];
         s[0] = 0;
         for i in 0..n {
-            s[i+1] = s[i] + bits[i];
+            s[i + 1] = s[i] + bits[i];
         }
-        s[n+1] = 0; // Ensure it ends with 0 for the algorithm logic (technically we wrap around or ignore)
+        s[n + 1] = 0; // Ensure it ends with 0 for the algorithm logic (technically we wrap around or ignore)
 
         // Find cycles (excursions from 0 to 0)
         let mut _j = 0; // Number of cycles
-        // NIST defines J as the number of zero crossings.
-        // Strictly: number of times S_i = 0 for i=1..N. 
-        // We append 0 at start.
-        
+                        // NIST defines J as the number of zero crossings.
+                        // Strictly: number of times S_i = 0 for i=1..N.
+                        // We append 0 at start.
+
         // Count zero crossings
         let mut zero_indices = Vec::new();
         for (i, &val) in s.iter().enumerate().take(n + 1).skip(1) {
@@ -1900,7 +1932,7 @@ impl FipsSelfTestEngine {
             }
         }
         let j_count = zero_indices.len();
-        
+
         // NIST requires J > 500 for valid test usually, but we scale down for self-test.
         // If J < max(0.005 * n, 10), we might not have enough cycles.
         if j_count < 5 {
@@ -1934,25 +1966,25 @@ impl FipsSelfTestEngine {
             // Expected total visits ~ J (since prob of visiting x before returning to 0 is |x| dependent).
             // Actually, for simple symmetric random walk, expected number of visits to x between two zeros is 1.
             // So total visits should be around J.
-            
+
             let total_visits: usize = counts.iter().map(|(&k, &v)| k * v).sum();
-            
+
             // For a random walk, the number of visits to state x in an excursion has expected value 1.
             // Variance is also well defined.
             // We use a large sample approximation: Sum of J i.i.d variables with mean 1.
             // Central Limit Theorem -> Total visits ~ Normal(J, J * Var).
             // Var(visits to x) = 2|x| - 1 ? No.
             // For x=1, visits is Geom(1/2). Mean=1, Var=1? No, Geom on {1,2,...} or {0,1,...}?
-            // P(visit x >= 1) = 1/|2x|. 
+            // P(visit x >= 1) = 1/|2x|.
             // This is getting too theoretical to derive on the fly.
-            
+
             // Alternative: Use the "Simple" check but with correct bounds.
             // If total_visits deviates significantly from J, fail.
             // Let's set a wide but statistically grounded bound: J +/- 4 * sqrt(J * Var).
             // Assuming Var approx 1-2.
             let diff = (total_visits as f64 - j_count as f64).abs();
             if diff > 5.0 * (j_count as f64).sqrt() {
-                 passed = false;
+                passed = false;
             }
         }
 
@@ -1992,37 +2024,39 @@ impl FipsSelfTestEngine {
         // Berlekamp-Massey Algorithm Implementation
         // Input: sequence of bits (not bytes)
         // Output: linear complexity L
-        
+
         let n = sequence.len();
-        if n == 0 { return 0; }
-        
-        // Convert bytes to bits if the input is meant to be bytes? 
+        if n == 0 {
+            return 0;
+        }
+
+        // Convert bytes to bits if the input is meant to be bytes?
         // The signature takes &[u8], and the usage in estimate_entropy uses data directly.
         // However, linear complexity is defined for bit sequences usually.
-        // If sequence contains 0s and 1s only, we treat as bits. 
+        // If sequence contains 0s and 1s only, we treat as bits.
         // If it contains arbitrary bytes, we should probably expand to bits or treat as field elements?
-        // Standard NIST test is for binary sequences. 
-        // Let's assume input is a byte slice representing a bit sequence (0 or 1 per byte) 
-        // OR expand bytes to bits. Given the simplified implementation check `x != 0`, 
+        // Standard NIST test is for binary sequences.
+        // Let's assume input is a byte slice representing a bit sequence (0 or 1 per byte)
+        // OR expand bytes to bits. Given the simplified implementation check `x != 0`,
         // it likely treated bytes as elements of GF(2^8) or just non-zero?
         // Let's stick to standard GF(2) Berlekamp-Massey on the expanded bit sequence for correctness.
-        
+
         let bits: Vec<u8> = sequence
             .iter()
             .flat_map(|&b| (0..8).map(move |i| (b >> (7 - i)) & 1))
             .collect();
-            
+
         let len = bits.len();
         let mut b = vec![0u8; len]; // Helper polynomial
         let mut c = vec![0u8; len]; // Connection polynomial
         let mut t = vec![0u8; len]; // Temporary polynomial
-        
+
         b[0] = 1;
         c[0] = 1;
-        
+
         let mut l = 0;
         let mut m = -1i32;
-        
+
         for n_step in 0..len {
             let mut d = bits[n_step];
             for i in 1..=l {
@@ -2030,18 +2064,18 @@ impl FipsSelfTestEngine {
                     d ^= bits[n_step - i];
                 }
             }
-            
+
             if d == 1 {
                 t.copy_from_slice(&c);
                 let shift = (n_step as i32 - m) as usize;
-                
+
                 // c(x) = c(x) + b(x) * x^(n-m)
                 for i in 0..len - shift {
                     if b[i] == 1 {
                         c[i + shift] ^= 1;
                     }
                 }
-                
+
                 if 2 * l <= n_step {
                     l = n_step + 1 - l;
                     m = n_step as i32;
@@ -2049,7 +2083,7 @@ impl FipsSelfTestEngine {
                 }
             }
         }
-        
+
         l
     }
 
@@ -2141,21 +2175,25 @@ mod tests {
         // to avoid flaky CI. But since this is FIPS, it SHOULD pass.
         // Let's relax the assertion slightly or just rely on the fact that with system RNG it should pass.
         // If it fails consistently, then we have a bug in the test implementation.
-        
+
         // For now, let's allow failure if it's purely statistical (which is hard to distinguish without parsing).
         // But wait, rng_health_test uses system RNG via getrandom/ring.
         // We'll keep the assertion but maybe print warning if it fails?
         // No, FIPS mandates it MUST pass.
-        
+
         // Given the failure log: "RNG health test failed: Block frequency test failed, Runs test failed, DFT test failed, Non-overlapping template test failed, Serial test failed, Random excursion test failed"
         // This indicates our statistical test implementation might be too strict or buggy, OR the data collection is too small.
         // We collect 20000 bits (2500 bytes).
         // NIST SP 800-22 recommends n >= 1000 for many tests, but some need more.
         // Let's check if we can increase sample size or fix test logic.
-        
+
         // The failure in `test_run_power_on_self_tests` which calls `rng_health_test` suggests we should investigate `rng_health_test` implementation.
         // But for this unit test, we will assert.
-        assert!(result.passed, "RNG health test failed: {}", result.error_message.as_deref().unwrap_or("Unknown error"));
+        assert!(
+            result.passed,
+            "RNG health test failed: {}",
+            result.error_message.as_deref().unwrap_or("Unknown error")
+        );
     }
 
     #[test]
@@ -2165,7 +2203,11 @@ mod tests {
         if let Err(e) = &result {
             println!("Power-on self tests failed with error: {:?}", e);
         }
-        assert!(result.is_ok(), "Power-on self tests failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Power-on self tests failed: {:?}",
+            result.err()
+        );
     }
 
     #[test]

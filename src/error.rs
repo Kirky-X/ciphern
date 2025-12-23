@@ -78,13 +78,18 @@ impl From<crate::ffi::interface::CiphernError> for CryptoError {
             InvalidParameter => CryptoError::InvalidParameter("FFI Invalid Parameter".into()),
             MemoryAllocationFailed => CryptoError::InternalError("Memory allocation failed".into()),
             KeyNotFound => CryptoError::KeyNotFound("Key not found via FFI".into()),
-            AlgorithmNotSupported => CryptoError::UnsupportedAlgorithm("Algorithm not supported".into()),
+            AlgorithmNotSupported => {
+                CryptoError::UnsupportedAlgorithm("Algorithm not supported".into())
+            }
             EncryptionFailed => CryptoError::EncryptionFailed("Encryption failed via FFI".into()),
             DecryptionFailed => CryptoError::DecryptionFailed("Decryption failed via FFI".into()),
             FipsError => CryptoError::FipsError("FIPS error via FFI".into()),
             KeyLifecycleError => CryptoError::KeyError("Key lifecycle error".into()),
             BufferTooSmall => CryptoError::InternalError("Buffer too small".into()),
-            InvalidKeySize => CryptoError::InvalidKeySize { expected: 0, actual: 0 }, // Lossy conversion
+            InvalidKeySize => CryptoError::InvalidKeySize {
+                expected: 0,
+                actual: 0,
+            }, // Lossy conversion
             NullPointer => CryptoError::InvalidParameter("Null pointer".into()),
             UnknownError => CryptoError::UnknownError,
         }
