@@ -13,6 +13,11 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+// PKCS#8 key generation for signature algorithms
+use ring::signature::{Ed25519KeyPair, EcdsaKeyPair};
+use ring::rand::SystemRandom;
+use rsa::{pkcs8::EncodePrivateKey, RsaPrivateKey};
+
 /// 增强的密钥管理器，支持完整的生命周期管理
 pub struct KeyManager {
     keys: Arc<RwLock<HashMap<String, Key>>>,
@@ -43,11 +48,63 @@ impl KeyManager {
         self.fips_context = Some(fips_context);
     }
 
+    /// 为签名算法生成PKCS#8格式的密钥
+    fn generate_signature_key(&self, algorithm: Algorithm) -> Result<Vec<u8>> {
+        match algorithm {
+            Algorithm::Ed25519 => {
+                // 生成Ed25519密钥对
+                let rng = SystemRandom::new();
+                let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)
+                    .map_err(|e| CryptoError::KeyError(format!("Failed to generate Ed25519 PKCS#8 key: {}", e)))?;
+                Ok(pkcs8_bytes.as_ref().to_vec())
+            }
+            Algorithm::ECDSAP256 | Algorithm::ECDSAP384 => {
+                // 生成ECDSA密钥对
+                let rng = SystemRandom::new();
+                let signing_alg = match algorithm {
+                    Algorithm::ECDSAP256 => &ring::signature::ECDSA_P256_SHA256_FIXED_SIGNING,
+                    Algorithm::ECDSAP384 => &ring::signature::ECDSA_P384_SHA384_FIXED_SIGNING,
+                    _ => return Err(CryptoError::UnsupportedAlgorithm(format!("Unsupported ECDSA algorithm: {:?}", algorithm))),
+                };
+                
+                let pkcs8_bytes = EcdsaKeyPair::generate_pkcs8(signing_alg, &rng)
+                    .map_err(|e| CryptoError::KeyError(format!("Failed to generate ECDSA PKCS#8 key: {}", e)))?;
+                
+                Ok(pkcs8_bytes.as_ref().to_vec())
+            }
+            Algorithm::RSA2048 | Algorithm::RSA3072 | Algorithm::RSA4096 => {
+                // 为RSA算法生成PKCS#8密钥
+                let mut rng = rand::rngs::OsRng;
+                let key_size = match algorithm {
+                    Algorithm::RSA2048 => 2048,
+                    Algorithm::RSA3072 => 3072,
+                    Algorithm::RSA4096 => 4096,
+                    _ => 2048,
+                };
+                
+                let private_key = RsaPrivateKey::new(&mut rng, key_size)
+                    .map_err(|e| CryptoError::KeyError(format!("Failed to generate RSA key: {}", e)))?;
+                
+                let pkcs8_bytes = private_key
+                    .to_pkcs8_der()
+                    .map_err(|e| CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e)))?;
+                
+                Ok(pkcs8_bytes.as_bytes().to_vec())
+            }
+            _ => {
+                // 对于对称算法，生成随机字节
+                let size = algorithm.key_size();
+                let mut key_data = vec![0u8; size];
+                self.rng.fill(&mut key_data)?;
+                Ok(key_data)
+            }
+        }
+    }
+
     /// 生成密钥并自动激活
     pub fn generate_key(&self, algorithm: Algorithm) -> Result<String> {
-        let size = algorithm.key_size();
-        let mut key_data = vec![0u8; size];
-        self.rng.fill(&mut key_data)?;
+        // 根据算法类型生成适当格式的密钥
+        let key_data = self.generate_signature_key(algorithm)?;
 
         let mut key = Key::new(algorithm, key_data)?;
 
@@ -88,9 +145,7 @@ impl KeyManager {
 
     /// 内部方法：使用指定ID生成密钥，可控制是否生成审计日志
     fn generate_key_with_id_internal(&self, algorithm: Algorithm, key_id: &str) -> Result<String> {
-        let size = algorithm.key_size();
-        let mut key_data = vec![0u8; size];
-        self.rng.fill(&mut key_data)?;
+        let key_data = self.generate_signature_key(algorithm)?;
 
         let mut key = Key::new_with_id(algorithm, key_data, key_id)?;
 
