@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
 use prometheus::{Counter, Histogram, HistogramOpts, Registry};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
@@ -746,6 +746,7 @@ pub fn reset_all_performance_stats() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
     use std::thread;
 
     #[test]
