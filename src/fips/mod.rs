@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 
 pub mod self_test;
 #[cfg(feature = "encrypt")]
-mod validator;
+pub mod validator;
 
 #[cfg(test)]
 mod tests;

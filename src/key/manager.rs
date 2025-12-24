@@ -6,7 +6,7 @@
 use super::{Key, KeyLifecycleManager, KeyManagerLifecycleExt, KeyManagerOperations, KeyState};
 use crate::audit::AuditLogger;
 use crate::error::{CryptoError, Result};
-use crate::fips::FipsContext;
+use crate::fips::{is_fips_enabled, validator::FipsAlgorithmValidator, FipsContext};
 use crate::random::SecureRandom;
 use crate::types::Algorithm;
 use chrono::{DateTime, Utc};
@@ -111,6 +111,11 @@ impl KeyManager {
 
     /// 生成密钥并自动激活
     pub fn generate_key(&self, algorithm: Algorithm) -> Result<String> {
+        // FIPS 模式下的算法验证
+        if is_fips_enabled() {
+            FipsAlgorithmValidator::validate_fips_compliance(&algorithm)?;
+        }
+
         // 根据算法类型生成适当格式的密钥
         let key_data = self.generate_signature_key(algorithm)?;
 
