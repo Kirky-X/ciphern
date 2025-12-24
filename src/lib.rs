@@ -83,6 +83,14 @@ impl Cipher {
         })
     }
 
+    /// Get the internal implementation provider
+    #[cfg(test)]
+    pub(crate) fn get_implementation(
+        &self,
+    ) -> std::sync::Arc<dyn cipher::provider::SymmetricCipher> {
+        self.provider.clone()
+    }
+
     /// Encrypt data using the specified key
     ///
     /// # Errors
@@ -201,7 +209,11 @@ impl Signer {
             "SIGN",
             Some(self.algorithm),
             Some(key_id),
-            if result.is_ok() { Ok(()) } else { Err("Failed") },
+            if result.is_ok() {
+                Ok(())
+            } else {
+                Err("Failed")
+            },
         );
 
         result
@@ -216,7 +228,8 @@ impl Signer {
         signature: &[u8],
     ) -> Result<bool> {
         let start = std::time::Instant::now();
-        let result = key_manager.with_key(key_id, |key| self.provider.verify(key, message, signature));
+        let result =
+            key_manager.with_key(key_id, |key| self.provider.verify(key, message, signature));
 
         // Record metrics
         audit::CRYPTO_OPERATIONS_TOTAL.inc();
@@ -227,7 +240,11 @@ impl Signer {
             "VERIFY",
             Some(self.algorithm),
             Some(key_id),
-            if result.is_ok() { Ok(()) } else { Err("Failed") },
+            if result.is_ok() {
+                Ok(())
+            } else {
+                Err("Failed")
+            },
         );
 
         result
