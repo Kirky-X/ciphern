@@ -40,6 +40,9 @@ pub use error::Result;
 pub use key::manager::KeyManager;
 #[cfg(feature = "encrypt")]
 pub use key::{Key, KeyState};
+#[cfg(feature = "kdf")]
+pub use key::derivation::{Hkdf, Pbkdf2, Argon2id, Sm3Kdf};
+pub use random::{SecureRandom, EntropySource};
 pub use types::Algorithm;
 
 /// Initialize the library (e.g., FIPS self-tests)

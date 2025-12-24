@@ -86,3 +86,43 @@ generate_headers = []
 [[bench]]
 name = "cipher_bench"
 harness = false
+
+[[example]]
+name = "symmetric_encryption"
+path = "examples/symmetric_encryption.rs"
+
+[[example]]
+name = "digital_signatures"
+path = "examples/digital_signatures.rs"
+
+[[example]]
+name = "key_management"
+path = "examples/key_management.rs"
+
+[[example]]
+name = "key_derivation"
+path = "examples/key_derivation.rs"
+
+[[example]]
+name = "hashing"
+path = "examples/hashing.rs"
+
+[[example]]
+name = "random_generation"
+path = "examples/random_generation.rs"
+
+[[example]]
+name = "streaming_encryption"
+path = "examples/streaming_encryption.rs"
+
+[[example]]
+name = "fips_compliance"
+path = "examples/fips_compliance.rs"
+
+[[example]]
+name = "python_api"
+path = "examples/python_api.rs"
+
+[[example]]
+name = "java_api"
+path = "examples/java_api.rs"
