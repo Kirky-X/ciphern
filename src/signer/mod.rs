@@ -7,3 +7,8 @@ pub mod ecdsa;
 pub mod ed25519;
 pub mod rsa;
 pub mod sm2;
+
+#[cfg(test)]
+mod tests;
+
+
