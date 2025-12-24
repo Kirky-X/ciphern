@@ -1,8 +1,10 @@
 // Copyright (c) 2025 Kirky.X
-// 
+//
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-pub mod end_to_end_test;
-pub mod key_rotation_test;
-pub mod plugin_hot_reload_test;
+#[cfg(test)]
+pub mod c_api_test;
+
+#[cfg(test)]
+pub mod java_jni_test;

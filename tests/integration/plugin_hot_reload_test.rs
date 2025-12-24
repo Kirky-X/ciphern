@@ -6,7 +6,6 @@
 use ciphern::plugin::hot_reload::HotReloadEventType;
 use ciphern::plugin::{HotReloadWatcher, PluginLoader, PluginManager, SafeReloadManager};
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -73,15 +72,15 @@ fn test_plugin_fault_isolation() {
             "1.0.0"
         }
         
-        fn initialize(&mut self) -> ciphern::error::Result<()> {
+        fn initialize(&mut self) -> ciphern::Result<()> {
             Ok(())
         }
         
-        fn shutdown(&mut self) -> ciphern::error::Result<()> {
+        fn shutdown(&mut self) -> ciphern::Result<()> {
             Ok(())
         }
         
-        fn health_check(&self) -> ciphern::error::Result<bool> {
+        fn health_check(&self) -> ciphern::Result<bool> {
             let count = self.fail_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(count < 3) // Fail after 3 checks
         }
@@ -134,15 +133,15 @@ fn test_safe_reload_manager() {
             "1.0.0"
         }
         
-        fn initialize(&mut self) -> ciphern::error::Result<()> {
+        fn initialize(&mut self) -> ciphern::Result<()> {
             Ok(())
         }
         
-        fn shutdown(&mut self) -> ciphern::error::Result<()> {
+        fn shutdown(&mut self) -> ciphern::Result<()> {
             Ok(())
         }
         
-        fn health_check(&self) -> ciphern::error::Result<bool> {
+        fn health_check(&self) -> ciphern::Result<bool> {
             Ok(self.stable.load(std::sync::atomic::Ordering::SeqCst))
         }
         
@@ -232,15 +231,15 @@ fn test_plugin_manager_integration() {
                 "1.0.0"
             }
             
-            fn initialize(&mut self) -> ciphern::error::Result<()> {
+            fn initialize(&mut self) -> ciphern::Result<()> {
                 Ok(())
             }
             
-            fn shutdown(&mut self) -> ciphern::error::Result<()> {
+            fn shutdown(&mut self) -> ciphern::Result<()> {
                 Ok(())
             }
             
-            fn health_check(&self) -> ciphern::error::Result<bool> {
+            fn health_check(&self) -> ciphern::Result<bool> {
                 Ok(true)
             }
             
