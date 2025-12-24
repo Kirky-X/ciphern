@@ -110,6 +110,7 @@ impl BaseCipherProvider {
     }
 
     /// Perform side-channel protected key expansion
+    #[allow(dead_code)]
     pub fn expand_key_protected(&self, key_bytes: &[u8]) -> crate::error::Result<Vec<u8>> {
         if key_bytes.is_empty() {
             return Err(crate::error::CryptoError::InvalidParameter(

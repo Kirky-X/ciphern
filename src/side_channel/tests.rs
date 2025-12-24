@@ -169,7 +169,7 @@ impl SideChannelProtectionTester {
             redundancy_checks_enabled: true,
             ..SideChannelConfig::default()
         };
-        let provider = Aes256GcmProvider::with_side_channel_config(config);
+        let provider = Aes256GcmProvider::with_side_channel_config(config).unwrap();
 
         let key_data = vec![0x42; 32];
         let mut key = Key::new(Algorithm::AES256GCM, key_data).unwrap();
