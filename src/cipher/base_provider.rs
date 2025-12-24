@@ -3,11 +3,13 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use crate::error::CryptoError;
 use crate::provider::SymmetricCipher;
 use crate::side_channel::{
     protect_critical_operation, RotatingSboxMasking, SideChannelConfig, SideChannelContext,
 };
 use crate::types::Algorithm;
+use log::warn;
 use std::sync::{Arc, Mutex};
 
 /// Base structure for all cipher providers with side-channel protection
@@ -19,34 +21,53 @@ pub struct BaseCipherProvider {
 
 impl BaseCipherProvider {
     /// Create a new base provider with default side-channel configuration
-    pub fn new() -> Self {
-        let side_channel_context = Some(Arc::new(Mutex::new(SideChannelContext::new(
+    pub fn new() -> Result<Self, CryptoError> {
+        let side_channel_context = Arc::new(Mutex::new(SideChannelContext::new(
             SideChannelConfig::default(),
-        ))));
-        let rotating_sbox = RotatingSboxMasking::new(4)
-            .ok()
-            .map(|sbox| Arc::new(Mutex::new(sbox)));
+        )));
 
-        Self {
-            side_channel_context,
+        let rotating_sbox = RotatingSboxMasking::new(4)
+            .map_err(|e| CryptoError::SideChannelError(format!(
+                "Failed to initialize side-channel protection (RotatingSboxMasking): {}",
+                e
+            )))
+            .map(|sbox| Some(Arc::new(Mutex::new(sbox))))?;
+
+        warn!(
+            "Side-channel protection initialized with rotating S-box masking (mask_size=4)"
+        );
+
+        Ok(Self {
+            side_channel_context: Some(side_channel_context),
             rotating_sbox,
-        }
+        })
     }
 
     /// Create a new base provider with custom side-channel configuration
-    pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
+    pub fn with_side_channel_config(config: SideChannelConfig) -> Result<Self, CryptoError> {
         let rotating_sbox = if config.power_analysis_protection {
-            RotatingSboxMasking::new(4)
-                .ok()
-                .map(|sbox| Arc::new(Mutex::new(sbox)))
+            let sbox = RotatingSboxMasking::new(4)
+                .map_err(|e| CryptoError::SideChannelError(format!(
+                    "Failed to initialize power analysis protection: {}",
+                    e
+                )))?;
+
+            warn!(
+                "Power analysis protection enabled with mask_size=4"
+            );
+
+            Some(Arc::new(Mutex::new(sbox)))
         } else {
+            warn!(
+                "Power analysis protection disabled - system is running in reduced security mode"
+            );
             None
         };
 
-        Self {
+        Ok(Self {
             side_channel_context: Some(Arc::new(Mutex::new(SideChannelContext::new(config)))),
             rotating_sbox,
-        }
+        })
     }
 
     /// Execute a critical operation with side-channel protection
@@ -138,7 +159,10 @@ impl BaseCipherProvider {
 
 impl Default for BaseCipherProvider {
     fn default() -> Self {
-        Self::new()
+        Self::new().unwrap_or_else(|e| {
+            log::error!("Failed to create default BaseCipherProvider: {}", e);
+            panic!("Critical security component initialization failed: {}", e)
+        })
     }
 }
 

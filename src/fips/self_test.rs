@@ -257,7 +257,7 @@ impl FipsSelfTestEngine {
         use crate::cipher::aes::Aes256GcmProvider;
         use crate::provider::SymmetricCipher;
 
-        let provider = Aes256GcmProvider::new();
+        let provider = Aes256GcmProvider::new()?;
         let key = Key::new_active(Algorithm::AES256GCM, key_bytes)?;
 
         // NIST SP 800-38D KAT verification
@@ -1043,7 +1043,7 @@ impl FipsSelfTestEngine {
         ];
 
         let mut all_passed = true;
-        let mut error_messages = Vec::new();
+        let mut error_messages = Vec::with_capacity(8);
         let test_vector_name = "Ed25519 测试向量";
 
         for (message, description) in test_vectors.iter() {
@@ -1610,7 +1610,13 @@ impl FipsSelfTestEngine {
         ];
 
         let mu = block_size as f64 / 2.0
-            + (9.0 + if block_size.is_multiple_of(2) { 1.0 } else { -1.0 }) / 36.0
+            + (9.0
+                + if block_size.is_multiple_of(2) {
+                    1.0
+                } else {
+                    -1.0
+                })
+                / 36.0
             - (block_size as f64 / 3.0 + 2.0 / 9.0) / 2.0f64.powi(block_size as i32);
 
         for i in 0..num_blocks {
@@ -1648,7 +1654,12 @@ impl FipsSelfTestEngine {
                 }
             }
 
-            let t = if block_size.is_multiple_of(2) { 1.0 } else { -1.0 } * (l as f64 - mu) + 2.0 / 9.0;
+            let t = if block_size.is_multiple_of(2) {
+                1.0
+            } else {
+                -1.0
+            } * (l as f64 - mu)
+                + 2.0 / 9.0;
 
             if t <= -2.5 {
                 buckets[0] += 1;
@@ -2178,7 +2189,10 @@ mod tests {
             "RNG health test failed: only {}/{} runs passed ({:.1}%). \
              This may indicate a real issue with the RNG or statistical fluctuation. \
              Errors: {}",
-            passed_count, total_runs, pass_rate * 100.0, failure_message
+            passed_count,
+            total_runs,
+            pass_rate * 100.0,
+            failure_message
         );
     }
 

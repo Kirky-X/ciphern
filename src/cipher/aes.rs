@@ -129,18 +129,18 @@ impl SymmetricCipher for AesGcmProvider {
 
 impl AesGcmProvider {
     /// Create a new AES-256 GCM provider with default configuration (backward compatibility)
-    pub fn new() -> Self {
-        Self {
-            base: BaseCipherProvider::new(),
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            base: BaseCipherProvider::new()?,
             algorithm: Algorithm::AES256GCM,
-        }
+        })
     }
 
     /// Create a new AES-GCM provider with specified algorithm
     pub fn with_algorithm(algorithm: Algorithm) -> Result<Self> {
         match algorithm {
             Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => Ok(Self {
-                base: BaseCipherProvider::new(),
+                base: BaseCipherProvider::new()?,
                 algorithm,
             }),
             _ => Err(CryptoError::UnsupportedAlgorithm(format!(
@@ -152,11 +152,11 @@ impl AesGcmProvider {
 
     /// Create a new AES-GCM provider with custom side-channel configuration
     #[allow(dead_code)]
-    pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
-        Self {
-            base: BaseCipherProvider::with_side_channel_config(config),
+    pub fn with_side_channel_config(config: SideChannelConfig) -> Result<Self> {
+        Ok(Self {
+            base: BaseCipherProvider::with_side_channel_config(config)?,
             algorithm: Algorithm::AES256GCM,
-        }
+        })
     }
 
     /// Create a new AES-GCM provider with specified algorithm and side-channel configuration
@@ -167,7 +167,7 @@ impl AesGcmProvider {
     ) -> Result<Self> {
         match algorithm {
             Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => Ok(Self {
-                base: BaseCipherProvider::with_side_channel_config(config),
+                base: BaseCipherProvider::with_side_channel_config(config)?,
                 algorithm,
             }),
             _ => Err(CryptoError::UnsupportedAlgorithm(format!(
@@ -431,7 +431,10 @@ impl AesGcmProvider {
 
 impl Default for AesGcmProvider {
     fn default() -> Self {
-        Self::new()
+        Self::new().unwrap_or_else(|e| {
+            log::error!("Failed to create default AesGcmProvider: {}", e);
+            panic!("Critical security component initialization failed: {}", e)
+        })
     }
 }
 

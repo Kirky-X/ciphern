@@ -25,7 +25,7 @@ fn test_secret_bytes_zeroized() {
 #[test]
 fn test_memory_tampering_detected() {
     let secret = SecretBytes::new(vec![0u8; 32]).unwrap();
-    let protected = ProtectedKey::new(secret.clone());
+    let protected = ProtectedKey::new(secret.clone()).unwrap();
 
     // 正常访问
     assert!(protected.access().is_ok());
@@ -46,7 +46,7 @@ fn test_memory_tampering_detected() {
 
     // 验证克隆后的完整性
     let secret2 = SecretBytes::new(vec![1u8; 32]).unwrap();
-    let protected2 = ProtectedKey::new(secret2);
+    let protected2 = ProtectedKey::new(secret2).unwrap();
     assert!(protected2.access().is_ok());
 
     // 克隆应该保持完整性
@@ -70,7 +70,7 @@ fn test_secret_bytes_cloning() {
 #[test]
 fn test_protected_key_creation() {
     let secret = SecretBytes::new(vec![0x55u8; 32]).unwrap();
-    let protected = ProtectedKey::new(secret);
+    let protected = ProtectedKey::new(secret).unwrap();
 
     // 验证可以正常访问
     let accessed_secret = protected.access().unwrap();

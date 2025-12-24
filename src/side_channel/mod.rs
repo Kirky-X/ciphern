@@ -283,9 +283,10 @@ where
         let elapsed = start.elapsed();
 
         if elapsed > config.operation_timeout {
-            return Err(CryptoError::SideChannelError(
-                format!("Operation timeout exceeded: {:?} > {:?}", elapsed, config.operation_timeout),
-            ));
+            return Err(CryptoError::SideChannelError(format!(
+                "Operation timeout exceeded: {:?} > {:?}",
+                elapsed, config.operation_timeout
+            )));
         }
 
         let min_time = config.max_timing_deviation;

@@ -146,7 +146,7 @@ impl SideChannelProtectionTester {
         key.activate(None).unwrap();
 
         let plaintext = b"Test data for power analysis";
-        let mut power_measurements = Vec::new();
+        let mut power_measurements = Vec::with_capacity(self.config.iterations);
         let mut masking_count = 0;
 
         for _ in 0..self.config.iterations {

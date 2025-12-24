@@ -116,7 +116,7 @@ impl Key {
         Ok(Self {
             id: Uuid::new_v4().to_string(),
             algorithm,
-            data: ProtectedKey::new(secret),
+            data: ProtectedKey::new(secret)?,
             state: KeyState::Generated,
             created_at: Utc::now(),
             activated_at: None,
@@ -136,7 +136,7 @@ impl Key {
         Ok(Self {
             id: Uuid::new_v4().to_string(),
             algorithm,
-            data: ProtectedKey::new(secret),
+            data: ProtectedKey::new(secret)?,
             state: KeyState::Active,
             created_at: now,
             activated_at: Some(now),
@@ -155,7 +155,7 @@ impl Key {
         Ok(Self {
             id: id.to_string(),
             algorithm,
-            data: ProtectedKey::new(secret),
+            data: ProtectedKey::new(secret)?,
             state: KeyState::Generated,
             created_at: Utc::now(),
             activated_at: None,
@@ -255,7 +255,7 @@ impl Key {
         // 清除密钥数据 - we can't access mutable, so we'll create a new zeroized key
         let zeroized_key =
             crate::memory::SecretBytes::new(vec![0u8; self.data.access()?.as_bytes().len()])?;
-        self.data = crate::memory::ProtectedKey::new(zeroized_key);
+        self.data = crate::memory::ProtectedKey::new(zeroized_key)?;
 
         crate::audit::AuditLogger::log(
             "KEY_DESTROYED",
@@ -373,12 +373,12 @@ impl Key {
 
 impl Drop for Key {
     fn drop(&mut self) {
-        // 确保密钥数据被安全清除 - create a zeroized replacement
         if let Ok(_secret) = self.data.access() {
             if let Ok(zeroized_key) =
                 crate::memory::SecretBytes::new(vec![0u8; _secret.as_bytes().len()])
             {
-                self.data = crate::memory::ProtectedKey::new(zeroized_key);
+                // 忽略错误，因为此时正在销毁
+                let _ = crate::memory::ProtectedKey::new(zeroized_key);
             }
         }
     }

@@ -25,9 +25,12 @@ impl Clone for SecretBytes {
             inner: cloned_inner,
             locked: false,
         };
-        cloned.lock_memory().expect(
-            "Failed to lock cloned SecretBytes memory - security violation detected",
-        );
+
+        if let Err(e) = cloned.lock_memory() {
+            cloned.inner.zeroize();
+            panic!("Failed to clone SecretBytes with memory lock: {}", e);
+        }
+
         cloned
     }
 }
@@ -94,18 +97,19 @@ pub struct ProtectedKey {
 }
 
 impl ProtectedKey {
-    pub fn new(key: SecretBytes) -> Self {
+    pub fn new(key: SecretBytes) -> Result<Self> {
         let mut canary = [0u8; 16];
-        // In real code, use SecureRandom. Here using simple fill for structure
-        getrandom::getrandom(&mut canary).unwrap_or_default();
+        getrandom::getrandom(&mut canary).map_err(|_| {
+            CryptoError::InsufficientEntropy
+        })?;
 
         let checksum = Self::compute_checksum(key.as_bytes(), &canary);
 
-        Self {
+        Ok(Self {
             key,
             canary,
             checksum,
-        }
+        })
     }
 
     pub fn access(&self) -> Result<&SecretBytes> {
@@ -121,8 +125,7 @@ impl ProtectedKey {
         Ok(&self.key)
     }
 
-    /// 测试用的方法：通过创建具有不同数据的ProtectedKey来验证篡改检测
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn create_with_corrupted_checksum(key: SecretBytes, corrupted_checksum: u64) -> Self {
         let mut canary = [0u8; 16];
         getrandom::getrandom(&mut canary).unwrap_or_default();
