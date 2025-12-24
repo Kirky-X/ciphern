@@ -2140,32 +2140,45 @@ mod tests {
     #[test]
     fn test_rng_health_test() {
         let engine = FipsSelfTestEngine::new();
-        let result = engine.rng_health_test().unwrap();
 
-        // RNG健康测试依赖于随机性和严格的统计测试
-        // 由于随机数生成器的概率性质，即使是良好的随机性也可能偶尔失败
-        // 这在统计测试中是正常的，特别是对于小样本
-        // 我们仍然记录失败，但不将其视为致命错误，以避免测试不稳定
+        let mut passed_count = 0;
+        let total_runs = 3;
+        let mut all_errors: Vec<String> = Vec::new();
 
-        if !result.passed {
-            println!(
-                "RNG health test failed (this can happen due to statistical variation): {}",
-                result.error_message.as_deref().unwrap_or("Unknown error")
-            );
-            println!("Note: This is a statistical test and occasional failures are expected with good randomness");
+        for i in 0..total_runs {
+            match engine.rng_health_test() {
+                Ok(result) => {
+                    if result.passed {
+                        passed_count += 1;
+                    } else {
+                        if let Some(msg) = &result.error_message {
+                            all_errors.push(format!("Run {}: {}", i + 1, msg));
+                        }
+                    }
+                }
+                Err(e) => {
+                    all_errors.push(format!("Run {}: {:?}", i + 1, e));
+                }
+            }
         }
 
-        // 对于FIPS合规性，这个测试应该通过，但我们允许在单元测试中偶尔失败
-        // 在实际FIPS部署中，会运行多次测试以确保随机性质量
-        assert!(
-            result.passed
-                || result
-                    .error_message
-                    .as_deref()
-                    .unwrap_or("")
-                    .contains("statistical"),
-            "RNG health test failed consistently - this may indicate a real issue: {}",
-            result.error_message.as_deref().unwrap_or("Unknown error")
+        let pass_rate = passed_count as f64 / total_runs as f64;
+
+        if pass_rate >= 0.67 {
+            return;
+        }
+
+        let failure_message = if all_errors.is_empty() {
+            "All test runs failed without error messages".to_string()
+        } else {
+            all_errors.join("; ")
+        };
+
+        panic!(
+            "RNG health test failed: only {}/{} runs passed ({:.1}%). \
+             This may indicate a real issue with the RNG or statistical fluctuation. \
+             Errors: {}",
+            passed_count, total_runs, pass_rate * 100.0, failure_message
         );
     }
 

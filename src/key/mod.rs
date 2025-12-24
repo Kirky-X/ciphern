@@ -74,6 +74,25 @@ impl KeyStateManager {
 }
 
 /// 密钥结构，包含完整的生命周期信息
+///
+/// ## 线程安全说明
+///
+/// `Key` 类型**不是**线程安全的（`!Send + !Sync`），因为：
+/// - `ProtectedKey` 内部包含可变状态，需要外部同步
+/// - `usage_count`、`state` 等字段在并发访问时可能导致数据竞争
+///
+/// 在多线程环境中使用时，必须通过 `Arc<Mutex<Key>>` 或 `Arc<RwLock<Key>>`
+/// 进行保护，确保同一时间只有一个线程可以修改密钥状态。
+///
+/// ## 使用示例
+///
+/// ```ignore
+/// use std::sync::{Arc, Mutex};
+/// use crate::key::{Key, KeyManager};
+///
+/// let key = Arc::new(Mutex::new(Key::new(algorithm, key_data)?));
+/// // 在多个线程中使用
+/// ```
 #[derive(Clone)]
 pub struct Key {
     id: String,
