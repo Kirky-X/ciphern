@@ -8,11 +8,16 @@ pub mod manager;
 // pub mod hot_reload; // Removed as it is unused and causes warnings
 
 use crate::error::Result;
-// use crate::key::Key;
+use crate::plugin::manager::PluginManager;
 use crate::provider::SymmetricCipher;
 use crate::types::Algorithm;
+use lazy_static::lazy_static;
 use std::any::Any;
 use std::sync::Arc;
+
+lazy_static! {
+    pub static ref PLUGIN_MANAGER: PluginManager = PluginManager::new();
+}
 
 pub trait Plugin: Send + Sync {
     fn name(&self) -> &str;

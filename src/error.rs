@@ -5,6 +5,9 @@
 
 use thiserror::Error;
 
+#[cfg(feature = "encrypt")]
+use pyo3::exceptions::PyRuntimeError;
+
 #[derive(Debug, Error)]
 pub enum CryptoError {
     #[error("Invalid key size: expected {expected}, got {actual}")]
@@ -69,6 +72,13 @@ pub enum CryptoError {
 }
 
 pub type Result<T> = std::result::Result<T, CryptoError>;
+
+#[cfg(feature = "encrypt")]
+impl std::convert::From<CryptoError> for pyo3::PyErr {
+    fn from(error: CryptoError) -> Self {
+        PyRuntimeError::new_err(error.to_string())
+    }
+}
 
 impl From<crate::ffi::interface::CiphernError> for CryptoError {
     fn from(error: crate::ffi::interface::CiphernError) -> Self {

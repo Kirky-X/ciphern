@@ -13,6 +13,8 @@ pub(crate) mod cipher;
 pub(crate) mod error;
 pub(crate) mod fips;
 #[cfg(feature = "encrypt")]
+pub(crate) mod hash;
+#[cfg(feature = "encrypt")]
 pub(crate) use cipher::provider;
 #[cfg(feature = "encrypt")]
 pub(crate) mod key;
@@ -70,13 +72,30 @@ pub struct Cipher {
 impl Cipher {
     /// Create a new cipher instance
     ///
+    /// This method first checks for plugin-provided implementations,
+    /// then falls back to built-in providers.
+    ///
     /// # Errors
     /// Returns `CryptoError` if the algorithm is not supported or FIPS validation fails
     pub fn new(algorithm: Algorithm) -> Result<Self> {
-        // FIPS 模式验证
         fips::validate_algorithm_fips(&algorithm)?;
 
-        let provider = cipher::provider::REGISTRY.get_symmetric(algorithm)?;
+        let provider: std::sync::Arc<dyn cipher::provider::SymmetricCipher> = {
+            #[cfg(feature = "plugin")]
+            {
+                if let Some(plugin_provider) = plugin::PLUGIN_MANAGER.get_cipher_provider(algorithm)
+                {
+                    plugin_provider
+                } else {
+                    cipher::provider::REGISTRY.get_symmetric(algorithm)?
+                }
+            }
+            #[cfg(not(feature = "plugin"))]
+            {
+                cipher::provider::REGISTRY.get_symmetric(algorithm)?
+            }
+        };
+
         Ok(Self {
             provider,
             algorithm,
@@ -267,33 +286,34 @@ pub struct Hash;
 impl Hash {
     /// Calculate SHA-256 hash
     pub fn sha256(data: &[u8]) -> Result<Vec<u8>> {
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
+        use hash::{AlgorithmType, MultiHash};
+        let mut hasher = MultiHash::new(AlgorithmType::Sha256)?;
         hasher.update(data);
-        Ok(hasher.finalize().to_vec())
+        Ok(hasher.finalize())
     }
 
     /// Calculate SHA-384 hash
     pub fn sha384(data: &[u8]) -> Result<Vec<u8>> {
-        use sha2::{Digest, Sha384};
-        let mut hasher = Sha384::new();
+        use hash::{AlgorithmType, MultiHash};
+        let mut hasher = MultiHash::new(AlgorithmType::Sha384)?;
         hasher.update(data);
-        Ok(hasher.finalize().to_vec())
+        Ok(hasher.finalize())
     }
 
     /// Calculate SHA-512 hash
     pub fn sha512(data: &[u8]) -> Result<Vec<u8>> {
-        use sha2::{Digest, Sha512};
-        let mut hasher = Sha512::new();
+        use hash::{AlgorithmType, MultiHash};
+        let mut hasher = MultiHash::new(AlgorithmType::Sha512)?;
         hasher.update(data);
-        Ok(hasher.finalize().to_vec())
+        Ok(hasher.finalize())
     }
 
     /// Calculate SM3 hash
     pub fn sm3(data: &[u8]) -> Result<Vec<u8>> {
-        use libsm::sm3::hash::Sm3Hash;
-        let mut hash = Sm3Hash::new(data);
-        Ok(hash.get_hash().to_vec())
+        use hash::{AlgorithmType, MultiHash};
+        let mut hasher = MultiHash::new(AlgorithmType::Sm3)?;
+        hasher.update(data);
+        Ok(hasher.finalize())
     }
 }
 

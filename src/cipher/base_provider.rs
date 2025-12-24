@@ -27,15 +27,15 @@ impl BaseCipherProvider {
         )));
 
         let rotating_sbox = RotatingSboxMasking::new(4)
-            .map_err(|e| CryptoError::SideChannelError(format!(
-                "Failed to initialize side-channel protection (RotatingSboxMasking): {}",
-                e
-            )))
+            .map_err(|e| {
+                CryptoError::SideChannelError(format!(
+                    "Failed to initialize side-channel protection (RotatingSboxMasking): {}",
+                    e
+                ))
+            })
             .map(|sbox| Some(Arc::new(Mutex::new(sbox))))?;
 
-        warn!(
-            "Side-channel protection initialized with rotating S-box masking (mask_size=4)"
-        );
+        warn!("Side-channel protection initialized with rotating S-box masking (mask_size=4)");
 
         Ok(Self {
             side_channel_context: Some(side_channel_context),
@@ -46,15 +46,14 @@ impl BaseCipherProvider {
     /// Create a new base provider with custom side-channel configuration
     pub fn with_side_channel_config(config: SideChannelConfig) -> Result<Self, CryptoError> {
         let rotating_sbox = if config.power_analysis_protection {
-            let sbox = RotatingSboxMasking::new(4)
-                .map_err(|e| CryptoError::SideChannelError(format!(
+            let sbox = RotatingSboxMasking::new(4).map_err(|e| {
+                CryptoError::SideChannelError(format!(
                     "Failed to initialize power analysis protection: {}",
                     e
-                )))?;
+                ))
+            })?;
 
-            warn!(
-                "Power analysis protection enabled with mask_size=4"
-            );
+            warn!("Power analysis protection enabled with mask_size=4");
 
             Some(Arc::new(Mutex::new(sbox)))
         } else {

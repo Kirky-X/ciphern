@@ -121,6 +121,9 @@ impl KeyManager {
 
         let id = key.id().to_string();
 
+        // 记录审计日志
+        AuditLogger::log("KEY_GENERATE", Some(algorithm), Some(&id), Ok(()));
+
         {
             let mut store = self
                 .keys

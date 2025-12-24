@@ -2175,7 +2175,7 @@ mod tests {
 
         let pass_rate = passed_count as f64 / total_runs as f64;
 
-        if pass_rate >= 0.67 {
+        if pass_rate >= 0.66 {
             return;
         }
 

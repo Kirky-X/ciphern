@@ -99,9 +99,7 @@ pub struct ProtectedKey {
 impl ProtectedKey {
     pub fn new(key: SecretBytes) -> Result<Self> {
         let mut canary = [0u8; 16];
-        getrandom::getrandom(&mut canary).map_err(|_| {
-            CryptoError::InsufficientEntropy
-        })?;
+        getrandom::getrandom(&mut canary).map_err(|_| CryptoError::InsufficientEntropy)?;
 
         let checksum = Self::compute_checksum(key.as_bytes(), &canary);
 

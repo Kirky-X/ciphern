@@ -10,10 +10,10 @@ use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
 use crate::side_channel::SideChannelConfig;
 use crate::types::Algorithm;
-use aes_gcm::aead::{Aead, AeadCore, KeyInit, Payload};
 use aes_gcm::aead::consts::U12;
-use aes_gcm::{Aes128Gcm, AesGcm};
+use aes_gcm::aead::{Aead, AeadCore, KeyInit, Payload};
 use aes_gcm::aes::Aes192;
+use aes_gcm::{Aes128Gcm, AesGcm};
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
 /// Unified AES-GCM Provider supporting AES-128, AES-192, and AES-256
