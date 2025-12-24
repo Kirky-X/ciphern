@@ -90,10 +90,21 @@ impl BaseCipherProvider {
 
     /// Perform side-channel protected key expansion
     pub fn expand_key_protected(&self, key_bytes: &[u8]) -> crate::error::Result<Vec<u8>> {
-        // If we have rotating S-box protection, use it for key expansion
+        if key_bytes.is_empty() {
+            return Err(crate::error::CryptoError::InvalidParameter(
+                "Key bytes cannot be empty".to_string(),
+            ));
+        }
+
+        if key_bytes.len() < 16 || key_bytes.len() > 64 {
+            return Err(crate::error::CryptoError::InvalidKeySize {
+                expected: 32,
+                actual: key_bytes.len(),
+            });
+        }
+
         if let Some(ref sbox_masking) = self.rotating_sbox {
-            // Apply masked S-box operations during key expansion
-            let mut expanded_key = Vec::with_capacity(240); // AES-256 expanded key size
+            let mut expanded_key = Vec::with_capacity(240);
             expanded_key.extend_from_slice(key_bytes);
 
             // Simulate key expansion with side-channel protection

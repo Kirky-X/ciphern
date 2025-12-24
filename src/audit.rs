@@ -31,6 +31,80 @@ lazy_static! {
             .expect("Failed to create SECURITY_ALERTS_TOTAL metric");
 }
 
+/// Sanitize sensitive information from error details for audit logging
+fn sanitize_error_for_log(error: &CryptoError) -> String {
+    match error {
+        CryptoError::InvalidKeySize { .. } => {
+            "Invalid key size - operation rejected".to_string()
+        }
+        CryptoError::InvalidParameter(msg) => {
+            if msg.contains("key") || msg.contains("secret") || msg.contains("password") {
+                "Invalid parameter - operation rejected".to_string()
+            } else {
+                msg.clone()
+            }
+        }
+        CryptoError::InvalidState(msg) => {
+            if msg.contains("key") || msg.contains("memory") {
+                "Invalid state - operation rejected".to_string()
+            } else {
+                msg.clone()
+            }
+        }
+        CryptoError::DecryptionFailed(_) => {
+            "Decryption operation failed - invalid key or corrupted data".to_string()
+        }
+        CryptoError::EncryptionFailed(_) => {
+            "Encryption operation failed".to_string()
+        }
+        CryptoError::KeyNotFound(_) => {
+            "Key not found - key_id: [REDACTED]".to_string()
+        }
+        CryptoError::KeyError(_) => {
+            "Key operation failed".to_string()
+        }
+        CryptoError::UnsupportedAlgorithm(msg) => {
+            format!("Unsupported algorithm: {}", msg.split_whitespace().next().unwrap_or("unknown"))
+        }
+        CryptoError::MemoryProtectionFailed(_) => {
+            "Memory protection failure - security violation detected".to_string()
+        }
+        CryptoError::MemoryTampered => {
+            "Memory tampering detected - security alert".to_string()
+        }
+        CryptoError::FipsError(_) => {
+            "FIPS compliance violation detected".to_string()
+        }
+        CryptoError::SideChannelError(_) => {
+            "Side-channel attack detected or prevented".to_string()
+        }
+        CryptoError::NotImplemented(_) => {
+            "Operation not implemented".to_string()
+        }
+        CryptoError::IoError(_) => {
+            "I/O operation failed".to_string()
+        }
+        CryptoError::TimeError => {
+            "System time error - operation rejected".to_string()
+        }
+        CryptoError::PluginError(_) => {
+            "Plugin operation failed".to_string()
+        }
+        CryptoError::InternalError(_) => {
+            "Internal error occurred".to_string()
+        }
+        CryptoError::SigningFailed(_) => {
+            "Signing operation failed".to_string()
+        }
+        CryptoError::UnknownError => {
+            "Unknown error occurred".to_string()
+        }
+        CryptoError::InsufficientEntropy => {
+            "Insufficient entropy for cryptographic operation".to_string()
+        }
+    }
+}
+
 // 注册指标到注册表
 #[allow(dead_code)]
 fn register_metrics() {
@@ -445,7 +519,10 @@ impl AuditLogger {
             key_id: key_id.map(|s| s.to_string()),
             tenant_id: tenant_id.map(|s| s.to_string()),
             status: if result.is_ok() { "SUCCESS" } else { "FAILURE" }.to_string(),
-            details: result.err().map(|e| e.to_string()).unwrap_or_default(),
+            details: result
+                .err()
+                .map(|e| sanitize_error_for_log(&e))
+                .unwrap_or_default(),
             access_type: access_type.to_string(),
         };
 
@@ -467,7 +544,10 @@ impl AuditLogger {
             key_id: key_id.map(|s| s.to_string()),
             tenant_id: None,
             status: if result.is_ok() { "SUCCESS" } else { "FAILURE" }.to_string(),
-            details: result.err().map(|e| e.to_string()).unwrap_or_default(),
+            details: result
+                .err()
+                .map(|e| sanitize_error_for_log(&e))
+                .unwrap_or_default(),
             access_type: "system".to_string(),
         };
 

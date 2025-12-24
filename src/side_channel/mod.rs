@@ -57,6 +57,8 @@ pub struct SideChannelConfig {
     pub timing_noise_level: f32,
     /// Maximum timing deviation in nanoseconds
     pub max_timing_deviation: Duration,
+    /// Operation timeout for critical cryptographic operations
+    pub operation_timeout: Duration,
 }
 
 impl Default for SideChannelConfig {
@@ -72,8 +74,9 @@ impl Default for SideChannelConfig {
             masking_operations_enabled: true,
             redundancy_checks_enabled: true,
             cache_flush_enabled: true,
-            timing_noise_level: 0.1, // 10% timing noise for better protection
-            max_timing_deviation: Duration::from_micros(50), // 50μs minimum timing
+            timing_noise_level: 0.1,
+            max_timing_deviation: Duration::from_micros(50),
+            operation_timeout: Duration::from_secs(5),
         }
     }
 }
@@ -257,35 +260,34 @@ pub fn protect_critical_operation<F, R>(context: &mut SideChannelContext, operat
 where
     F: FnOnce() -> Result<R>,
 {
-    // Apply protections directly to the provided context, no cloning
     let config = context.config.clone();
 
-    // Apply cache protection before operation
     if config.cache_protection {
         flush_cpu_cache();
         context.increment_cache_flush();
     }
 
-    // Apply power analysis protection
     if config.power_analysis_protection && PowerAnalysisGuard::new().is_ok() {
         context.increment_masking_operations();
     }
 
-    // Apply timing protection
     if config.constant_time_enabled {
         let start = Instant::now();
 
-        // Add timing noise if configured
         if config.timing_noise_level > 0.0 {
             add_timing_noise(config.timing_noise_level);
         }
 
-        // Execute operation
         let result = operation();
 
         let elapsed = start.elapsed();
 
-        // Ensure minimum execution time to prevent timing leaks
+        if elapsed > config.operation_timeout {
+            return Err(CryptoError::SideChannelError(
+                format!("Operation timeout exceeded: {:?} > {:?}", elapsed, config.operation_timeout),
+            ));
+        }
+
         let min_time = config.max_timing_deviation;
         if elapsed < min_time {
             std::thread::sleep(min_time - elapsed);
@@ -294,10 +296,8 @@ where
         context.increment_timing_protections();
         result
     } else if config.error_injection_protection {
-        // Apply error injection protection
         let detector = ErrorInjectionDetector::new();
 
-        // Execute operation and check for faults
         let result = operation();
 
         if detector.detect_fault() {
@@ -309,7 +309,6 @@ where
 
         result
     } else {
-        // If no special protections, just execute the operation
         operation()
     }
 }
