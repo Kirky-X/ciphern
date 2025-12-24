@@ -23,12 +23,10 @@ pub mod self_test;
 #[cfg(feature = "encrypt")]
 mod validator;
 
-pub use self_test::{
-    Alert, AlertCategory, AlertHandler, AlertSeverity, FipsSelfTestEngine, FipsSelfTestType,
-    SelfTestResult,
-};
-#[cfg(feature = "encrypt")]
-pub use validator::FipsAlgorithmValidator;
+#[cfg(test)]
+mod tests;
+
+pub use self_test::SelfTestResult;
 
 /// FIPS 模式状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,9 +115,6 @@ impl FipsErrorState {
         self.error_type.lock().unwrap().clone()
     }
 
-    pub fn get_error_count(&self) -> usize {
-        self.error_count.load(Ordering::SeqCst)
-    }
 
     pub fn clear_error(&self) {
         self.is_error.store(false, Ordering::SeqCst);
@@ -402,14 +397,4 @@ pub fn get_fips_approved_algorithms() -> Vec<Algorithm> {
     }
 }
 
-/// 获取非 FIPS 批准的算法列表
-pub fn get_non_approved_algorithms() -> Vec<Algorithm> {
-    #[cfg(feature = "encrypt")]
-    {
-        self::validator::FipsAlgorithmValidator::get_non_approved_algorithms()
-    }
-    #[cfg(not(feature = "encrypt"))]
-    {
-        vec![]
-    }
-}
+

@@ -37,6 +37,7 @@ impl FipsAlgorithmValidator {
     ];
 
     /// 非 FIPS 批准的算法列表 (国密和现代算法)
+    #[allow(dead_code)]
     const NON_APPROVED_ALGORITHMS: &'static [Algorithm] = &[
         // 国密算法
         Algorithm::SM2,
@@ -54,6 +55,7 @@ impl FipsAlgorithmValidator {
     }
 
     /// 检查算法是否在非 FIPS 批准列表中
+    #[allow(dead_code)]
     pub fn is_algorithm_non_approved(algorithm: &Algorithm) -> bool {
         Self::NON_APPROVED_ALGORITHMS.contains(algorithm)
     }
@@ -76,11 +78,13 @@ impl FipsAlgorithmValidator {
     }
 
     /// 获取所有非 FIPS 批准的算法
+    #[allow(dead_code)]
     pub fn get_non_approved_algorithms() -> Vec<Algorithm> {
         Self::NON_APPROVED_ALGORITHMS.to_vec()
     }
 
     /// 获取所有支持的算法 (包括 FIPS 和非 FIPS)
+    #[allow(dead_code)]
     pub fn get_all_supported_algorithms() -> Vec<Algorithm> {
         let mut all_algorithms = Self::APPROVED_ALGORITHMS.to_vec();
         all_algorithms.extend(Self::NON_APPROVED_ALGORITHMS);
@@ -160,6 +164,7 @@ impl FipsAlgorithmValidator {
     }
 
     /// 获取算法的 FIPS 状态描述
+    #[allow(dead_code)]
     pub fn get_algorithm_fips_status(algorithm: &Algorithm) -> &'static str {
         if Self::is_algorithm_approved(algorithm) {
             "FIPS 140-3 Approved"
@@ -171,6 +176,7 @@ impl FipsAlgorithmValidator {
     }
 
     /// 验证算法列表是否全部符合 FIPS 要求
+    #[allow(dead_code)]
     pub fn validate_algorithms_fips_compliance(algorithms: &[Algorithm]) -> Result<()> {
         let mut non_approved = Vec::new();
 
