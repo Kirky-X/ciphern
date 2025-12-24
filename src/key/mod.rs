@@ -8,6 +8,9 @@ pub mod derivation;
 pub mod lifecycle;
 pub mod manager;
 
+#[cfg(test)]
+mod tests;
+
 use crate::error::Result;
 use crate::memory::{ProtectedKey, SecretBytes};
 use crate::types::Algorithm;

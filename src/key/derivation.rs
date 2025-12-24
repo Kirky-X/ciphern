@@ -14,9 +14,11 @@ use ring::hkdf;
 use sha2::Sha256;
 use zeroize::Zeroize;
 
+#[allow(dead_code)]
 pub struct Hkdf;
 
 impl Hkdf {
+    #[allow(dead_code)]
     pub fn derive(
         master_key: &Key,
         salt: &[u8],
@@ -69,6 +71,7 @@ impl Hkdf {
         )))
     }
 
+    #[allow(dead_code)]
     fn derive_32_bytes(
         master_key: &Key,
         salt: &[u8],
@@ -174,6 +177,7 @@ impl Argon2id {
 /// SM3 Key Derivation Function (KDF) implementation
 ///
 /// This implementation follows the GB/T 32918.4-2016 standard.
+#[allow(dead_code)]
 pub struct Sm3Kdf;
 
 impl Sm3Kdf {
@@ -189,6 +193,7 @@ impl Sm3Kdf {
     /// # Returns
     ///
     /// Returns the derived key
+    #[allow(dead_code)]
     pub fn derive(
         master_key: &Key,
         data: &[u8],
