@@ -11,7 +11,7 @@
 #[path = "_common/mod.rs"]
 mod common;
 
-use common::{print_section};
+use common::print_section;
 
 /// Run all FIPS compliance examples
 pub fn run_all() -> Result<(), Box<dyn std::error::Error>> {
@@ -59,9 +59,16 @@ pub fn run_algorithm_validation_example() -> Result<(), Box<dyn std::error::Erro
     ];
 
     for algo in &algorithms {
-        let is_approved = ciphern::get_fips_approved_algorithms()
-            .contains(algo);
-        println!("  {:?}: {}", algo, if is_approved { "Approved" } else { "Not approved" });
+        let is_approved = ciphern::get_fips_approved_algorithms().contains(algo);
+        println!(
+            "  {:?}: {}",
+            algo,
+            if is_approved {
+                "Approved"
+            } else {
+                "Not approved"
+            }
+        );
     }
 
     println!("  ✓ Algorithm validation example completed!");
@@ -78,7 +85,10 @@ pub fn run_self_test_example() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Note: FIPS self-tests run automatically on library initialization\n");
 
     let is_enabled = ciphern::is_fips_enabled();
-    println!("  FIPS mode: {}", if is_enabled { "Enabled" } else { "Disabled" });
+    println!(
+        "  FIPS mode: {}",
+        if is_enabled { "Enabled" } else { "Disabled" }
+    );
 
     let algorithms = ciphern::get_fips_approved_algorithms();
     println!("  Approved algorithms: {}", algorithms.len());

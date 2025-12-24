@@ -70,7 +70,10 @@ fn demo_digital_signatures() -> Result<()> {
     println!("  Signature (hex): {}...", hex::encode(&signature[..32]));
 
     let is_valid = signer.verify(&key_manager, &key_id, message, &signature)?;
-    println!("  Verification: {}", if is_valid { "Valid" } else { "Invalid" });
+    println!(
+        "  Verification: {}",
+        if is_valid { "Valid" } else { "Invalid" }
+    );
 
     assert!(is_valid);
     println!("  ✓ Ed25519 signature verified!");
@@ -104,7 +107,10 @@ fn demo_random_generation() -> Result<()> {
     let rng = ciphern::SecureRandom::new()?;
     let mut random_bytes = vec![0u8; 32];
     rng.fill(&mut random_bytes)?;
-    println!("  Random bytes (32): {}...", hex::encode(&random_bytes[..8]));
+    println!(
+        "  Random bytes (32): {}...",
+        hex::encode(&random_bytes[..8])
+    );
 
     println!("  ✓ Random generation completed!");
 
@@ -138,12 +144,7 @@ fn demo_key_derivation() -> Result<()> {
     let salt = b"demo_salt";
     let info = b"demo_context";
 
-    let derived_key = Hkdf::derive(
-        &master_key,
-        salt,
-        info,
-        Algorithm::AES256GCM,
-    )?;
+    let derived_key = Hkdf::derive(&master_key, salt, info, Algorithm::AES256GCM)?;
 
     println!("  Master key: {}", master_key_id);
     println!("  Derived key algorithm: {:?}", derived_key.algorithm());

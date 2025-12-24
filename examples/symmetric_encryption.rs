@@ -149,16 +149,17 @@ pub fn run_multiple_encryption() -> Result<(), Box<dyn std::error::Error>> {
     let key_id = key_manager.generate_key(ciphern::Algorithm::AES256GCM)?;
     let cipher = ciphern::Cipher::new(ciphern::Algorithm::AES256GCM)?;
 
-    let messages: Vec<&[u8]> = vec![
-        b"First message",
-        b"Second msg...",
-        b"Third msg......",
-    ];
+    let messages: Vec<&[u8]> = vec![b"First message", b"Second msg...", b"Third msg......"];
 
     let mut ciphertexts = Vec::new();
     for (i, message) in messages.iter().enumerate() {
         let ciphertext = cipher.encrypt(&key_manager, &key_id, message)?;
-        println!("  Message {}: {} bytes -> {} bytes", i + 1, message.len(), ciphertext.len());
+        println!(
+            "  Message {}: {} bytes -> {} bytes",
+            i + 1,
+            message.len(),
+            ciphertext.len()
+        );
         ciphertexts.push(ciphertext);
     }
 
@@ -185,13 +186,21 @@ pub fn run_large_data_encryption() -> Result<(), Box<dyn std::error::Error>> {
 
     let size = 1024 * 1024; // 1 MB
     let plaintext: Vec<u8> = (0..size).map(|_| rand::random::<u8>()).collect();
-    println!("  Plaintext size: {} bytes ({:.2} MB)", plaintext.len(), plaintext.len() as f64 / 1024.0 / 1024.0);
+    println!(
+        "  Plaintext size: {} bytes ({:.2} MB)",
+        plaintext.len(),
+        plaintext.len() as f64 / 1024.0 / 1024.0
+    );
 
     let start = std::time::Instant::now();
     let ciphertext = cipher.encrypt(&key_manager, &key_id, &plaintext)?;
     let encrypt_time = start.elapsed();
     println!("  Encryption time: {:?}", encrypt_time);
-    println!("  Ciphertext size: {} bytes ({:.2} MB)", ciphertext.len(), ciphertext.len() as f64 / 1024.0 / 1024.0);
+    println!(
+        "  Ciphertext size: {} bytes ({:.2} MB)",
+        ciphertext.len(),
+        ciphertext.len() as f64 / 1024.0 / 1024.0
+    );
 
     let start = std::time::Instant::now();
     let decrypted = cipher.decrypt(&key_manager, &key_id, &ciphertext)?;
@@ -200,7 +209,10 @@ pub fn run_large_data_encryption() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(plaintext, decrypted);
     println!("  ✓ Large data encryption/decryption verified!");
-    println!("  Throughput: {:.2} MB/s", (size as f64 / 1024.0 / 1024.0) / decrypt_time.as_secs_f64());
+    println!(
+        "  Throughput: {:.2} MB/s",
+        (size as f64 / 1024.0 / 1024.0) / decrypt_time.as_secs_f64()
+    );
 
     Ok(())
 }

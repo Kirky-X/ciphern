@@ -10,7 +10,7 @@
 #[path = "_common/mod.rs"]
 mod common;
 
-use common::{print_section};
+use common::print_section;
 
 /// Run all Java API examples
 pub fn run_all() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,7 +28,8 @@ pub fn run_all() -> Result<(), Box<dyn std::error::Error>> {
 pub fn java_aes_example() {
     print_section("Java AES-256-GCM Example");
 
-    println!(r#"
+    println!(
+        r#"
 Java AES-256-GCM Example
 ========================
 
@@ -57,7 +58,8 @@ System.out.println("Decrypted: " + new String(decrypted));
 // Verify
 assert Arrays.equals(plaintext, decrypted);
 System.out.println("Java AES-256-GCM encryption successful!");
-"#);
+"#
+    );
 }
 
 /// Java Digital Signature Example
@@ -66,7 +68,8 @@ System.out.println("Java AES-256-GCM encryption successful!");
 pub fn java_signature_example() {
     print_section("Java Digital Signature Example");
 
-    println!(r#"
+    println!(
+        r#"
 Java Digital Signature Example
 ==============================
 
@@ -94,7 +97,8 @@ System.out.println("Signature valid: " + isValid);
 
 assert isValid;
 System.out.println("Java digital signature successful!");
-"#);
+"#
+    );
 }
 
 /// Java Key Management Example
@@ -103,7 +107,8 @@ System.out.println("Java digital signature successful!");
 pub fn java_key_management_example() {
     print_section("Java Key Management Example");
 
-    println!(r#"
+    println!(
+        r#"
 Java Key Management Example
 ===========================
 
@@ -140,7 +145,8 @@ keyManager.destroyKey(keyId3);
 System.out.println("Key 3 destroyed successfully");
 
 System.out.println("Java key management successful!");
-"#);
+"#
+    );
 }
 
 /// Java Hash Operations Example
@@ -149,7 +155,8 @@ System.out.println("Java key management successful!");
 pub fn java_hash_example() {
     print_section("Java Hash Operations Example");
 
-    println!(r#"
+    println!(
+        r#"
 Java Hash Operations Example
 ============================
 
@@ -176,7 +183,8 @@ byte[] blake3 = Hash.blake3(data);
 System.out.println("BLAKE3: " + bytesToHex(blake3));
 
 System.out.println("Java hash operations successful!");
-"#);
+"#
+    );
 }
 
 /// Java Complete Example
@@ -185,7 +193,8 @@ System.out.println("Java hash operations successful!");
 pub fn java_complete_example() {
     print_section("Java Complete Example");
 
-    println!(r#"
+    println!(
+        r#"
 Java Complete Example
 =====================
 
@@ -255,7 +264,8 @@ public class CiphernExample {{
     }}
 }}
 }}
-"#);
+"#
+    );
 }
 
 fn main() {

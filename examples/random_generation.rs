@@ -13,8 +13,8 @@
 #[path = "_common/mod.rs"]
 mod common;
 
-use common::{print_result, print_section};
 use ciphern::SecureRandom;
+use common::{print_result, print_section};
 use std::collections::HashSet;
 
 /// Run all random generation examples

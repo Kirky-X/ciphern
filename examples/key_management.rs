@@ -122,8 +122,12 @@ pub fn run_key_alias_example() -> Result<(), Box<dyn std::error::Error>> {
 
     let key_manager = setup()?;
 
-    let key_id = key_manager.generate_key_with_alias(ciphern::Algorithm::AES256GCM, "production-encryption-key")?;
-    println!("  Created key with alias 'production-encryption-key': {}", key_id);
+    let key_id = key_manager
+        .generate_key_with_alias(ciphern::Algorithm::AES256GCM, "production-encryption-key")?;
+    println!(
+        "  Created key with alias 'production-encryption-key': {}",
+        key_id
+    );
 
     let resolved_id = key_manager.resolve_alias("production-encryption-key")?;
     println!("  Resolved alias to key ID: {}", resolved_id);

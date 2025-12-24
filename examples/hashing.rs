@@ -110,10 +110,19 @@ pub fn run_hash_comparison() -> Result<(), Box<dyn std::error::Error>> {
 
     let data = b"Test data for hash comparison";
 
-    let algorithms: Vec<(&str, fn(&[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>>)> = vec![
-        ("SHA-256", |d| ciphern::Hash::sha256(d).map_err(|e| e.into())),
-        ("SHA-384", |d| ciphern::Hash::sha384(d).map_err(|e| e.into())),
-        ("SHA-512", |d| ciphern::Hash::sha512(d).map_err(|e| e.into())),
+    let algorithms: Vec<(
+        &str,
+        fn(&[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>>,
+    )> = vec![
+        ("SHA-256", |d| {
+            ciphern::Hash::sha256(d).map_err(|e| e.into())
+        }),
+        ("SHA-384", |d| {
+            ciphern::Hash::sha384(d).map_err(|e| e.into())
+        }),
+        ("SHA-512", |d| {
+            ciphern::Hash::sha512(d).map_err(|e| e.into())
+        }),
         ("SM3", |d| ciphern::Hash::sm3(d).map_err(|e| e.into())),
     ];
 

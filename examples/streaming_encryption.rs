@@ -14,8 +14,8 @@
 mod common;
 
 use common::{print_section, setup};
+use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
-use sha2::{Sha256, Digest};
 
 /// Run all streaming examples
 pub fn run_all() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,7 +40,10 @@ pub fn run_chunk_based_encryption() -> Result<(), Box<dyn std::error::Error>> {
     let total_size = 5 * 1024 * 1024; // 5MB total
     let plaintext: Vec<u8> = (0..total_size).map(|_| rand::random::<u8>()).collect();
 
-    println!("  Total data size: {:.2} MB", total_size as f64 / 1024.0 / 1024.0);
+    println!(
+        "  Total data size: {:.2} MB",
+        total_size as f64 / 1024.0 / 1024.0
+    );
     println!("  Chunk size: {:.2} KB", chunk_size as f64 / 1024.0);
     let num_chunks = (total_size + chunk_size - 1) / chunk_size;
     println!("  Number of chunks: {}", num_chunks);
@@ -49,13 +52,19 @@ pub fn run_chunk_based_encryption() -> Result<(), Box<dyn std::error::Error>> {
     let ciphertext = cipher.encrypt(&key_manager, &key_id, &plaintext)?;
     let encrypt_time = start.elapsed();
     println!("  Encryption time: {:?}", encrypt_time);
-    println!("  Throughput: {:.2} MB/s", (total_size as f64 / 1024.0 / 1024.0) / encrypt_time.as_secs_f64());
+    println!(
+        "  Throughput: {:.2} MB/s",
+        (total_size as f64 / 1024.0 / 1024.0) / encrypt_time.as_secs_f64()
+    );
 
     let start = std::time::Instant::now();
     let decrypted = cipher.decrypt(&key_manager, &key_id, &ciphertext)?;
     let decrypt_time = start.elapsed();
     println!("  Decryption time: {:?}", decrypt_time);
-    println!("  Throughput: {:.2} MB/s", (total_size as f64 / 1024.0 / 1024.0) / decrypt_time.as_secs_f64());
+    println!(
+        "  Throughput: {:.2} MB/s",
+        (total_size as f64 / 1024.0 / 1024.0) / decrypt_time.as_secs_f64()
+    );
 
     assert_eq!(plaintext, decrypted);
     println!("  ✓ Chunk-based encryption verified!");
@@ -168,7 +177,10 @@ pub fn run_large_file_streaming() -> Result<(), Box<dyn std::error::Error>> {
     }
     let encrypt_time = start.elapsed();
     println!("  Encryption time: {:?}", encrypt_time);
-    println!("  Throughput: {:.2} MB/s", (file_size as f64 / 1024.0 / 1024.0) / encrypt_time.as_secs_f64());
+    println!(
+        "  Throughput: {:.2} MB/s",
+        (file_size as f64 / 1024.0 / 1024.0) / encrypt_time.as_secs_f64()
+    );
 
     let start = std::time::Instant::now();
     let mut encrypted_input = std::fs::File::open(&encrypted_file)?;
@@ -191,7 +203,10 @@ pub fn run_large_file_streaming() -> Result<(), Box<dyn std::error::Error>> {
     }
     let decrypt_time = start.elapsed();
     println!("  Decryption time: {:?}", decrypt_time);
-    println!("  Throughput: {:.2} MB/s", (file_size as f64 / 1024.0 / 1024.0) / decrypt_time.as_secs_f64());
+    println!(
+        "  Throughput: {:.2} MB/s",
+        (file_size as f64 / 1024.0 / 1024.0) / decrypt_time.as_secs_f64()
+    );
 
     let original_hash = {
         let mut file = std::fs::File::open(&large_file)?;

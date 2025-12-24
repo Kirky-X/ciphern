@@ -40,7 +40,8 @@ use std::result::Result;
 ///
 /// Demonstrates using Ciphern from Python with AES-256-GCM encryption.
 pub fn python_aes_example() {
-    println!(r#"
+    println!(
+        r#"
 Python AES-256-GCM Example
 ==========================
 
@@ -71,14 +72,16 @@ print("Decrypted: {{}}".format(decrypted.decode()))
 # Verify
 assert plaintext == decrypted
 print("Python AES-256-GCM encryption successful!")
-"#);
+"#
+    );
 }
 
 /// Python Digital Signature Example
 ///
 /// Demonstrates digital signatures from Python.
 pub fn python_signature_example() {
-    println!(r#"
+    println!(
+        r#"
 Python Digital Signature Example
 ================================
 
@@ -108,14 +111,16 @@ print("Signature valid: {{}}".format(is_valid))
 
 assert is_valid
 print("Python digital signature successful!")
-"#);
+"#
+    );
 }
 
 /// Python SM4 Encryption Example
 ///
 /// Demonstrates SM4 encryption (Chinese national standard) from Python.
 pub fn python_sm4_example() {
-    println!(r#"
+    println!(
+        r#"
 Python SM4-GCM Example (Chinese National Standard)
 ===================================================
 
@@ -146,14 +151,16 @@ print("Decrypted: {{}}".format(decrypted.decode()))
 # Verify
 assert plaintext == decrypted
 print("Python SM4-GCM encryption successful!")
-"#);
+"#
+    );
 }
 
 /// Python Key Management Example
 ///
 /// Demonstrates key management from Python.
 pub fn python_key_management_example() {
-    println!(r#"
+    println!(
+        r#"
 Python Key Management Example
 =============================
 
@@ -192,14 +199,16 @@ key_manager.destroy_key(key_id_3)
 print("Key 3 destroyed successfully")
 
 print("Python key management successful!")
-"#);
+"#
+    );
 }
 
 /// Python Hash Operations Example
 ///
 /// Demonstrates hash operations from Python.
 pub fn python_hash_example() {
-    println!(r#"
+    println!(
+        r#"
 Python Hash Operations Example
 ==============================
 
@@ -228,14 +237,16 @@ blake3 = Hash.blake3(data)
 print("BLAKE3: {{}}...".format(blake3.hex()[:32]))
 
 print("Python hash operations successful!")
-"#);
+"#
+    );
 }
 
 /// Python Random Generation Example
 ///
 /// Demonstrates secure random generation from Python.
 pub fn python_random_example() {
-    println!(r#"
+    println!(
+        r#"
 Python Random Generation Example
 ================================
 
@@ -257,14 +268,16 @@ random_int = Random.randint(1, 1000)
 print("Random int (1-1000): {{}}".format(random_int))
 
 print("Python random generation successful!")
-"#);
+"#
+    );
 }
 
 /// Python Complete Example
 ///
 /// A complete Python example demonstrating multiple features.
 pub fn python_complete_example() {
-    println!(r#"
+    println!(
+        r#"
 Python Complete Example
 =======================
 
@@ -323,14 +336,16 @@ def main():
 
 if __name__ == "__main__":
     main()
-"#);
+"#
+    );
 }
 
 /// Python Web Application Example
 ///
 /// Example of using Ciphern in a Python web application.
 pub fn python_web_example() {
-    println!(r#"
+    println!(
+        r#"
 Python Web Application Example (FastAPI)
 ========================================
 
@@ -398,7 +413,8 @@ async def decrypt(
         raise HTTPException(status_code=400, detail=str(e))
 
 # Run with: uvicorn main:app --reload
-"#);
+"#
+    );
 }
 
 pub fn run_all() -> Result<(), Box<dyn std::error::Error>> {

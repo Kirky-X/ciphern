@@ -15,8 +15,8 @@
 #[path = "_common/mod.rs"]
 mod common;
 
+use ciphern::{Argon2id, Hkdf, Pbkdf2, Sm3Kdf};
 use common::{print_result, print_section, print_string, setup};
-use ciphern::{Hkdf, Pbkdf2, Argon2id, Sm3Kdf};
 
 /// Run all key derivation examples
 pub fn run_all() -> Result<(), Box<dyn std::error::Error>> {
@@ -50,7 +50,10 @@ pub fn run_hkdf_example() -> Result<(), Box<dyn std::error::Error>> {
     let info = b"app_key_derivation_context";
 
     let derived_key = Hkdf::derive(&master_key, salt, info, ciphern::Algorithm::AES256GCM)?;
-    print_result("Derived Key (first 16 bytes)", derived_key.secret_bytes()?.as_bytes());
+    print_result(
+        "Derived Key (first 16 bytes)",
+        derived_key.secret_bytes()?.as_bytes(),
+    );
 
     println!("  [OK] HKDF key derivation completed!");
 
@@ -76,7 +79,10 @@ pub fn run_pbkdf2_example() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Using {} iterations for PBKDF2", iterations);
 
     let derived_key = Pbkdf2::derive(password, salt, iterations, ciphern::Algorithm::AES256GCM)?;
-    print_result("Derived Key (first 16 bytes)", derived_key.secret_bytes()?.as_bytes());
+    print_result(
+        "Derived Key (first 16 bytes)",
+        derived_key.secret_bytes()?.as_bytes(),
+    );
 
     println!("  [OK] PBKDF2 key derivation completed!");
 
@@ -94,7 +100,10 @@ pub fn run_argon2id_example() -> Result<(), Box<dyn std::error::Error>> {
     let salt = b"argon2id_salt_value_16";
 
     let derived_key = Argon2id::derive(password, salt, ciphern::Algorithm::AES256GCM)?;
-    print_result("Derived Key (first 16 bytes)", derived_key.secret_bytes()?.as_bytes());
+    print_result(
+        "Derived Key (first 16 bytes)",
+        derived_key.secret_bytes()?.as_bytes(),
+    );
 
     println!("  [OK] Argon2id key derivation completed!");
 
@@ -173,7 +182,10 @@ pub fn run_derivation_best_practices() -> Result<(), Box<dyn std::error::Error>>
     let key1_bytes = key1.secret_bytes()?;
     let key2_bytes = key2.secret_bytes()?;
 
-    println!("    Different salts produce different keys: {}", key1_bytes.as_bytes() != key2_bytes.as_bytes());
+    println!(
+        "    Different salts produce different keys: {}",
+        key1_bytes.as_bytes() != key2_bytes.as_bytes()
+    );
 
     println!("  2. Use appropriate iteration count for PBKDF2");
     println!("    Recommended: 600,000+ for PBKDF2-HMAC-SHA256");
@@ -186,8 +198,18 @@ pub fn run_derivation_best_practices() -> Result<(), Box<dyn std::error::Error>>
     let key_manager = setup()?;
     let master_key_id = key_manager.generate_key(ciphern::Algorithm::AES256GCM)?;
     let master_key = key_manager.get_key(&master_key_id)?;
-    let _payment_key = Hkdf::derive(&master_key, b"payment_salt", b"payment_system_key", ciphern::Algorithm::AES256GCM)?;
-    let _auth_key = Hkdf::derive(&master_key, b"auth_salt", b"auth_system_key", ciphern::Algorithm::AES256GCM)?;
+    let _payment_key = Hkdf::derive(
+        &master_key,
+        b"payment_salt",
+        b"payment_system_key",
+        ciphern::Algorithm::AES256GCM,
+    )?;
+    let _auth_key = Hkdf::derive(
+        &master_key,
+        b"auth_salt",
+        b"auth_system_key",
+        ciphern::Algorithm::AES256GCM,
+    )?;
     println!("    Derived separate keys for payment and auth systems");
 
     println!("  [OK] Key derivation best practices demonstrated!");

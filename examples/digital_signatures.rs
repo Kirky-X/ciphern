@@ -266,7 +266,10 @@ pub fn run_signature_performance() -> Result<(), Box<dyn std::error::Error>> {
 
         println!("  {:?}", algo);
         println!("    Average sign time: {:?}", avg_sign / iterations as u32);
-        println!("    Average verify time: {:?}", avg_verify / iterations as u32);
+        println!(
+            "    Average verify time: {:?}",
+            avg_verify / iterations as u32
+        );
     }
 
     println!("  ✓ Performance comparison completed!");

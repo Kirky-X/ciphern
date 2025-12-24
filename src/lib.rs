@@ -36,13 +36,13 @@ pub use fips::{get_fips_approved_algorithms, is_fips_enabled, FipsContext, FipsE
 
 pub use error::CryptoError;
 pub use error::Result;
+#[cfg(feature = "kdf")]
+pub use key::derivation::{Argon2id, Hkdf, Pbkdf2, Sm3Kdf};
 #[cfg(feature = "encrypt")]
 pub use key::manager::KeyManager;
 #[cfg(feature = "encrypt")]
 pub use key::{Key, KeyState};
-#[cfg(feature = "kdf")]
-pub use key::derivation::{Hkdf, Pbkdf2, Argon2id, Sm3Kdf};
-pub use random::{SecureRandom, EntropySource};
+pub use random::{EntropySource, SecureRandom};
 pub use types::Algorithm;
 
 /// Initialize the library (e.g., FIPS self-tests)
