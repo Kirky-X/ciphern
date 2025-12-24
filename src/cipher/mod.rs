@@ -11,7 +11,7 @@ pub mod provider;
 pub mod sm4;
 pub mod streaming;
 
-// 重新导出流式加密相关类型
+#[cfg(test)]
+mod tests;
 
-// 重新导出基础提供者类型
-pub use provider::{ProviderRegistry, Signer, SymmetricCipher, REGISTRY};
+

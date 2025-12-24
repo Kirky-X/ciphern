@@ -21,9 +21,11 @@ use crate::signer::sm2::Sm2Provider;
 pub trait SymmetricCipher: Send + Sync {
     fn encrypt(&self, key: &Key, plaintext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>>;
     fn decrypt(&self, key: &Key, ciphertext: &[u8], aad: Option<&[u8]>) -> Result<Vec<u8>>;
+    #[allow(dead_code)]
     fn algorithm(&self) -> Algorithm;
 
     /// Specific for CAVP/KAT tests where IV must be provided
+    #[allow(dead_code)]
     fn encrypt_with_nonce(
         &self,
         key: &Key,
