@@ -38,3 +38,4 @@ secret/
 .trae/
 test_crate
 temp/
+.cargo/
