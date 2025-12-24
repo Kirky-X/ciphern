@@ -25,7 +25,9 @@ impl Clone for SecretBytes {
             inner: cloned_inner,
             locked: false,
         };
-        let _ = cloned.lock_memory();
+        cloned.lock_memory().expect(
+            "Failed to lock cloned SecretBytes memory - security violation detected",
+        );
         cloned
     }
 }

@@ -112,25 +112,25 @@ impl SecureRandom {
 
 impl RngCore for SecureRandom {
     fn next_u32(&mut self) -> u32 {
-        if let Ok(mut rng) = self.csprng.lock() {
-            rng.next_u32()
-        } else {
-            0
-        }
+        self.csprng
+            .lock()
+            .expect("RNG lock poisoned - cryptographic operation cannot continue")
+            .next_u32()
     }
 
     fn next_u64(&mut self) -> u64 {
-        if let Ok(mut rng) = self.csprng.lock() {
-            rng.next_u64()
-        } else {
-            0
-        }
+        self.csprng
+            .lock()
+            .expect("RNG lock poisoned - cryptographic operation cannot continue")
+            .next_u64()
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        if let Ok(mut rng) = self.csprng.lock() {
-            rng.fill_bytes(dest)
-        }
+        let mut rng = self
+            .csprng
+            .lock()
+            .expect("RNG lock poisoned - cryptographic operation cannot continue");
+        rng.fill_bytes(dest)
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> std::result::Result<(), rand::Error> {

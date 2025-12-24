@@ -130,35 +130,50 @@ impl SymmetricCipher for AesGcmProvider {
 impl AesGcmProvider {
     /// Create a new AES-256 GCM provider with default configuration (backward compatibility)
     pub fn new() -> Self {
-        Self::with_algorithm(Algorithm::AES256GCM)
+        Self {
+            base: BaseCipherProvider::new(),
+            algorithm: Algorithm::AES256GCM,
+        }
     }
 
     /// Create a new AES-GCM provider with specified algorithm
-    pub fn with_algorithm(algorithm: Algorithm) -> Self {
+    pub fn with_algorithm(algorithm: Algorithm) -> Result<Self> {
         match algorithm {
-            Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => Self {
+            Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => Ok(Self {
                 base: BaseCipherProvider::new(),
                 algorithm,
-            },
-            _ => panic!("Unsupported algorithm for AesGcmProvider: {:?}", algorithm),
+            }),
+            _ => Err(CryptoError::UnsupportedAlgorithm(format!(
+                "Unsupported algorithm for AesGcmProvider: {:?}",
+                algorithm
+            ))),
         }
     }
 
     /// Create a new AES-GCM provider with custom side-channel configuration
     #[allow(dead_code)]
     pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
-        Self::with_algorithm_and_config(Algorithm::AES256GCM, config)
+        Self {
+            base: BaseCipherProvider::with_side_channel_config(config),
+            algorithm: Algorithm::AES256GCM,
+        }
     }
 
     /// Create a new AES-GCM provider with specified algorithm and side-channel configuration
     #[allow(dead_code)]
-    pub fn with_algorithm_and_config(algorithm: Algorithm, config: SideChannelConfig) -> Self {
+    pub fn with_algorithm_and_config(
+        algorithm: Algorithm,
+        config: SideChannelConfig,
+    ) -> Result<Self> {
         match algorithm {
-            Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => Self {
+            Algorithm::AES128GCM | Algorithm::AES192GCM | Algorithm::AES256GCM => Ok(Self {
                 base: BaseCipherProvider::with_side_channel_config(config),
                 algorithm,
-            },
-            _ => panic!("Unsupported algorithm for AesGcmProvider: {:?}", algorithm),
+            }),
+            _ => Err(CryptoError::UnsupportedAlgorithm(format!(
+                "Unsupported algorithm for AesGcmProvider: {:?}",
+                algorithm
+            ))),
         }
     }
 
@@ -617,34 +632,40 @@ impl AesGcmProvider {
     /// Create a new AES-128 GCM provider
     pub fn aes128() -> Self {
         Self::with_algorithm(Algorithm::AES128GCM)
+            .expect("Failed to create AES-128 GCM provider - algorithm should be valid")
     }
 
     /// Create a new AES-192 GCM provider
     pub fn aes192() -> Self {
         Self::with_algorithm(Algorithm::AES192GCM)
+            .expect("Failed to create AES-192 GCM provider - algorithm should be valid")
     }
 
     /// Create a new AES-256 GCM provider
     pub fn aes256() -> Self {
         Self::with_algorithm(Algorithm::AES256GCM)
+            .expect("Failed to create AES-256 GCM provider - algorithm should be valid")
     }
 
     /// Create a new AES-128 GCM provider with custom side-channel configuration
     #[allow(dead_code)]
     pub fn aes128_with_config(config: SideChannelConfig) -> Self {
         Self::with_algorithm_and_config(Algorithm::AES128GCM, config)
+            .expect("Failed to create AES-128 GCM provider - algorithm should be valid")
     }
 
     /// Create a new AES-192 GCM provider with custom side-channel configuration
     #[allow(dead_code)]
     pub fn aes192_with_config(config: SideChannelConfig) -> Self {
         Self::with_algorithm_and_config(Algorithm::AES192GCM, config)
+            .expect("Failed to create AES-192 GCM provider - algorithm should be valid")
     }
 
     /// Create a new AES-256 GCM provider with custom side-channel configuration
     #[allow(dead_code)]
     pub fn aes256_with_config(config: SideChannelConfig) -> Self {
         Self::with_algorithm_and_config(Algorithm::AES256GCM, config)
+            .expect("Failed to create AES-256 GCM provider - algorithm should be valid")
     }
 
     /// Get the algorithm this provider is configured for
