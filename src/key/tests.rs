@@ -145,7 +145,7 @@ fn test_key_derivation_deterministic() {
     let master_key = manager.get_key(&master_id).unwrap();
 
     // 多次使用相同参数派生应该产生相同结果
-    let mut derived_keys = Vec::new();
+    let mut derived_keys = Vec::with_capacity(5);
     for _ in 0..5 {
         let derived = Hkdf::derive(
             &master_key,

@@ -3,12 +3,13 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use crate::error::{CryptoError, Result};
 use crate::types::Algorithm;
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
 use prometheus::{Counter, Histogram, HistogramOpts, Registry};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
@@ -44,7 +45,6 @@ fn register_metrics() {
         eprintln!("Failed to register SECURITY_ALERTS_TOTAL: {}", e);
     }
 }
-
 
 /// Aggregated performance statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -386,7 +386,7 @@ impl AuditLogger {
 
         Self {
             sender: Arc::new(Mutex::new(sender)),
-            sync_buffer: Arc::new(Mutex::new(Vec::new())),
+            sync_buffer: Arc::new(Mutex::new(Vec::with_capacity(100))),
             _handle: Some(handle),
             fallback_enabled: Arc::new(Mutex::new(false)),
         }
@@ -404,7 +404,7 @@ impl AuditLogger {
         algo: Option<Algorithm>,
         key_id: Option<&str>,
         tenant_id: Option<&str>,
-        result: Result<(), &str>,
+        result: Result<()>,
         access_type: &str,
     ) {
         debug_assert!(!operation.is_empty(), "Operation should not be empty");
@@ -445,7 +445,7 @@ impl AuditLogger {
             key_id: key_id.map(|s| s.to_string()),
             tenant_id: tenant_id.map(|s| s.to_string()),
             status: if result.is_ok() { "SUCCESS" } else { "FAILURE" }.to_string(),
-            details: result.err().unwrap_or("").to_string(),
+            details: result.err().map(|e| e.to_string()).unwrap_or_default(),
             access_type: access_type.to_string(),
         };
 
@@ -459,12 +459,7 @@ impl AuditLogger {
     }
 
     /// Record a cryptographic operation
-    pub fn log(
-        operation: &str,
-        algo: Option<Algorithm>,
-        key_id: Option<&str>,
-        result: Result<(), &str>,
-    ) {
+    pub fn log(operation: &str, algo: Option<Algorithm>, key_id: Option<&str>, result: Result<()>) {
         let entry = AuditLog {
             timestamp: Utc::now(),
             operation: operation.to_string(),
@@ -472,7 +467,7 @@ impl AuditLogger {
             key_id: key_id.map(|s| s.to_string()),
             tenant_id: None,
             status: if result.is_ok() { "SUCCESS" } else { "FAILURE" }.to_string(),
-            details: result.err().unwrap_or("").to_string(),
+            details: result.err().map(|e| e.to_string()).unwrap_or_default(),
             access_type: "system".to_string(),
         };
 
@@ -622,13 +617,16 @@ impl AuditLogger {
 
     /// 导出 Prometheus 指标
     #[allow(dead_code)]
-    pub fn gather_metrics() -> String {
+    pub fn gather_metrics() -> Result<String> {
         use prometheus::Encoder;
         let encoder = prometheus::TextEncoder::new();
         let metric_families = REGISTRY.gather();
         let mut buffer = Vec::new();
-        encoder.encode(&metric_families, &mut buffer).unwrap();
-        String::from_utf8(buffer).unwrap()
+        encoder
+            .encode(&metric_families, &mut buffer)
+            .map_err(|e| CryptoError::InternalError(format!("Failed to encode metrics: {}", e)))?;
+        String::from_utf8(buffer)
+            .map_err(|e| CryptoError::InternalError(format!("Invalid UTF-8 in metrics: {}", e)))
     }
 
     /// 启动 Prometheus 指标导出器
@@ -664,7 +662,28 @@ impl AuditLogger {
                         let mut buffer = [0; 1024];
                         match stream.read(&mut buffer) {
                             Ok(n) if n > 0 => {
-                                let metrics = Self::gather_metrics();
+                                let metrics = match Self::gather_metrics() {
+                                    Ok(m) => m,
+                                    Err(e) => {
+                                        log::error!("Failed to gather metrics: {}", e);
+                                        let error_msg = format!("Failed to gather metrics: {}", e);
+                                        let response = format!(
+                                            "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                                            error_msg.len(),
+                                            error_msg
+                                        );
+                                        if let Err(write_err) =
+                                            stream.write_all(response.as_bytes())
+                                        {
+                                            log::error!(
+                                                "Failed to write error response: {}",
+                                                write_err
+                                            );
+                                        }
+                                        let _ = stream.flush();
+                                        continue;
+                                    }
+                                };
                                 let response = format!(
                                     "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                                     metrics.len(),
@@ -805,46 +824,45 @@ mod tests {
             Utc::now().timestamp_nanos_opt().unwrap_or(0)
         );
 
-        // Get initial logs count to establish baseline
-        let initial_logs = AuditLogger::get_logs();
-        let initial_count = initial_logs.len();
-        println!("Initial log count: {}", initial_count);
+        // Capture initial logs to establish baseline and filter out logs from other tests
+        let initial_logs: HashSet<String> = AuditLogger::get_logs().into_iter().collect();
+        println!("Initial log count: {}", initial_logs.len());
 
-        // Log some operations
+        // Log some operations with our unique key
         AuditLogger::log(
             "KEY_GENERATE",
             Some(Algorithm::AES256GCM),
             Some(&test_key),
             Ok(()),
         );
-        
-        // Small delay to ensure first log is processed
-        thread::sleep(std::time::Duration::from_millis(50));
-        
+
         AuditLogger::log(
             "ENCRYPT",
             Some(Algorithm::AES256GCM),
             Some(&test_key),
-            Err("test error"),
+            Err(CryptoError::InternalError("test error".into())),
         );
 
-        // Wait briefly for async logging to propagate (though sync buffer is immediate)
-        thread::sleep(std::time::Duration::from_millis(100));
-
         // Get all logs after our operations
-        let all_logs = AuditLogger::get_logs();
+        let all_logs: HashSet<String> = AuditLogger::get_logs().into_iter().collect();
         println!("Total log count after operations: {}", all_logs.len());
 
-        // Parse logs and find the ones we're interested in by filtering for our unique key
+        // Filter to only logs created by this test (new logs not in initial set)
+        let new_logs: Vec<String> = all_logs.difference(&initial_logs).cloned().collect();
+        println!("New logs added by this test: {}", new_logs.len());
+
+        // Parse new logs and find the ones we're interested in by filtering for our unique key
         let mut keygen_logs = Vec::new();
         let mut encrypt_logs = Vec::new();
         let mut debug_logs = Vec::new();
-        
-        for log_str in &all_logs {
+
+        for log_str in &new_logs {
             if let Ok(audit_log) = serde_json::from_str::<AuditLog>(log_str) {
                 if audit_log.key_id.as_ref() == Some(&test_key) {
-                    debug_logs.push(format!("Found log: operation={}, key_id={:?}, status={}", 
-                        audit_log.operation, audit_log.key_id, audit_log.status));
+                    debug_logs.push(format!(
+                        "Found log: operation={}, key_id={:?}, status={}",
+                        audit_log.operation, audit_log.key_id, audit_log.status
+                    ));
                     if audit_log.operation == "KEY_GENERATE" {
                         keygen_logs.push(log_str.clone());
                     } else if audit_log.operation == "ENCRYPT" {
@@ -853,27 +871,27 @@ mod tests {
                 }
             }
         }
-        
+
         // Debug output
         println!("Debug logs for key {}:", test_key);
         for debug_log in debug_logs {
             println!("  {}", debug_log);
         }
-        println!("Total logs in buffer: {}", all_logs.len());
+        println!("Total new logs in buffer: {}", new_logs.len());
         println!("KEY_GENERATE logs found: {}", keygen_logs.len());
         println!("ENCRYPT logs found: {}", encrypt_logs.len());
 
         // Verify we have at least the logs we expect
         assert!(
             !keygen_logs.is_empty(),
-            "Should have at least 1 KEY_GENERATE log for key {}. Found {} total logs, {} matching keygen filter",
+            "Should have at least 1 KEY_GENERATE log for key {}. Found {} total new logs, {} matching keygen filter",
             test_key,
-            all_logs.len(),
+            new_logs.len(),
             keygen_logs.len()
         );
         assert!(
             !encrypt_logs.is_empty(),
-            "Should have at least 1 ENCRYPT log for key {}",
+            "Should have at least 1 ENCRYPT log for {}",
             test_key
         );
 
@@ -904,7 +922,7 @@ mod tests {
                         if i % 2 == 0 {
                             Ok(())
                         } else {
-                            Err("test error")
+                            Err(CryptoError::InternalError("test error".into()))
                         },
                     );
                 })
@@ -936,9 +954,15 @@ mod tests {
         );
 
         // Verify the pattern of operations: test_op with alternating success/failure
-        let success_count = test_logs.iter().filter(|log| log.contains("SUCCESS")).count();
-        let failure_count = test_logs.iter().filter(|log| log.contains("FAILURE")).count();
-        
+        let success_count = test_logs
+            .iter()
+            .filter(|log| log.contains("SUCCESS"))
+            .count();
+        let failure_count = test_logs
+            .iter()
+            .filter(|log| log.contains("FAILURE"))
+            .count();
+
         // With 100 operations alternating success/failure, we should have roughly 50/50 split
         // Allow for some variation due to potential log loss from test interference
         assert!(

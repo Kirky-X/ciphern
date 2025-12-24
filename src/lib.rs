@@ -124,7 +124,9 @@ impl Cipher {
             if result.is_ok() {
                 Ok(())
             } else {
-                Err("Failed")
+                Err(CryptoError::EncryptionFailed(
+                    "Encryption operation failed".into(),
+                ))
             },
         );
 
@@ -163,7 +165,9 @@ impl Cipher {
             if result.is_ok() {
                 Ok(())
             } else {
-                Err("Failed")
+                Err(CryptoError::DecryptionFailed(
+                    "Decryption operation failed".into(),
+                ))
             },
         );
 
@@ -212,7 +216,9 @@ impl Signer {
             if result.is_ok() {
                 Ok(())
             } else {
-                Err("Failed")
+                Err(CryptoError::SigningFailed(
+                    "Signing operation failed".into(),
+                ))
             },
         );
 
@@ -243,7 +249,9 @@ impl Signer {
             if result.is_ok() {
                 Ok(())
             } else {
-                Err("Failed")
+                Err(CryptoError::SigningFailed(
+                    "Verification operation failed".into(),
+                ))
             },
         );
 

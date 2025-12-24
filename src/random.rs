@@ -98,7 +98,9 @@ impl SecureRandom {
                     "RNG_CONTINUOUS_TEST_FAILURE",
                     None,
                     None,
-                    Err("Continuous RNG test failed: all bytes are identical"),
+                    Err(CryptoError::FipsError(
+                        "Continuous RNG test failed: all bytes are identical".into(),
+                    )),
                 );
                 return Err(CryptoError::FipsError("Continuous RNG test failed".into()));
             }

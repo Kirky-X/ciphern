@@ -374,7 +374,7 @@ impl StreamingCipher {
         // 添加到缓冲区
         self.buffer.extend_from_slice(data);
 
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(data.len() + 16);
 
         // 处理完整的块
         while self.buffer.len() >= self.chunk_size {
@@ -397,7 +397,7 @@ impl StreamingCipher {
         // 添加到缓冲区
         self.buffer.extend_from_slice(data);
 
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(data.len() + 16);
 
         // 处理完整的块（数据 + 认证标签）
         while self.buffer.len() >= self.chunk_size + TAG_SIZE {
@@ -692,7 +692,7 @@ mod tests {
         let test_data = b"Hello, streaming encryption world! This is a test message that is longer than the chunk size.";
 
         // 加密
-        let mut encrypted = Vec::new();
+        let mut encrypted = Vec::with_capacity(test_data.len() + 32);
         encrypted.extend_from_slice(&encryptor.encrypt_chunk(test_data).unwrap());
 
         // 完成加密并获取剩余数据
@@ -702,7 +702,7 @@ mod tests {
         assert!(!encrypted.is_empty());
 
         // 解密
-        let mut decrypted = Vec::new();
+        let mut decrypted = Vec::with_capacity(encrypted.len());
         decrypted.extend_from_slice(&decryptor.decrypt_chunk(&encrypted).unwrap());
 
         // 完成解密并获取剩余数据
@@ -728,7 +728,7 @@ mod tests {
         let large_data = vec![0x42u8; 2048];
 
         // 分块加密
-        let mut all_encrypted = Vec::new();
+        let mut all_encrypted = Vec::with_capacity(2048);
         for chunk in large_data.chunks(256) {
             let encrypted_chunk = encryptor.encrypt_chunk(chunk).unwrap();
             all_encrypted.extend_from_slice(&encrypted_chunk);
@@ -739,7 +739,7 @@ mod tests {
         all_encrypted.extend_from_slice(&final_encrypted);
 
         // 分块解密 - 使用相同的块大小进行解密
-        let mut all_decrypted = Vec::new();
+        let mut all_decrypted = Vec::with_capacity(2048);
         for chunk in all_encrypted.chunks(256 + 16) {
             // 256字节数据 + 16字节认证标签
             let decrypted_chunk = decryptor.decrypt_chunk(chunk).unwrap();
@@ -771,12 +771,12 @@ mod tests {
             b"SM4 streaming test message. It should work correctly across multiple chunks.";
 
         // 加密
-        let mut encrypted = Vec::new();
+        let mut encrypted = Vec::with_capacity(test_data.len() + 32);
         encrypted.extend_from_slice(&encryptor.encrypt_chunk(test_data).unwrap());
         encrypted.extend_from_slice(&encryptor.finalize().unwrap());
 
         // 解密
-        let mut decrypted = Vec::new();
+        let mut decrypted = Vec::with_capacity(encrypted.len());
         decrypted.extend_from_slice(&decryptor.decrypt_chunk(&encrypted).unwrap());
         decrypted.extend_from_slice(&decryptor.finalize().unwrap());
 
@@ -804,12 +804,12 @@ mod tests {
         let test_data = b"Hello, this is a test message with irregular length!";
 
         // 加密
-        let mut encrypted = Vec::new();
+        let mut encrypted = Vec::with_capacity(test_data.len() + 32);
         encrypted.extend_from_slice(&encryptor.encrypt_chunk(test_data).unwrap());
         encrypted.extend_from_slice(&encryptor.finalize().unwrap());
 
         // 解密
-        let mut decrypted = Vec::new();
+        let mut decrypted = Vec::with_capacity(encrypted.len());
         decrypted.extend_from_slice(&decryptor.decrypt_chunk(&encrypted).unwrap());
         decrypted.extend_from_slice(&decryptor.finalize().unwrap());
 

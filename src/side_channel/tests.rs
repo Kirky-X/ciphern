@@ -104,7 +104,7 @@ impl SideChannelProtectionTester {
 
     /// 测试AES128GCM的时序攻击防护
     pub fn test_aes128_timing_protection(&self) -> TimingAttackTestResult {
-        let mut timing_measurements = Vec::new();
+        let mut timing_measurements = Vec::with_capacity(self.config.iterations);
 
         // 创建启用防护的provider
         let config = SideChannelConfig {
@@ -229,8 +229,8 @@ impl SideChannelProtectionTester {
         let mut key = Key::new(Algorithm::SM4GCM, key_data).unwrap();
         key.activate(None).unwrap();
 
-        let mut access_patterns = Vec::new();
-        let mut timing_variations = Vec::new();
+        let mut access_patterns = Vec::with_capacity(self.config.iterations);
+        let mut timing_variations = Vec::with_capacity(self.config.iterations);
 
         // 测试不同的缓存访问模式
         for i in 0..self.config.iterations {
@@ -289,7 +289,8 @@ impl SideChannelProtectionTester {
             aes256_error,
             sm4_cache,
             overall_score,
-            all_protections_effective: overall_score >= if crate::is_fips_enabled() { 0.75 } else { 0.8 }, // 调整FIPS模式下的阈值
+            all_protections_effective: overall_score
+                >= if crate::is_fips_enabled() { 0.75 } else { 0.8 }, // 调整FIPS模式下的阈值
         }
     }
 

@@ -230,8 +230,11 @@ impl KeyManager {
         f(key)
     }
 
-    /// 激活密钥
-    pub fn activate_key(&self, id_or_alias: &str) -> Result<()> {
+    /// 内部使用的可变密钥访问（提取公共逻辑）
+    fn with_key_mut<F, T>(&self, id_or_alias: &str, f: F) -> Result<T>
+    where
+        F: FnOnce(&mut Key) -> Result<T>,
+    {
         let key_id = self
             .resolve_alias(id_or_alias)
             .unwrap_or_else(|_| id_or_alias.to_string());
@@ -244,47 +247,34 @@ impl KeyManager {
             .get_mut(&key_id)
             .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
 
-        key.activate(None)?;
+        if key.state() == KeyState::Destroyed {
+            return Err(CryptoError::KeyNotFound("Key is destroyed".into()));
+        }
 
-        Ok(())
+        f(key)
+    }
+
+    /// 激活密钥
+    pub fn activate_key(&self, id_or_alias: &str) -> Result<()> {
+        self.with_key_mut(id_or_alias, |key| key.activate(None))
     }
 
     /// 暂停密钥
     pub fn suspend_key(&self, id_or_alias: &str) -> Result<()> {
-        let key_id = self
-            .resolve_alias(id_or_alias)
-            .unwrap_or_else(|_| id_or_alias.to_string());
-
-        let mut store = self
-            .keys
-            .write()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
-        let key = store
-            .get_mut(&key_id)
-            .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
-
-        key.suspend()?;
-
-        Ok(())
+        self.with_key_mut(id_or_alias, |key| key.suspend())
     }
 
     /// 恢复密钥
     pub fn resume_key(&self, id_or_alias: &str) -> Result<()> {
-        let key_id = self
-            .resolve_alias(id_or_alias)
-            .unwrap_or_else(|_| id_or_alias.to_string());
+        self.with_key_mut(id_or_alias, |key| key.resume())
+    }
 
-        let mut store = self
-            .keys
-            .write()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
-        let key = store
-            .get_mut(&key_id)
-            .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
-
-        key.resume()?;
-
-        Ok(())
+    /// 设置密钥过期时间
+    pub fn set_key_expiration(&self, id_or_alias: &str, expires_at: DateTime<Utc>) -> Result<()> {
+        self.with_key_mut(id_or_alias, |key| {
+            key.set_expires_at(expires_at);
+            Ok(())
+        })
     }
 
     /// 销毁密钥
@@ -311,25 +301,6 @@ impl KeyManager {
         } else {
             Err(CryptoError::KeyNotFound(key_id))
         }
-    }
-
-    /// 设置密钥过期时间
-    pub fn set_key_expiration(&self, id_or_alias: &str, expires_at: DateTime<Utc>) -> Result<()> {
-        let key_id = self
-            .resolve_alias(id_or_alias)
-            .unwrap_or_else(|_| id_or_alias.to_string());
-
-        let mut store = self
-            .keys
-            .write()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
-        let key = store
-            .get_mut(&key_id)
-            .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
-
-        key.set_expires_at(expires_at);
-
-        Ok(())
     }
 
     /// 获取密钥状态
@@ -590,7 +561,7 @@ impl TenantKeyManager {
                     None,
                     Some(key_id),
                     Some(&self.tenant_id),
-                    Err(&e.to_string()),
+                    Err(CryptoError::KeyError(e.to_string())),
                     "authorized",
                 );
             }
@@ -643,7 +614,7 @@ impl TenantKeyManager {
                     None,
                     Some(key_id),
                     Some(&self.tenant_id),
-                    Err(&e.to_string()),
+                    Err(CryptoError::KeyError(e.to_string())),
                     "authorized",
                 );
             }
@@ -674,7 +645,7 @@ impl TenantKeyManager {
                     None,
                     Some(key_id),
                     Some(&self.tenant_id),
-                    Err(&e.to_string()),
+                    Err(CryptoError::KeyError(e.to_string())),
                     "authorized",
                 );
             }
@@ -705,7 +676,7 @@ impl TenantKeyManager {
                     None,
                     Some(key_id),
                     Some(&self.tenant_id),
-                    Err(&e.to_string()),
+                    Err(CryptoError::KeyError(e.to_string())),
                     "authorized",
                 );
             }
@@ -738,7 +709,7 @@ impl TenantKeyManager {
                     None,
                     Some(key_id),
                     Some(&self.tenant_id),
-                    Err(&e.to_string()),
+                    Err(CryptoError::KeyError(e.to_string())),
                     "authorized",
                 );
             }

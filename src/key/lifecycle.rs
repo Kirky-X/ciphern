@@ -406,7 +406,7 @@ impl KeyLifecycleManager {
         key_manager: &dyn KeyManagerOperations,
     ) -> Result<Vec<String>> {
         let keys_needing_rotation = self.get_keys_needing_rotation()?;
-        let mut rotated_keys = Vec::new();
+        let mut rotated_keys = Vec::with_capacity(keys_needing_rotation.len());
 
         // 获取所有版本信息以查找算法
         let versions = self

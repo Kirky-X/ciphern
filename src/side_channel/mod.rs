@@ -323,7 +323,9 @@ pub fn protect_critical_operation_with_context<F, R>(
 where
     F: FnOnce() -> Result<R>,
 {
-    let mut context_guard = context_arc.lock().unwrap();
+    let mut context_guard = context_arc
+        .lock()
+        .map_err(|_| CryptoError::SideChannelError("Side channel context lock poisoned".into()))?;
     let config = context_guard.config.clone();
 
     // Apply cache protection before operation

@@ -103,7 +103,7 @@ impl FipsErrorState {
             "FIPS_ERROR",
             None,
             None,
-            Err(&format!("FIPS error: {}", error)),
+            Err(crate::CryptoError::FipsError(error.to_string())),
         );
     }
 
@@ -114,7 +114,6 @@ impl FipsErrorState {
     pub fn get_error(&self) -> Option<FipsError> {
         self.error_type.lock().unwrap().clone()
     }
-
 
     pub fn clear_error(&self) {
         self.is_error.store(false, Ordering::SeqCst);
@@ -396,5 +395,3 @@ pub fn get_fips_approved_algorithms() -> Vec<Algorithm> {
         vec![]
     }
 }
-
-

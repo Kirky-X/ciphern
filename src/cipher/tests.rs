@@ -11,21 +11,21 @@ fn test_aes_gcm_vectors() {
     let key_manager = KeyManager::new().unwrap();
     let key_id = key_manager.generate_key(Algorithm::AES128GCM).unwrap();
     let cipher = Cipher::new(Algorithm::AES128GCM).unwrap();
-    
+
     let plaintext = b"00000000000000000000000000000000";
     let ciphertext = cipher.encrypt(&key_manager, &key_id, plaintext).unwrap();
     let decrypted = cipher.decrypt(&key_manager, &key_id, &ciphertext).unwrap();
-    
+
     assert_eq!(plaintext, &decrypted[..]);
 
     // Vector 4 (AES-192-GCM) - Using public API
     let key_id = key_manager.generate_key(Algorithm::AES192GCM).unwrap();
     let cipher = Cipher::new(Algorithm::AES192GCM).unwrap();
-    
+
     let plaintext = b"00000000000000000000000000000000";
     let ciphertext = cipher.encrypt(&key_manager, &key_id, plaintext).unwrap();
     let decrypted = cipher.decrypt(&key_manager, &key_id, &ciphertext).unwrap();
-    
+
     assert_eq!(plaintext, &decrypted[..]);
 }
 

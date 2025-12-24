@@ -21,8 +21,6 @@ use std::sync::Mutex;
 #[cfg(feature = "encrypt")]
 use crate::key::Key;
 
-
-
 /// FIPS 自检测试结果
 #[derive(Debug, Clone)]
 pub struct SelfTestResult {
@@ -500,7 +498,7 @@ impl FipsSelfTestEngine {
         {
             let mut tests_passed = 0;
             let mut total_tests = 0;
-            let mut error_messages = Vec::new();
+            let mut error_messages = Vec::with_capacity(8);
 
             // 1. 频率测试 (Monobit Test)
             total_tests += 1;
@@ -655,10 +653,10 @@ impl FipsSelfTestEngine {
             "RNG_SECURITY_ALERT",
             None,
             None,
-            Err(&format!(
+            Err(crate::CryptoError::FipsError(format!(
                 "[{:?}] Category: {:?}, Message: {}",
                 severity, category, message
-            )),
+            ))),
         );
 
         if let Some(handler) = &self.alert_handler {
@@ -759,7 +757,7 @@ impl FipsSelfTestEngine {
         use crate::key::Key;
 
         let mut all_passed = true;
-        let mut error_messages = Vec::new();
+        let mut error_messages = Vec::with_capacity(8);
 
         // 测试多个曲线和密钥
         let test_cases = vec![
@@ -871,7 +869,7 @@ impl FipsSelfTestEngine {
         use crate::key::Key;
 
         let mut all_passed = true;
-        let mut error_messages = Vec::new();
+        let mut error_messages = Vec::with_capacity(8);
 
         // 测试多个 RSA 密钥长度
         let test_cases = vec![
@@ -1900,7 +1898,7 @@ impl FipsSelfTestEngine {
                         // We append 0 at start.
 
         // Count zero crossings
-        let mut zero_indices = Vec::new();
+        let mut zero_indices = Vec::with_capacity(n / 2);
         for (i, &val) in s.iter().enumerate().take(n + 1).skip(1) {
             if val == 0 {
                 zero_indices.push(i);
@@ -2143,22 +2141,29 @@ mod tests {
     fn test_rng_health_test() {
         let engine = FipsSelfTestEngine::new();
         let result = engine.rng_health_test().unwrap();
-        
+
         // RNG健康测试依赖于随机性和严格的统计测试
         // 由于随机数生成器的概率性质，即使是良好的随机性也可能偶尔失败
         // 这在统计测试中是正常的，特别是对于小样本
         // 我们仍然记录失败，但不将其视为致命错误，以避免测试不稳定
-        
+
         if !result.passed {
-            println!("RNG health test failed (this can happen due to statistical variation): {}", 
-                    result.error_message.as_deref().unwrap_or("Unknown error"));
+            println!(
+                "RNG health test failed (this can happen due to statistical variation): {}",
+                result.error_message.as_deref().unwrap_or("Unknown error")
+            );
             println!("Note: This is a statistical test and occasional failures are expected with good randomness");
         }
-        
+
         // 对于FIPS合规性，这个测试应该通过，但我们允许在单元测试中偶尔失败
         // 在实际FIPS部署中，会运行多次测试以确保随机性质量
         assert!(
-            result.passed || result.error_message.as_deref().unwrap_or("").contains("statistical"),
+            result.passed
+                || result
+                    .error_message
+                    .as_deref()
+                    .unwrap_or("")
+                    .contains("statistical"),
             "RNG health test failed consistently - this may indicate a real issue: {}",
             result.error_message.as_deref().unwrap_or("Unknown error")
         );

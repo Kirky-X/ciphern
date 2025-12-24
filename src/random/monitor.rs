@@ -272,10 +272,10 @@ impl RngMonitor {
             "RNG_HEALTH_ALERT",
             None,
             None,
-            Err(&format!(
+            Err(crate::CryptoError::FipsError(format!(
                 "[{:?}] Category: {:?}, Message: {}",
                 severity, category, message
-            )),
+            ))),
         );
 
         // 调用告警处理器
@@ -376,7 +376,7 @@ impl RngMonitorManager {
     #[allow(dead_code)]
     pub fn perform_all_health_checks(&self) -> Result<Vec<bool>> {
         let monitors = self.monitors.lock().unwrap();
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(monitors.len());
 
         for monitor in monitors.iter() {
             match monitor.perform_health_check() {

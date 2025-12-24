@@ -178,7 +178,7 @@ impl FipsAlgorithmValidator {
     /// 验证算法列表是否全部符合 FIPS 要求
     #[allow(dead_code)]
     pub fn validate_algorithms_fips_compliance(algorithms: &[Algorithm]) -> Result<()> {
-        let mut non_approved = Vec::new();
+        let mut non_approved = Vec::with_capacity(algorithms.len());
 
         for algorithm in algorithms {
             if !Self::is_algorithm_approved(algorithm) {

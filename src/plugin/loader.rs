@@ -67,7 +67,7 @@ impl PluginLoader {
     }
 
     pub fn load_all_plugins(&mut self) -> Vec<Result<Arc<dyn Plugin>>> {
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(64);
 
         let mut paths_to_load = Vec::new();
         for dir in &self.plugin_dirs {
