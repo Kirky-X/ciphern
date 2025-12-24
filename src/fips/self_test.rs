@@ -1610,7 +1610,7 @@ impl FipsSelfTestEngine {
         ];
 
         let mu = block_size as f64 / 2.0
-            + (9.0 + if block_size % 2 == 0 { 1.0 } else { -1.0 }) / 36.0
+            + (9.0 + if block_size.is_multiple_of(2) { 1.0 } else { -1.0 }) / 36.0
             - (block_size as f64 / 3.0 + 2.0 / 9.0) / 2.0f64.powi(block_size as i32);
 
         for i in 0..num_blocks {
@@ -1648,7 +1648,7 @@ impl FipsSelfTestEngine {
                 }
             }
 
-            let t = if block_size % 2 == 0 { 1.0 } else { -1.0 } * (l as f64 - mu) + 2.0 / 9.0;
+            let t = if block_size.is_multiple_of(2) { 1.0 } else { -1.0 } * (l as f64 - mu) + 2.0 / 9.0;
 
             if t <= -2.5 {
                 buckets[0] += 1;

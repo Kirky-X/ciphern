@@ -23,7 +23,7 @@ use crate::ffi::interface::CiphernError;
 /// 初始化库
 #[no_mangle]
 pub extern "C" fn ciphern_init() -> CiphernError {
-    match std::panic::catch_unwind(|| context::initialize_context()) {
+    match std::panic::catch_unwind(context::initialize_context) {
         Ok(result) => match result {
             Ok(_) => CiphernError::Success,
             Err(_) => CiphernError::UnknownError,
@@ -38,7 +38,7 @@ pub extern "C" fn ciphern_init() -> CiphernError {
 /// 清理库资源
 #[no_mangle]
 pub extern "C" fn ciphern_cleanup() {
-    match std::panic::catch_unwind(|| context::cleanup_context()) {
+    match std::panic::catch_unwind(context::cleanup_context) {
         Ok(_) => {}
         Err(_) => {
             // Log the panic but don't propagate it across FFI boundary
