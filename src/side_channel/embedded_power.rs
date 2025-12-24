@@ -178,37 +178,36 @@ impl EmbeddedPowerProtector {
     }
 
     /// Cortex-M寄存器操作以创建功耗变化
+    #[cfg(target_arch = "arm")]
     fn cortex_m_register_operations(&self, strength: f32) -> Result<()> {
+        use core::arch::asm;
         let iterations = (strength * 50.0) as usize;
 
         unsafe {
-            std::arch::asm!(
-                "mov r0, #0",
-                "mov r1, #1",
-                "mov r2, #2",
-                "mov r3, #3",
-                options(nostack, preserves_flags)
-            );
-
-            for i in 0..iterations {
-                let mask = (i as u32 * 0x9E3779B9u32) as i32;
-                std::arch::asm!(
-                    "eor r0, r0, {mask:e}",
-                    "eor r1, r1, {mask:e}",
-                    "eor r2, r2, {mask:e}",
-                    "eor r3, r3, {mask:e}",
-                    mask = in(reg) mask,
+            for _ in 0..iterations {
+                asm!(
+                    "eor r0, r0, r0",
+                    "eor r1, r1, r1",
+                    "eor r2, r2, r2",
+                    "eor r3, r3, r3",
                     options(nostack, preserves_flags)
                 );
             }
+        }
 
-            std::arch::asm!(
-                "mov r0, #0",
-                "mov r1, #0",
-                "mov r2, #0",
-                "mov r3, #0",
-                options(nostack, preserves_flags)
-            );
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "arm"))]
+    fn cortex_m_register_operations(&self, strength: f32) -> Result<()> {
+        let iterations = (strength * 50.0) as usize;
+
+        for i in 0..iterations {
+            let mut accumulator = 0u64;
+            for j in 0..4 {
+                accumulator ^= ((i + j) as u64).wrapping_mul(0x9E3779B9u64);
+            }
+            std::hint::black_box(accumulator);
         }
 
         Ok(())
