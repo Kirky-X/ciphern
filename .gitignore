@@ -37,3 +37,4 @@ db.sqlite
 secret/
 .trae/
 test_crate
+temp/
