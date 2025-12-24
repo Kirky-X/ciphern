@@ -137,12 +137,14 @@ impl HashAlgorithm for Sha512Hasher {
 
 pub struct Sm3Hasher {
     hasher: libsm::sm3::hash::Sm3Hash,
+    buffer: Vec<u8>,
 }
 
 impl Sm3Hasher {
     pub fn new() -> Self {
         Self {
             hasher: libsm::sm3::hash::Sm3Hash::new(&[]),
+            buffer: Vec::new(),
         }
     }
 }
@@ -163,18 +165,19 @@ impl HashAlgorithm for Sm3Hasher {
     }
 
     fn update(&mut self, data: &[u8]) {
-        let mut combined = Vec::with_capacity(data.len());
-        combined.extend_from_slice(data);
-        self.hasher = libsm::sm3::hash::Sm3Hash::new(&combined);
+        self.buffer.extend_from_slice(data);
+        self.hasher = libsm::sm3::hash::Sm3Hash::new(&self.buffer);
     }
 
     fn finalize(&mut self) -> Vec<u8> {
         let result = self.hasher.get_hash().to_vec();
+        self.buffer.clear();
         self.hasher = libsm::sm3::hash::Sm3Hash::new(&[]);
         result
     }
 
     fn reset(&mut self) {
+        self.buffer.clear();
         self.hasher = libsm::sm3::hash::Sm3Hash::new(&[]);
     }
 }
