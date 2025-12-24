@@ -17,7 +17,8 @@
 
 ### 🔒 Security First
 
-- **Memory Protection**: Securely clear keys using `zeroize`, support for memory locking
+- **Memory Protection**: Securely clear keys using `zeroize`, support for memory locking (mlock) and integrity verification
+- **Side-channel Protection**: Provides constant-time operation implementation to prevent timing attacks
 - **Compliance**: Compliant with Chinese National Standards (SM2/SM3/SM4) and FIPS 140-3 basic requirements
 - **Audit Logs**: Full audit trail for cryptographic operations
 - **Key Lifecycle**: Support for basic lifecycle management including key generation, activation, and destruction
@@ -57,15 +58,15 @@ ciphern = "0.1"
 
 **Java (Maven)**
 
-Java bindings are under development, requiring manual compilation of the JNI library:
+Java JNI bindings have completed core functionality implementation, supporting encryption/decryption and key management:
 
 ```xml
-<!-- Maven direct installation is not yet supported, requires compilation from source -->
+<!-- Maven direct installation is not yet supported, requires compilation of the JNI library from source -->
 ```
 
 **Python (pip)**
 
-Python bindings are under development, requiring manual compilation:
+Python PyO3 bindings have completed core functionality implementation, supporting encryption/decryption, signature verification, and hash calculation:
 
 ```bash
 # pip direct installation is not yet supported, requires compilation from source
@@ -172,20 +173,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #### Java Example
 
-Java bindings are under development, currently requiring manual compilation of the JNI library:
+Java JNI bindings have completed core functionality implementation:
 
 ```java
-// Direct usage is not yet supported, requires compilation of the JNI library from source
-// import com.ciphern.*;
+import com.ciphern.Ciphern;
+
+public class Main {
+    public static void main(String[] args) {
+        // Initialize the library
+        Ciphern.init();
+        
+        // Generate a key
+        String keyId = Ciphern.generateKey("AES256GCM");
+        
+        // Encrypt
+        byte[] plaintext = "Hello, Ciphern!".getBytes();
+        byte[] ciphertext = Ciphern.encrypt(keyId, plaintext);
+        
+        // Decrypt
+        byte[] decrypted = Ciphern.decrypt(keyId, ciphertext);
+        
+        System.out.println("Decrypted result: " + new String(decrypted));
+    }
+}
 ```
 
 #### Python Example
 
-Python bindings are under development, currently requiring manual compilation:
+Python PyO3 bindings have completed core functionality implementation:
 
 ```python
-# Direct usage is not yet supported, requires compilation of the PyO3 extension from source
-# from ciphern import Cipher, Algorithm
+from ciphern_py import KeyManager, Ciphern
+
+# Initialize KeyManager
+km = KeyManager()
+
+# Generate a key
+key_id = km.generate_key("AES256GCM")
+
+# Create cipher
+cipher = Ciphern(km)
+
+# Encrypt
+plaintext = b"Hello, Ciphern!"
+ciphertext = cipher.encrypt(key_id, plaintext)
+
+# Decrypt
+decrypted = cipher.decrypt(key_id, ciphertext)
+
+print(f"Decrypted result: {decrypted.decode('utf-8')}")
 ```
 
 ---
@@ -350,12 +386,13 @@ cargo bench
 ### Security Features
 
 - ✅ **Automatic Memory Erasure**: Securely clear keys using `zeroize`
+- ✅ **Memory Locking**: Uses `mlock` to prevent sensitive data from being swapped to disk
+- ✅ **Integrity Verification**: Key integrity checks to prevent memory tampering
+- ✅ **Constant-time Operations**: Side-channel protection to prevent timing attacks
 - ✅ **FIPS 140-3 Basic Compliance**: Supports verification of FIPS-approved algorithms
 - ✅ **Audit Logs**: Full audit trail for cryptographic operations
 - ✅ **Algorithm Verification**: Built-in algorithm correctness self-checks
 - ✅ **Error Handling**: Secure error state management
-
-> Note: Constant-time implementation, memory locking, side-channel protection, and other advanced security features are under development.
 
 ### Security Audit
 
@@ -444,9 +481,10 @@ cargo build --target aarch64-apple-darwin --release
 ### v0.2.0 - Multi-language Support (Partially Completed) 🚧
 
 - [x] C FFI interface
-- [ ] Java JNI bindings (basic framework exists)
-- [ ] Python PyO3 bindings (basic framework exists)
-- [ ] Memory protection enhancements
+- [x] Java JNI bindings (core functionality implemented)
+- [x] Python PyO3 bindings (core functionality implemented)
+- [x] Memory protection enhancements (mlock + integrity verification)
+- [x] Side-channel protection (constant-time operations)
 - [ ] Plugin system improvements
 
 ### v0.3.0 - Extensibility (Planned) 📋

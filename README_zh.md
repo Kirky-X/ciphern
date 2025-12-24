@@ -17,7 +17,8 @@
 
 ### 🔒 安全优先
 
-- **内存保护**: 使用 `zeroize` 安全清理密钥，支持内存锁定
+- **内存保护**: 使用 `zeroize` 安全清理密钥，支持内存锁定 (mlock) 和完整性校验
+- **侧信道防护**: 提供 constant-time 操作实现，防止时序攻击
 - **合规认证**: 符合国密标准 (SM2/SM3/SM4) 和 FIPS 140-3 基础要求
 - **审计日志**: 完整的加密操作审计追踪
 - **密钥生命周期**: 支持密钥生成、激活、销毁等基础生命周期管理
@@ -57,15 +58,15 @@ ciphern = "0.1"
 
 **Java (Maven)**
 
-Java 绑定正在开发中，需要手动编译 JNI 库：
+Java JNI 绑定已完成核心功能实现，支持加密解密和密钥管理：
 
 ```xml
-<!-- 暂不支持 Maven 直接安装，需要从源码编译 -->
+<!-- 暂不支持 Maven 直接安装，需要从源码编译 JNI 库 -->
 ```
 
 **Python (pip)**
 
-Python 绑定正在开发中，需要手动编译：
+Python PyO3 绑定已完成核心功能实现，支持加密解密、签名验证和哈希计算：
 
 ```bash
 # 暂不支持 pip 直接安装，需要从源码编译
@@ -172,20 +173,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #### Java 示例
 
-Java 绑定正在开发中，当前需要手动编译 JNI 库：
+Java JNI 绑定已完成核心功能实现：
 
 ```java
-// 暂不支持直接使用，需要从源码编译 JNI 库
-// import com.ciphern.*;
+import com.ciphern.Ciphern;
+
+public class Main {
+    public static void main(String[] args) {
+        // 初始化库
+        Ciphern.init();
+        
+        // 生成密钥
+        String keyId = Ciphern.generateKey("AES256GCM");
+        
+        // 加密
+        byte[] plaintext = "Hello, Ciphern!".getBytes();
+        byte[] ciphertext = Ciphern.encrypt(keyId, plaintext);
+        
+        // 解密
+        byte[] decrypted = Ciphern.decrypt(keyId, ciphertext);
+        
+        System.out.println("解密结果: " + new String(decrypted));
+    }
+}
 ```
 
 #### Python 示例
 
-Python 绑定正在开发中，当前需要手动编译：
+Python PyO3 绑定已完成核心功能实现：
 
 ```python
-# 暂不支持直接使用，需要从源码编译 PyO3 扩展
-# from ciphern import Cipher, Algorithm
+from ciphern_py import KeyManager, Ciphern
+
+# 初始化密钥管理器
+km = KeyManager()
+
+# 生成密钥
+key_id = km.generate_key("AES256GCM")
+
+# 创建加密器
+cipher = Ciphern(km)
+
+# 加密
+plaintext = b"Hello, Ciphern!"
+ciphertext = cipher.encrypt(key_id, plaintext)
+
+# 解密
+decrypted = cipher.decrypt(key_id, ciphertext)
+
+print(f"解密结果: {decrypted.decode('utf-8')}")
 ```
 
 ---
@@ -361,12 +397,13 @@ cargo bench
 ### 安全特性
 
 - ✅ **自动内存擦除**: 使用 `zeroize` 安全清理密钥
+- ✅ **内存锁定**: 使用 `mlock` 防止敏感数据被交换到磁盘
+- ✅ **完整性校验**: 密钥完整性检查，防止内存篡改
+- ✅ **Constant-time 操作**: 防止时序攻击的侧信道防护
 - ✅ **FIPS 140-3 基础合规**: 支持 FIPS 批准的算法验证
 - ✅ **审计日志**: 完整的加密操作审计追踪
 - ✅ **算法验证**: 内置算法正确性自检
 - ✅ **错误处理**: 安全的错误状态管理
-
-> 注：Constant-time 实现、内存锁定、侧信道防护等高级安全特性正在开发中
 
 ### 安全审计
 
@@ -455,9 +492,10 @@ cargo build --target aarch64-apple-darwin --release
 ### v0.2.0 - 多语言支持 (部分完成) 🚧
 
 - [x] C FFI 接口
-- [ ] Java JNI 绑定 (基础框架已存在)
-- [ ] Python PyO3 绑定 (基础框架已存在)
-- [ ] 内存保护增强
+- [x] Java JNI 绑定 (核心功能已实现)
+- [x] Python PyO3 绑定 (核心功能已实现)
+- [x] 内存保护增强 (mlock + 完整性校验)
+- [x] 侧信道防护 (constant-time 操作)
 - [ ] 插件系统完善
 
 ### v0.3.0 - 扩展性 (规划中) 📋

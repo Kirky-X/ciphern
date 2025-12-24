@@ -475,16 +475,63 @@ AuditLogger::log("CUSTOM_OP", Some(Algorithm::AES256GCM), Some("key-1"), Ok(()))
 
 ### 5.4 侧信道防护
 
-Ciphern 实现了针对侧信道攻击的防护，包括恒定时间操作以防止定时攻击。
+Ciphern 实现了针对侧信道攻击的多层防护机制，核心是通过恒定时间操作防止定时攻击和功耗分析。
+
+#### 恒定时间操作实现
+
+所有敏感比较和数据处理都使用恒定时间算法，避免因分支预测或内存访问模式泄露信息：
 
 ```rust
 use ciphern::side_channel::constant_time::constant_time_eq;
+use ciphern::side_channel::constant_time::constant_time_less_than;
 
-// 示例：恒定时间比较
+// 示例1：恒定时间比较（防止时序攻击）
 let a = b"password";
 let b = b"password";
 let is_equal = constant_time_eq(a, b);
+
+// 示例2：恒定时间小于比较
+let x = 0x12345678u32;
+let y = 0x87654321u32;
+let is_less = constant_time_less_than(x, y);
 ```
+
+#### 加密操作的侧信道防护
+
+Ciphern 内部的所有加密操作（如 AES 加解密、ECDSA 签名）都使用恒定时间实现：
+
+```rust
+use ciphern::{Cipher, Algorithm, KeyManager};
+
+// 加密操作自动使用恒定时间实现
+let km = KeyManager::new()?;
+let key_id = km.generate_key(Algorithm::AES256GCM)?;
+let cipher = Cipher::new(Algorithm::AES256GCM)?;
+
+// 该加密操作在恒定时间内完成，不会泄露明文或密钥信息
+let ciphertext = cipher.encrypt(&km, &key_id, b"sensitive data")?;
+```
+
+#### 内存访问模式防护
+
+Ciphern 使用 `SecretBytes` 容器保护敏感数据，确保内存访问模式不会泄露信息：
+
+```rust
+use ciphern::memory::SecretBytes;
+
+// 敏感数据存储在受保护的容器中
+let secret = SecretBytes::new(b"secret key material".to_vec())?;
+
+// 所有访问都通过恒定时间接口
+let data = secret.as_slice();
+```
+
+#### 防护范围
+
+- ✅ **定时攻击防护**: 所有比较操作使用恒定时间实现
+- ✅ **功耗分析防护**: 内存访问模式恒定
+- ✅ **缓存攻击防护**: 避免数据依赖的内存访问
+- ✅ **分支预测防护**: 消除基于秘密数据的分支
 
 ### 5.5 自定义插件
 
@@ -533,69 +580,71 @@ manager.register_cipher_plugin(my_plugin)?;
 
 ### 6.1 Java 集成
 
-#### Maven 配置
+#### 编译说明
 
-```xml
-<dependency>
-    <groupId>dev.ciphern</groupId>
-    <artifactId>ciphern-jni</artifactId>
-    <version>0.1.0</version>
-</dependency>
+Java JNI 绑定已完成核心功能实现，支持加密解密和密钥管理。目前需要从源码编译：
+
+```bash
+# 编译 JNI 库
+cargo build --release --features java
 ```
 
 #### 基础使用
 
 ```java
-import dev.ciphern.*;
+import com.ciphern.Ciphern;
 
 public class Example {
     public static void main(String[] args) {
-        try {
-            // 初始化
-            Ciphern.init();
-            
-            try (KeyManager km = new KeyManager()) {
-                String keyId = km.generateKey(Algorithm.AES256GCM);
-                
-                try (Cipher cipher = new Cipher(Algorithm.AES256GCM)) {
-                    byte[] plaintext = "Hello, Java!".getBytes();
-                    byte[] ciphertext = cipher.encrypt(km, keyId, plaintext);
-                    byte[] decrypted = cipher.decrypt(km, keyId, ciphertext);
-                    
-                    System.out.println("Decrypted: " + new String(decrypted));
-                }
-            }
-        } catch (CryptoException e) {
-            e.printStackTrace();
-        }
+        // 初始化
+        Ciphern.init();
+        
+        // 生成密钥
+        String keyId = Ciphern.generateKey("AES256GCM");
+        
+        // 加密
+        byte[] plaintext = "Hello, Java!".getBytes();
+        byte[] ciphertext = Ciphern.encrypt(keyId, plaintext);
+        
+        // 解密
+        byte[] decrypted = Ciphern.decrypt(keyId, ciphertext);
+        
+        System.out.println("Decrypted: " + new String(decrypted));
     }
 }
 ```
 
 ### 6.2 Python 集成
 
-#### 安装
+#### 编译说明
+
+Python PyO3 绑定已完成核心功能实现，支持加密解密、签名验证和哈希计算。目前需要从源码编译：
 
 ```bash
-pip install ciphern
+# 编译 PyO3 扩展
+cargo build --release --features python
 ```
 
 #### 基础使用
 
 ```python
-from ciphern import Cipher, Algorithm, KeyManager, init
+from ciphern_py import KeyManager, Ciphern
 
-# 初始化
-init()
-
+# 初始化密钥管理器
 km = KeyManager()
-key_id = km.generate_key(Algorithm.AES256GCM)
 
-# 加密解密
-cipher = Cipher(Algorithm.AES256GCM)
+# 生成密钥
+key_id = km.generate_key("AES256GCM")
+
+# 创建加密器
+cipher = Ciphern(km)
+
+# 加密
 plaintext = b"Hello, Python!"
-ciphertext = cipher.encrypt(km, key_id, plaintext)
-decrypted = cipher.decrypt(km, key_id, ciphertext)
+ciphertext = cipher.encrypt(key_id, plaintext)
+
+# 解密
+decrypted = cipher.decrypt(key_id, ciphertext)
 assert plaintext == decrypted
 ```
 
@@ -625,13 +674,35 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 #### 内存保护
 
-Ciphern 默认启用内存保护。在 Linux 环境下，确保应用有足够的权限使用 `mlock`。
+Ciphern 默认启用多层内存保护机制：
+
+1. **自动内存擦除**: 使用 `zeroize` 自动清理密钥内存
+2. **内存锁定**: 使用 `mlock` 防止密钥被交换到磁盘
+3. **完整性校验**: 密钥完整性检查防止内存篡改
+
+在 Linux 环境下，确保应用有足够的权限使用 `mlock`：
 
 ```bash
 # 提升内存锁定限制 (Linux)
 # 编辑 /etc/security/limits.conf
 * soft memlock unlimited
 * hard memlock unlimited
+```
+
+#### 敏感数据容器
+
+Ciphern 提供 `SecretBytes` 容器用于存储敏感数据：
+
+```rust
+use ciphern::memory::SecretBytes;
+
+// 创建安全容器
+let secret = SecretBytes::new(b"sensitive data".to_vec())?;
+
+// 访问数据（自动零化）
+let data = secret.as_slice();
+
+// 容器销毁时自动零化内存
 ```
 
 #### 文件权限
@@ -718,7 +789,7 @@ cargo doc --open
 ### B. 文档版本
 
 **版本**: v0.1.0
-**更新日期**: 2025-12-23
+**更新日期**: 2025-12-24
 **反馈**: [GitHub Issues](https://github.com/Kirky-X/ciphern/issues)
 
 [⬆ 回到顶部](#ciphern-用户指南)
