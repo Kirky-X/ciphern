@@ -229,7 +229,7 @@ impl KeyManager {
             .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
         let key = store
             .get(&key_id)
-            .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
+            .ok_or_else(|| CryptoError::KeyNotFound("Key not found".into()))?;
 
         if key.state() == KeyState::Destroyed {
             return Err(CryptoError::KeyNotFound("Key is destroyed".into()));
@@ -253,7 +253,7 @@ impl KeyManager {
             .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
         let key = store
             .get_mut(&key_id)
-            .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
+            .ok_or_else(|| CryptoError::KeyNotFound("Key not found".into()))?;
 
         if key.state() == KeyState::Destroyed {
             return Err(CryptoError::KeyNotFound("Key is destroyed".into()));
