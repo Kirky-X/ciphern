@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum PqcAlgorithm {
     Kyber512,
     Kyber768,
@@ -42,6 +43,7 @@ impl PqcAlgorithm {
         }
     }
 
+    #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
         match self {
             PqcAlgorithm::Kyber512 => "Kyber512",
@@ -58,6 +60,7 @@ impl PqcAlgorithm {
         }
     }
 
+    #[allow(dead_code)]
     pub fn security_level(&self) -> &'static str {
         match self {
             PqcAlgorithm::Kyber512 => "NIST Level 1",
@@ -76,6 +79,7 @@ impl PqcAlgorithm {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum PqcKey {
     KyberPublic(Vec<u8>),
     KyberSecret(Vec<u8>),
@@ -92,6 +96,7 @@ pub enum PqcKey {
 }
 
 impl PqcKey {
+    #[allow(dead_code)]
     pub fn size(&self) -> usize {
         match self {
             PqcKey::KyberPublic(v) => v.len(),
@@ -110,25 +115,31 @@ impl PqcKey {
     }
 }
 
+#[allow(dead_code)]
 pub trait PqcOperations {
+    #[allow(dead_code)]
     fn generate_keypair(&self, _algorithm: PqcAlgorithm) -> Result<(Vec<u8>, Vec<u8>)>;
+    #[allow(dead_code)]
     fn encapsulate(
         &self,
         _public_key: &[u8],
         _algorithm: PqcAlgorithm,
     ) -> Result<(Vec<u8>, Vec<u8>)>;
+    #[allow(dead_code)]
     fn decapsulate(
         &self,
         _secret_key: &[u8],
         _ciphertext: &[u8],
         _algorithm: PqcAlgorithm,
     ) -> Result<Vec<u8>>;
+    #[allow(dead_code)]
     fn sign(
         &self,
         _secret_key: &[u8],
         _message: &[u8],
         _algorithm: PqcAlgorithm,
     ) -> Result<Vec<u8>>;
+    #[allow(dead_code)]
     fn verify(
         &self,
         _public_key: &[u8],
@@ -195,7 +206,7 @@ impl PqcKeyManager {
     fn generate_fake_keypair(
         public_key: &mut [u8],
         secret_key: &mut [u8],
-        algorithm: PqcAlgorithm,
+        _algorithm: PqcAlgorithm,
     ) -> Result<()> {
         let mut rng = rand::thread_rng();
         use rand::RngCore;
@@ -530,7 +541,9 @@ impl PqcUtils {
 pub struct PqcKeyWrapper {
     wrapped_key: Vec<u8>,
     algorithm: PqcAlgorithm,
+    #[allow(dead_code)]
     created_at: DateTime<Utc>,
+    #[allow(dead_code)]
     metadata: HashMap<String, String>,
 }
 

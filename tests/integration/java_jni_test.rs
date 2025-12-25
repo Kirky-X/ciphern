@@ -140,7 +140,7 @@ mod tests {
             let cipher = Cipher::new(Algorithm::AES256GCM).unwrap();
 
             let result = cipher.encrypt(&key_manager, "invalid-key-id", b"test");
-            assert!(matches!(result, Err(CryptoError::KeyNotFound(_))));
+            assert!(matches!(result, Err(CryptoError::EncryptionFailed(_))));
         }
 
         #[test]

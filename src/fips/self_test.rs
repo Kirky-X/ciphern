@@ -2161,10 +2161,8 @@ mod tests {
                 Ok(result) => {
                     if result.passed {
                         passed_count += 1;
-                    } else {
-                        if let Some(msg) = &result.error_message {
-                            all_errors.push(format!("Run {}: {}", i + 1, msg));
-                        }
+                    } else if let Some(msg) = &result.error_message {
+                        all_errors.push(format!("Run {}: {}", i + 1, msg));
                     }
                 }
                 Err(e) => {

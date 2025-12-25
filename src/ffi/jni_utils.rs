@@ -13,7 +13,7 @@ use jni::sys::jint;
 use jni::JNIEnv;
 use std::ffi::CString;
 
-use super::{ciphern_cleanup, ciphern_init, CiphernError};
+use crate::ffi::{ciphern_cleanup, ciphern_init, CiphernError};
 
 /// JNI 结果类型别名
 pub type JniResult<T> = Result<T, JniError>;
@@ -106,7 +106,10 @@ pub struct JniInitializer;
 impl JniInitializer {
     /// 初始化 Ciphern 库
     pub fn init() -> jint {
-        ciphern_init() as jint
+        match ciphern_init() {
+            CiphernError::Success => 0,
+            _ => -1,
+        }
     }
 
     /// 清理 Ciphern 库

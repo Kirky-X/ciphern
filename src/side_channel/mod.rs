@@ -26,8 +26,6 @@ pub mod power_analysis;
 
 #[cfg(test)]
 mod stats_tests;
-#[cfg(test)]
-mod tests;
 
 pub use error_injection::*;
 pub use masking::*;

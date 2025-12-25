@@ -133,7 +133,8 @@ impl Cipher {
             }
         }
 
-        let result = key_manager.with_key(key_id, |key| self.provider.encrypt(key, plaintext, None));
+        let result =
+            key_manager.with_key(key_id, |key| self.provider.encrypt(key, plaintext, None));
 
         // 将密钥相关的错误转换为通用错误，防止信息泄露
         let result = result.map_err(|e| match e {
@@ -180,7 +181,8 @@ impl Cipher {
             }
         }
 
-        let result = key_manager.with_key(key_id, |key| self.provider.decrypt(key, ciphertext, None));
+        let result =
+            key_manager.with_key(key_id, |key| self.provider.decrypt(key, ciphertext, None));
 
         // 将密钥相关的错误转换为通用错误，防止信息泄露
         let result = result.map_err(|e| match e {

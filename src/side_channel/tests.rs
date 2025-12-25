@@ -649,7 +649,7 @@ impl SideChannelProtectionTester {
 }
 
 #[cfg(test)]
-mod tests {
+mod side_channel_tests_internal {
     use super::*;
 
     #[test]

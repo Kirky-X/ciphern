@@ -24,6 +24,12 @@ pub mod python_pyo3;
 // 重新导出统一的接口定义
 pub use interface::CiphernError;
 
+#[allow(unused_imports)]
+// 重新导出 C API 函数供其他 FFI 模块使用
+pub use c_api::{
+    ciphern_cleanup, ciphern_decrypt, ciphern_encrypt, ciphern_generate_key, ciphern_init,
+};
+
 #[cfg(feature = "plugin")]
 #[allow(unused_imports)]
 pub use interface::{

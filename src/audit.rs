@@ -1026,13 +1026,13 @@ mod tests {
         // With 100 operations alternating success/failure, we should have roughly 50/50 split
         // Allow for some variation due to potential log loss from test interference
         assert!(
-            success_count >= 40 && success_count <= 60,
+            (40..=60).contains(&success_count),
             "Expected success count between 40-60, got {}. Total test logs: {}",
             success_count,
             test_logs.len()
         );
         assert!(
-            failure_count >= 40 && failure_count <= 60,
+            (40..=60).contains(&failure_count),
             "Expected failure count between 40-60, got {}. Total test logs: {}",
             failure_count,
             test_logs.len()
