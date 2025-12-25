@@ -31,6 +31,7 @@ Thumbs.db
 # Sensitive information
 .env
 .env.local
+Cargo.lock
 *.key
 *.pem
 db.sqlite
