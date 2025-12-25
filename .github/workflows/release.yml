@@ -108,7 +108,6 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "build-shared-${{ matrix.os }}"
           cache-targets: false
 
       - name: Build Release
@@ -146,7 +145,25 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          merge-multiple: true
+
+      - name: Prepare Release Assets
+        run: |
+          cd artifacts
+          for dir in */; do
+            if [ -d "$dir" ]; then
+              cd "$dir"
+              for file in *; do
+                if [ -f "$file" ]; then
+                  echo "Found artifact: $file"
+                  cd ..
+                  mv "$dir$file" ./"$file" 2>/dev/null || true
+                  break
+                fi
+              done
+              cd ..
+            fi
+          done
+          ls -la
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
