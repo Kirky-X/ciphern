@@ -11,15 +11,18 @@
 pub mod c_api;
 pub mod context;
 pub mod interface;
+
+#[cfg(feature = "java_ffi")]
 pub mod java_jni;
+
+#[cfg(feature = "java_ffi")]
 pub mod jni_utils;
+
+#[cfg(feature = "python_ffi")]
 pub mod python_pyo3;
 
 // 重新导出统一的接口定义
 pub use interface::CiphernError;
-
-// Re-export C API functions to maintain compatibility
-pub use c_api::*;
 
 #[cfg(feature = "plugin")]
 #[allow(unused_imports)]

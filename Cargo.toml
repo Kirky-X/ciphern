@@ -25,7 +25,7 @@ argon2 = "0.5.3"
 pbkdf2 = { version = "0.12.2", features = ["simple"] }
 zeroize = { version = "1.8.2", features = ["derive", "zeroize_derive"] }
 libc = "0.2.162"
-libloading = "0.8.5"
+libloading = { version = "0.8.5", optional = true }
 rand = { version = "0.8.5", features = ["small_rng"] }
 rand_chacha = "0.3.1"
 getrandom = { version = "0.2.15", features = ["js"] }
@@ -36,8 +36,8 @@ sha2 = "0.10.8"
 hmac = "0.12"
 rsa = "0.9.6"
 pkcs8 = "0.10.2"
-jni = "0.21.1"
-pyo3 = { version = "0.27.2", features = ["extension-module"] }
+jni = { version = "0.21.1", optional = true }
+pyo3 = { version = "0.27.2", features = ["extension-module"], optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.147"
 log = "0.4.29"
@@ -55,13 +55,16 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 tempfile = "3.24.0"
 
 [features]
-default = ["std", "fips", "hash", "encrypt", "kdf"]
+default = ["std", "fips", "hash", "encrypt", "kdf", "c_ffi"]
 std = []
 fips = []
 hash = []
 encrypt = []
 kdf = ["encrypt"]
-plugin = []
+c_ffi = []
+java_ffi = ["jni", "c_ffi"]
+python_ffi = ["pyo3"]
+plugin = ["libloading"]
 generate_headers = []
 post_quantum = []
 

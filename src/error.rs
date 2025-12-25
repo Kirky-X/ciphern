@@ -5,7 +5,7 @@
 
 use thiserror::Error;
 
-#[cfg(feature = "encrypt")]
+#[cfg(feature = "python_ffi")]
 use pyo3::exceptions::PyRuntimeError;
 
 #[derive(Debug, Error)]
@@ -84,7 +84,7 @@ pub enum CryptoError {
 
 pub type Result<T> = std::result::Result<T, CryptoError>;
 
-#[cfg(feature = "encrypt")]
+#[cfg(feature = "python_ffi")]
 impl std::convert::From<CryptoError> for pyo3::PyErr {
     fn from(error: CryptoError) -> Self {
         PyRuntimeError::new_err(error.to_string())

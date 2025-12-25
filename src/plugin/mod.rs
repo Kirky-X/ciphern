@@ -3,7 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+#[cfg(feature = "plugin")]
 pub mod loader;
+
 pub mod manager;
 // pub mod hot_reload; // Removed as it is unused and causes warnings
 
