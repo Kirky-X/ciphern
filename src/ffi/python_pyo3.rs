@@ -17,11 +17,11 @@ use crate::KeyManager;
 use crate::Signer;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
-use pyo3::PyTypeInfo;
+use pyo3::Bound;
 use std::sync::Arc;
 
 #[pymodule]
-fn ciphern_py(_py: Python, m: &PyModule) -> PyResult<()> {
+fn ciphern_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "encrypt")]
     {
         m.add_class::<KeyManagerWrapper>()?;
@@ -176,9 +176,8 @@ pub struct CipherWrapper {
 #[pymethods]
 impl CipherWrapper {
     #[new]
-    pub fn new(key_manager: &PyAny, py: Python<'_>) -> PyResult<Self> {
-        let key_manager_type = KeyManagerWrapper::type_object(py);
-        if !key_manager.is_instance(key_manager_type)? {
+    pub fn new(key_manager: &Bound<'_, PyAny>) -> PyResult<Self> {
+        if !key_manager.is_instance_of::<KeyManagerWrapper>() {
             return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                 "Expected a KeyManager instance",
             ));
@@ -196,9 +195,8 @@ impl CipherWrapper {
     }
 
     #[staticmethod]
-    pub fn with_algorithm(key_manager: &PyAny, algorithm: &str, py: Python<'_>) -> PyResult<Self> {
-        let key_manager_type = KeyManagerWrapper::type_object(py);
-        if !key_manager.is_instance(key_manager_type)? {
+    pub fn with_algorithm(key_manager: &Bound<'_, PyAny>, algorithm: &str) -> PyResult<Self> {
+        if !key_manager.is_instance_of::<KeyManagerWrapper>() {
             return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                 "Expected a KeyManager instance",
             ));
@@ -241,9 +239,8 @@ pub struct SignerWrapper {
 #[pymethods]
 impl SignerWrapper {
     #[staticmethod]
-    pub fn new(key_manager: &PyAny, algorithm: &str, py: Python<'_>) -> PyResult<Self> {
-        let key_manager_type = KeyManagerWrapper::type_object(py);
-        if !key_manager.is_instance(key_manager_type)? {
+    pub fn new(key_manager: &Bound<'_, PyAny>, algorithm: &str) -> PyResult<Self> {
+        if !key_manager.is_instance_of::<KeyManagerWrapper>() {
             return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                 "Expected a KeyManager instance",
             ));
