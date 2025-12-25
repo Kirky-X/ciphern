@@ -31,6 +31,13 @@ pub(crate) mod side_channel;
 pub(crate) mod signer;
 pub(crate) mod types;
 
+#[cfg(feature = "i18n")]
+pub(crate) mod i18n;
+#[cfg(feature = "i18n")]
+pub(crate) mod service;
+#[cfg(feature = "i18n")]
+pub(crate) mod ui;
+
 // 重新导出 FIPS 相关类型
 pub use fips::{get_fips_approved_algorithms, is_fips_enabled, FipsContext, FipsError, FipsMode};
 
@@ -44,6 +51,15 @@ pub use key::manager::KeyManager;
 pub use key::{Key, KeyState};
 pub use random::{EntropySource, SecureRandom};
 pub use types::Algorithm;
+
+#[cfg(feature = "i18n")]
+pub use i18n::{get_locale, set_locale, translate, translate_with_args, translate_safe, I18nError, is_locale_supported, get_supported_locales, reset_for_testing};
+#[cfg(feature = "i18n")]
+pub use error::{get_localized_message, get_localized_title, get_localized_error, LocalizedError};
+#[cfg(feature = "i18n")]
+pub use service::TranslationService;
+#[cfg(feature = "i18n")]
+pub use ui::{Button, FormField, Label, LocalizedMessage, MenuItem, Notification, UIElement};
 
 /// Initialize the library (e.g., FIPS self-tests)
 ///

@@ -82,6 +82,151 @@ pub enum CryptoError {
     UnknownError,
 }
 
+#[cfg(feature = "i18n")]
+mod i18n_error_impl {
+    use super::*;
+
+    pub trait LocalizedError {
+        fn get_translation_key(&self) -> &'static str;
+        fn get_message_key(&self) -> &'static str;
+    }
+
+    impl LocalizedError for CryptoError {
+        fn get_translation_key(&self) -> &'static str {
+            match self {
+                CryptoError::InvalidKeySize { .. } => "crypto_error.invalid_key_size",
+                CryptoError::InvalidParameter(_) => "crypto_error.invalid_parameter",
+                CryptoError::InvalidState(_) => "crypto_error.invalid_state",
+                CryptoError::DecryptionFailed(_) => "crypto_error.decryption_failed",
+                CryptoError::EncryptionFailed(_) => "crypto_error.encryption_failed",
+                CryptoError::KeyNotFound(_) => "crypto_error.key_not_found",
+                CryptoError::KeyError(_) => "crypto_error.key_error",
+                CryptoError::KeyUsageLimitExceeded { .. } => "crypto_error.key_usage_limit_exceeded",
+                CryptoError::UnsupportedAlgorithm(_) => "crypto_error.unsupported_algorithm",
+                CryptoError::InsufficientEntropy => "crypto_error.insufficient_entropy",
+                CryptoError::MemoryProtectionFailed(_) => "crypto_error.memory_protection_failed",
+                CryptoError::MemoryTampered => "crypto_error.memory_tampered",
+                CryptoError::FipsError(_) => "crypto_error.fips_error",
+                CryptoError::SideChannelError(_) => "crypto_error.side_channel_error",
+                CryptoError::SecurityError(_) => "crypto_error.security_error",
+                CryptoError::NotImplemented(_) => "crypto_error.not_implemented",
+                CryptoError::IoError(_) => "crypto_error.io_error",
+                CryptoError::TimeError => "crypto_error.time_error",
+                CryptoError::PluginError(_) => "crypto_error.plugin_error",
+                CryptoError::InternalError(_) => "crypto_error.internal_error",
+                CryptoError::SigningFailed(_) => "crypto_error.signing_failed",
+                CryptoError::UnknownError => "crypto_error.unknown_error",
+            }
+        }
+
+        fn get_message_key(&self) -> &'static str {
+            match self {
+                CryptoError::InvalidKeySize { .. } => "crypto_error.invalid_key_size_message",
+                CryptoError::InvalidParameter(_) => "crypto_error.invalid_parameter_message",
+                CryptoError::InvalidState(_) => "crypto_error.invalid_state_message",
+                CryptoError::DecryptionFailed(_) => "crypto_error.decryption_failed_message",
+                CryptoError::EncryptionFailed(_) => "crypto_error.encryption_failed_message",
+                CryptoError::KeyNotFound(_) => "crypto_error.key_not_found_message",
+                CryptoError::KeyError(_) => "crypto_error.key_error_message",
+                CryptoError::KeyUsageLimitExceeded { .. } => "crypto_error.key_usage_limit_exceeded_message",
+                CryptoError::UnsupportedAlgorithm(_) => "crypto_error.unsupported_algorithm_message",
+                CryptoError::InsufficientEntropy => "crypto_error.insufficient_entropy_message",
+                CryptoError::MemoryProtectionFailed(_) => "crypto_error.memory_protection_failed_message",
+                CryptoError::MemoryTampered => "crypto_error.memory_tampered_message",
+                CryptoError::FipsError(_) => "crypto_error.fips_error_message",
+                CryptoError::SideChannelError(_) => "crypto_error.side_channel_error_message",
+                CryptoError::SecurityError(_) => "crypto_error.security_error_message",
+                CryptoError::NotImplemented(_) => "crypto_error.not_implemented_message",
+                CryptoError::IoError(_) => "crypto_error.io_error_message",
+                CryptoError::TimeError => "crypto_error.time_error_message",
+                CryptoError::PluginError(_) => "crypto_error.plugin_error_message",
+                CryptoError::InternalError(_) => "crypto_error.internal_error_message",
+                CryptoError::SigningFailed(_) => "crypto_error.signing_failed_message",
+                CryptoError::UnknownError => "crypto_error.unknown_error_message",
+            }
+        }
+    }
+
+    pub fn get_localized_message(error: &CryptoError) -> String {
+        use crate::i18n::translate_with_args;
+        use super::LocalizedError;
+
+        let key = error.get_message_key();
+        let args: Vec<(&str, String)> = match error {
+            CryptoError::InvalidKeySize { expected, actual } => {
+                vec![
+                    ("expected", expected.to_string()),
+                    ("actual", actual.to_string())
+                ]
+            }
+            CryptoError::InvalidParameter(msg)
+            | CryptoError::InvalidState(msg)
+            | CryptoError::DecryptionFailed(msg)
+            | CryptoError::EncryptionFailed(msg)
+            | CryptoError::KeyNotFound(msg)
+            | CryptoError::KeyError(msg) => {
+                vec![("message", msg.clone())]
+            }
+            CryptoError::KeyUsageLimitExceeded { key_id, limit_type, current_count, max_count } => {
+                vec![
+                    ("key_id", key_id.clone()),
+                    ("limit_type", limit_type.clone()),
+                    ("current_count", current_count.to_string()),
+                    ("max_count", max_count.to_string()),
+                ]
+            }
+            CryptoError::UnsupportedAlgorithm(alg) => {
+                vec![("algorithm", alg.clone())]
+            }
+            CryptoError::MemoryProtectionFailed(msg)
+            | CryptoError::FipsError(msg)
+            | CryptoError::SideChannelError(msg)
+            | CryptoError::SecurityError(msg)
+            | CryptoError::PluginError(msg)
+            | CryptoError::InternalError(msg)
+            | CryptoError::SigningFailed(msg) => {
+                vec![("message", msg.clone())]
+            }
+            CryptoError::NotImplemented(feature) => {
+                vec![("feature", feature.clone())]
+            }
+            CryptoError::IoError(e) => {
+                vec![("message", e.to_string())]
+            }
+            CryptoError::InsufficientEntropy
+            | CryptoError::MemoryTampered
+            | CryptoError::TimeError
+            | CryptoError::UnknownError => {
+                vec![]
+            }
+        };
+
+        if args.is_empty() {
+            crate::i18n::translate(key)
+        } else {
+            let args_refs: Vec<(&str, &str)> = args.iter().map(|(k, v)| (*k, v.as_str())).collect();
+            translate_with_args(key, &args_refs)
+        }
+    }
+
+    pub fn get_localized_title(error: &CryptoError) -> String {
+        let key = error.get_translation_key();
+        crate::i18n::translate(key)
+    }
+
+    pub fn get_localized_error(error: &CryptoError) -> (String, String) {
+        (get_localized_title(error), get_localized_message(error))
+    }
+}
+
+#[cfg(feature = "i18n")]
+pub use i18n_error_impl::{
+    LocalizedError,
+    get_localized_message,
+    get_localized_title,
+    get_localized_error,
+};
+
 pub type Result<T> = std::result::Result<T, CryptoError>;
 
 #[cfg(feature = "python_ffi")]

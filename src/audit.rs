@@ -4,6 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::{CryptoError, Result};
+use crate::i18n::{translate, translate_with_args};
 use crate::types::Algorithm;
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
@@ -245,8 +246,7 @@ impl PerformanceMonitor {
                     .update(latency_us, data_size, cache_hit);
             }
             Err(poisoned) => {
-                // Log the poisoning incident and recover the data
-                log::warn!("Performance monitor lock poisoned, recovering data");
+                log::warn!("{}", translate("log.monitor_lock_poisoned"));
                 let mut metrics = poisoned.into_inner();
                 metrics
                     .entry(key)
@@ -269,8 +269,7 @@ impl PerformanceMonitor {
         match self.metrics.read() {
             Ok(metrics) => metrics.get(&key).map(|m| m.to_stats()),
             Err(poisoned) => {
-                // Log the poisoning incident and recover the data
-                log::warn!("Performance monitor read lock poisoned, recovering data");
+                log::warn!("{}", translate("log.monitor_read_lock_poisoned"));
                 let metrics = poisoned.into_inner();
                 metrics.get(&key).map(|m| m.to_stats())
             }
@@ -287,8 +286,7 @@ impl PerformanceMonitor {
                 .map(|(k, v)| (k.clone(), v.to_stats()))
                 .collect(),
             Err(poisoned) => {
-                // Log the poisoning incident and recover the data
-                log::warn!("Performance monitor read lock poisoned, recovering data");
+                log::warn!("{}", translate("log.monitor_read_lock_poisoned"));
                 let metrics = poisoned.into_inner();
                 metrics
                     .iter()
@@ -309,8 +307,7 @@ impl PerformanceMonitor {
                 metrics.remove(&key);
             }
             Err(poisoned) => {
-                // Log the poisoning incident and recover the data
-                log::warn!("Performance monitor write lock poisoned, recovering data");
+                log::warn!("{}", translate("log.monitor_write_lock_poisoned"));
                 let mut metrics = poisoned.into_inner();
                 metrics.remove(&key);
             }
@@ -326,8 +323,7 @@ impl PerformanceMonitor {
                 metrics.clear();
             }
             Err(poisoned) => {
-                // Log the poisoning incident and recover the data
-                log::warn!("Performance monitor write lock poisoned, recovering data");
+                log::warn!("{}", translate("log.monitor_write_lock_poisoned"));
                 let mut metrics = poisoned.into_inner();
                 metrics.clear();
             }
@@ -386,8 +382,7 @@ impl AuditLogger {
                         }
                     }
                     Err(_) => {
-                        // Channel is closed or full, enable fallback mode
-                        log::warn!("Audit logger channel closed, enabling fallback mode");
+                        log::warn!("{}", translate("log.audit_channel_closed"));
                         if let Ok(mut fallback) = self.fallback_enabled.lock() {
                             *fallback = true;
                         }
@@ -397,8 +392,7 @@ impl AuditLogger {
                 }
             }
             Err(_) => {
-                // Failed to acquire sender lock, enable fallback mode
-                log::warn!("Failed to acquire audit logger sender lock, enabling fallback mode");
+                log::warn!("{}", translate("log.audit_sender_lock_failed"));
                 if let Ok(mut fallback) = self.fallback_enabled.lock() {
                     *fallback = true;
                 }
@@ -417,7 +411,7 @@ impl AuditLogger {
                 }
             }
             Err(poisoned) => {
-                log::warn!("Audit logger sync buffer lock poisoned, recovering data");
+                log::warn!("{}", translate("log.audit_sync_buffer_poisoned"));
                 let mut buf = poisoned.into_inner();
                 if buf.len() < 1000 {
                     buf.push(json);
@@ -427,14 +421,14 @@ impl AuditLogger {
     }
 
     pub fn new() -> Self {
-        let (sender, receiver) = channel();
+        let (sender, receiver): (std::sync::mpsc::Sender<String>, std::sync::mpsc::Receiver<String>) = channel();
 
         // Spawn background thread for logging with error recovery
         let handle = thread::spawn(move || {
             for log_entry in receiver {
-                log::info!("AUDIT: {}", log_entry);
+                log::info!("{}", translate_with_args("audit.audit_entry", &[("entry", &log_entry.as_str())]));
             }
-            log::warn!("Audit logger background thread terminated - channel closed");
+            log::warn!("{}", translate("log.audit_background_terminated"));
         });
 
         Self {
@@ -448,7 +442,7 @@ impl AuditLogger {
     /// Initialize the audit logger (for backward compatibility)
     pub fn init() {
         // Logger is already initialized via lazy_static
-        log::info!("Audit logger initialized");
+        log::info!("{}", translate("log.audit_initialized"));
     }
 
     /// Log with tenant information (for backward compatibility)
@@ -538,7 +532,7 @@ impl AuditLogger {
             LOGGER.send_with_fallback(json.clone());
 
             // Also print to stdout for demo
-            log::info!("AUDIT: {}", json);
+            log::info!("{}", translate_with_args("audit.entry", &[("entry", &json)]));
         }
     }
 
@@ -602,7 +596,7 @@ impl AuditLogger {
             LOGGER.send_with_fallback(json.clone());
 
             // 记录到安全日志并触发警报
-            log::warn!("SECURITY ALERT: {}", json);
+            log::warn!("{}", translate_with_args("audit.security_alert", &[("alert", &json)]));
         }
     }
 
@@ -635,7 +629,7 @@ impl AuditLogger {
             LOGGER.send_with_fallback(json.clone());
 
             // Also print to stdout for demo
-            log::info!("AUDIT: {}", json);
+            log::info!("{}", translate_with_args("audit.entry", &[("entry", &json)]));
         }
     }
 
@@ -648,13 +642,13 @@ impl AuditLogger {
                 // 增加调试输出
                 for (i, log) in logs.iter().enumerate() {
                     if log.contains("KEY_GENERATE") {
-                        log::debug!("FOUND KEY_GENERATE at index {}", i);
+                        log::debug!("{}", translate_with_args("audit.key_generate_found", &[("index", &i.to_string())]));
                     }
                 }
                 logs
             }
             Err(poisoned) => {
-                log::warn!("Audit logger sync buffer lock poisoned, recovering data");
+                log::warn!("{}", translate("log.audit_sync_buffer_poisoned"));
                 let buffer = poisoned.into_inner();
                 buffer.clone()
             }
@@ -667,7 +661,7 @@ impl AuditLogger {
         match LOGGER.sync_buffer.lock() {
             Ok(mut buffer) => buffer.clear(),
             Err(poisoned) => {
-                log::warn!("Audit logger sync buffer lock poisoned, recovering data");
+                log::warn!("{}", translate("log.audit_sync_buffer_poisoned"));
                 let mut buffer = poisoned.into_inner();
                 buffer.clear();
             }
@@ -705,15 +699,16 @@ impl AuditLogger {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
         thread::spawn(move || {
+            let addr_str = addr.to_string();
             let listener = match TcpListener::bind(addr) {
                 Ok(l) => l,
                 Err(e) => {
-                    log::error!("Failed to bind Prometheus exporter to {}: {}", addr, e);
+                    log::error!("{}", translate_with_args("audit.prometheus_bind_failed", &[("addr", &addr_str), ("error", &e.to_string())]));
                     return;
                 }
             };
 
-            log::info!("Prometheus exporter listening on http://{}", addr);
+            log::info!("{}", translate_with_args("audit.prometheus_listening", &[("addr", &addr_str)]));
 
             for stream in listener.incoming() {
                 match stream {
@@ -724,8 +719,8 @@ impl AuditLogger {
                                 let metrics = match Self::gather_metrics() {
                                     Ok(m) => m,
                                     Err(e) => {
-                                        log::error!("Failed to gather metrics: {}", e);
-                                        let error_msg = format!("Failed to gather metrics: {}", e);
+                                        log::error!("{}", translate_with_args("audit.prometheus_gather_failed", &[("error", &e.to_string())]));
+                                        let error_msg = translate_with_args("audit.prometheus_gather_failed", &[("error", &e.to_string())]);
                                         let response = format!(
                                             "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                                             error_msg.len(),
@@ -734,10 +729,7 @@ impl AuditLogger {
                                         if let Err(write_err) =
                                             stream.write_all(response.as_bytes())
                                         {
-                                            log::error!(
-                                                "Failed to write error response: {}",
-                                                write_err
-                                            );
+                                            log::error!("{}", translate_with_args("audit.prometheus_write_response_failed", &[("error", &write_err.to_string())]));
                                         }
                                         let _ = stream.flush();
                                         continue;
@@ -750,7 +742,7 @@ impl AuditLogger {
                                 );
 
                                 if let Err(e) = stream.write_all(response.as_bytes()) {
-                                    log::error!("Failed to write response: {}", e);
+                                    log::error!("{}", translate_with_args("audit.prometheus_write_response_failed", &[("error", &e.to_string())]));
                                 }
                                 let _ = stream.flush();
                             }
@@ -758,7 +750,7 @@ impl AuditLogger {
                         }
                     }
                     Err(e) => {
-                        log::error!("Error accepting connection in Prometheus exporter: {}", e);
+                        log::error!("{}", translate_with_args("audit.prometheus_accept_failed", &[("error", &e.to_string())]));
                     }
                 }
             }

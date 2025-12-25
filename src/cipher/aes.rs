@@ -5,6 +5,7 @@
 
 use crate::cipher::base_provider::BaseCipherProvider;
 use crate::error::{CryptoError, Result};
+use crate::i18n::translate_with_args;
 use crate::key::Key;
 use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
@@ -413,8 +414,8 @@ impl AesGcmProvider {
 impl Default for AesGcmProvider {
     fn default() -> Self {
         Self::new().unwrap_or_else(|e| {
-            log::error!("Failed to create default AesGcmProvider: {}", e);
-            panic!("Critical security component initialization failed: {}", e)
+            log::error!("{}", translate_with_args("metrics.create_provider_failed", &[("provider", "AesGcmProvider"), ("error", &e.to_string())]));
+            panic!("{}", translate_with_args("metrics.init_security_component_failed", &[("error", &e.to_string())]))
         })
     }
 }

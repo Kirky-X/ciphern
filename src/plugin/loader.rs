@@ -4,6 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::{CryptoError, Result};
+use crate::i18n::translate_with_args;
 use crate::plugin::{Plugin, PluginMetadata};
 use libloading::{Library, Symbol};
 use sha2::{Digest, Sha256};
@@ -34,7 +35,7 @@ impl PluginLoader {
         // Use libloading to load the dynamic library
         let lib = unsafe {
             Library::new(path).map_err(|e| {
-                CryptoError::PluginError(format!("Failed to load dynamic library: {}", e))
+                CryptoError::PluginError(translate_with_args("plugin.load_library_failed", &[("error", &e.to_string())]))
             })?
         };
 
@@ -46,13 +47,13 @@ impl PluginLoader {
         let plugin = unsafe {
             let constructor: Symbol<PluginConstructor> =
                 lib_arc.get(b"_create_plugin").map_err(|e| {
-                    CryptoError::PluginError(format!("Failed to find _create_plugin symbol: {}", e))
+                    CryptoError::PluginError(translate_with_args("plugin.find_symbol_failed", &[("error", &e.to_string())]))
                 })?;
 
             let plugin_ptr = constructor();
             if plugin_ptr.is_null() {
                 return Err(CryptoError::PluginError(
-                    "Plugin constructor returned null".into(),
+                    translate_with_args("plugin.constructor_null", &[]),
                 ));
             }
 
@@ -155,7 +156,7 @@ impl PluginLoader {
             // 注意：如果多个插件共享同一个库文件，这种简单的计数可能不够，需要更复杂的依赖管理
             self.libraries.retain(|lib| Arc::strong_count(lib) > 1);
 
-            log::info!("Plugin {} unloaded and resources released", name);
+            log::info!("{}", translate_with_args("plugin.unloaded", &[("name", &name)]));
             Ok(())
         } else {
             Err(CryptoError::PluginError(format!(

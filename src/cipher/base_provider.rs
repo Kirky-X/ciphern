@@ -4,6 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::CryptoError;
+use crate::i18n::translate_with_args;
 use crate::provider::SymmetricCipher;
 use crate::side_channel::{
     protect_critical_operation, RotatingSboxMasking, SideChannelConfig, SideChannelContext,
@@ -35,7 +36,7 @@ impl BaseCipherProvider {
             })
             .map(|sbox| Some(Arc::new(Mutex::new(sbox))))?;
 
-        warn!("Side-channel protection initialized with rotating S-box masking (mask_size=4)");
+        warn!("{}", translate_with_args("log.side_channel_init_masking", &[("mask_size", "4")]));
 
         Ok(Self {
             side_channel_context: Some(side_channel_context),
@@ -53,13 +54,11 @@ impl BaseCipherProvider {
                 ))
             })?;
 
-            warn!("Power analysis protection enabled with mask_size=4");
+            warn!("{}", translate_with_args("log.power_analysis_enabled", &[("mask_size", "4")]));
 
             Some(Arc::new(Mutex::new(sbox)))
         } else {
-            warn!(
-                "Power analysis protection disabled - system is running in reduced security mode"
-            );
+            warn!("{}", translate_with_args("log.power_analysis_disabled", &[]));
             None
         };
 
@@ -160,8 +159,8 @@ impl BaseCipherProvider {
 impl Default for BaseCipherProvider {
     fn default() -> Self {
         Self::new().unwrap_or_else(|e| {
-            log::error!("Failed to create default BaseCipherProvider: {}", e);
-            panic!("Critical security component initialization failed: {}", e)
+            log::error!("{}", translate_with_args("metrics.create_provider_failed", &[("provider", "BaseCipherProvider"), ("error", &e.to_string())]));
+            panic!("{}", translate_with_args("metrics.init_security_component_failed", &[("error", &e.to_string())]))
         })
     }
 }
