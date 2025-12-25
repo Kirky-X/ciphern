@@ -18,6 +18,7 @@ pub struct PluginManager {
     max_failures: u32,
 }
 
+#[allow(dead_code)]
 impl PluginManager {
     pub fn new() -> Self {
         Self {

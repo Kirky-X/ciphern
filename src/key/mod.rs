@@ -5,8 +5,14 @@
 
 #[cfg(feature = "kdf")]
 pub mod derivation;
+#[cfg(feature = "kdf")]
+pub mod kdf_counter;
 pub mod lifecycle;
 pub mod manager;
+#[cfg(feature = "post_quantum")]
+pub mod post_quantum;
+pub mod rotation;
+pub mod usage_limit;
 
 #[cfg(test)]
 mod tests;
@@ -32,8 +38,23 @@ pub trait KeyManagerOperations {
     fn list_keys_operation(&self) -> Result<Vec<String>>;
 }
 
+#[cfg(feature = "kdf")]
+#[allow(unused)]
+pub use kdf_counter::{KdfUsageCounter, KdfUsagePolicy, KdfUsageType};
+#[allow(unused)]
 pub use lifecycle::{KeyLifecycleManager, KeyLifecyclePolicy, KeyManagerLifecycleExt};
+#[allow(unused)]
 pub use manager::KeyManager;
+#[cfg(feature = "post_quantum")]
+#[allow(unused)]
+pub use post_quantum::{PqcAlgorithm, PqcKey, PqcKeyManager, PqcOperations};
+#[allow(unused)]
+pub use rotation::{KeyRotationManager, RotationConfig, RotationTrigger};
+#[allow(unused)]
+pub use usage_limit::{
+    KeyUsageLimit, ResetStrategy, UsageLimitManager, UsageLimitPolicy, UsageLimitType,
+    UsageReportEntry,
+};
 
 /// 密钥状态转换器
 pub struct KeyStateManager;

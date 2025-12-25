@@ -63,6 +63,7 @@ encrypt = []
 kdf = ["encrypt"]
 plugin = []
 generate_headers = []
+post_quantum = []
 
 [profile.release]
 opt-level = 3

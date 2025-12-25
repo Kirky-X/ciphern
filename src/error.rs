@@ -31,6 +31,14 @@ pub enum CryptoError {
     #[error("Key error: {0}")]
     KeyError(String),
 
+    #[error("Key usage limit exceeded: key_id={key_id}, type={limit_type}, current={current_count}, max={max_count}")]
+    KeyUsageLimitExceeded {
+        key_id: String,
+        limit_type: String,
+        current_count: usize,
+        max_count: usize,
+    },
+
     #[error("Algorithm not supported: {0:?}")]
     UnsupportedAlgorithm(String),
 
@@ -48,6 +56,9 @@ pub enum CryptoError {
 
     #[error("Side-channel error: {0}")]
     SideChannelError(String),
+
+    #[error("Security error: {0}")]
+    SecurityError(String),
 
     #[error("Not implemented: {0}")]
     NotImplemented(String),

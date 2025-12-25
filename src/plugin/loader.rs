@@ -18,6 +18,7 @@ pub struct PluginLoader {
     libraries: Vec<Arc<Library>>,
 }
 
+#[allow(dead_code)]
 impl PluginLoader {
     pub fn new(plugin_dirs: Vec<PathBuf>) -> Self {
         Self {

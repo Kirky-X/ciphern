@@ -18,13 +18,16 @@ use std::sync::Arc;
 lazy_static! {
     pub static ref PLUGIN_MANAGER: PluginManager = PluginManager::new();
 }
-
+#[allow(dead_code)]
 pub trait Plugin: Send + Sync {
     fn name(&self) -> &str;
+    #[allow(dead_code)]
     fn version(&self) -> &str;
+    #[allow(dead_code)]
     fn initialize(&mut self) -> Result<()>;
     fn shutdown(&mut self) -> Result<()>;
     fn health_check(&self) -> Result<bool>;
+    #[allow(dead_code)]
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -36,6 +39,7 @@ pub trait CipherPlugin: Plugin {
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct PluginMetadata {
     pub name: String,
     pub version: String,
@@ -46,6 +50,7 @@ pub struct PluginMetadata {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct PluginLoadError {
     pub plugin_name: String,
     pub reason: String,

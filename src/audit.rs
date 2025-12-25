@@ -77,6 +77,10 @@ fn sanitize_error_for_log(error: &CryptoError) -> String {
         CryptoError::InsufficientEntropy => {
             "Insufficient entropy for cryptographic operation".to_string()
         }
+        CryptoError::KeyUsageLimitExceeded { .. } => {
+            "Key usage limit exceeded - operation rejected".to_string()
+        }
+        CryptoError::SecurityError(_) => "Security error detected - operation rejected".to_string(),
     }
 }
 
