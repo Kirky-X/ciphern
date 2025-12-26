@@ -248,7 +248,7 @@ impl PqcKeyManager {
                 Ok((ciphertext_id, shared_secret))
             }
             _ => Err(CryptoError::InvalidParameter(
-                "Invalid key type for encapsulation".to_string(),
+                "封装操作的密钥类型无效".to_string(),
             )),
         }
     }
@@ -269,12 +269,12 @@ impl PqcKeyManager {
                 Ok(shared_secret)
             }
             _ => Err(CryptoError::InvalidParameter(
-                "Invalid key type for decapsulation".to_string(),
+                "解封装操作的密钥类型无效".to_string(),
             )),
         }
     }
 
-    /// Signs a message using the specified secret key
+    /// 使用指定的私钥对消息进行签名
     #[allow(dead_code)]
     pub fn sign(&self, secret_key_id: &str, _message: &[u8]) -> Result<Vec<u8>> {
         let entry = self
@@ -295,7 +295,7 @@ impl PqcKeyManager {
                 Ok(truncated)
             }
             _ => Err(CryptoError::InvalidParameter(
-                "Invalid key type for signing".to_string(),
+                "签名操作的密钥类型无效".to_string(),
             )),
         }
     }
@@ -312,7 +312,7 @@ impl PqcKeyManager {
                 Ok(true)
             }
             _ => Err(CryptoError::InvalidParameter(
-                "Invalid key type for verification".to_string(),
+                "验证操作的密钥类型无效".to_string(),
             )),
         }
     }
@@ -401,7 +401,7 @@ impl HybridCrypto {
 
         if ciphertext[pos..pos + 2] != [0x00, 0x01] {
             return Err(CryptoError::DecryptionFailed(
-                "Invalid hybrid ciphertext format".to_string(),
+                "无效的混合密文格式".to_string(),
             ));
         }
         pos += 2;
@@ -409,54 +409,49 @@ impl HybridCrypto {
         let pqc_key_len = u16::from_be_bytes(
             ciphertext[pos..pos + 2]
                 .try_into()
-                .map_err(|_| CryptoError::InvalidParameter("Invalid PQC key length".to_string()))?,
+                .map_err(|_| CryptoError::InvalidParameter("无效的 PQC 密钥长度".to_string()))?,
         ) as usize;
         pos += 2;
         let _pqc_public_key = &ciphertext[pos..pos + pqc_key_len];
         pos += pqc_key_len;
 
         if ciphertext[pos] != 0x02 {
-            return Err(CryptoError::DecryptionFailed(
-                "Invalid IV marker".to_string(),
-            ));
+            return Err(CryptoError::DecryptionFailed("无效的 IV 标记".to_string()));
         }
         pos += 1;
 
         let iv_len = u16::from_be_bytes(
             ciphertext[pos..pos + 2]
                 .try_into()
-                .map_err(|_| CryptoError::InvalidParameter("Invalid IV length".to_string()))?,
+                .map_err(|_| CryptoError::InvalidParameter("无效的 IV 长度".to_string()))?,
         ) as usize;
         pos += 2;
         let _iv = &ciphertext[pos..pos + iv_len];
         pos += iv_len;
 
         if ciphertext[pos] != 0x03 {
-            return Err(CryptoError::DecryptionFailed(
-                "Invalid ciphertext marker".to_string(),
-            ));
+            return Err(CryptoError::DecryptionFailed("无效的密文标记".to_string()));
         }
         pos += 1;
 
-        let encrypted_len =
-            u16::from_be_bytes(ciphertext[pos..pos + 2].try_into().map_err(|_| {
-                CryptoError::InvalidParameter("Invalid encrypted data length".to_string())
-            })?) as usize;
+        let encrypted_len = u16::from_be_bytes(
+            ciphertext[pos..pos + 2]
+                .try_into()
+                .map_err(|_| CryptoError::InvalidParameter("无效的加密数据长度".to_string()))?,
+        ) as usize;
         pos += 2;
         let encrypted = &ciphertext[pos..pos + encrypted_len];
         pos += encrypted_len;
 
         if ciphertext[pos] != 0x04 {
-            return Err(CryptoError::DecryptionFailed(
-                "Invalid tag marker".to_string(),
-            ));
+            return Err(CryptoError::DecryptionFailed("无效的标签标记".to_string()));
         }
         pos += 1;
 
         let tag_len = u16::from_be_bytes(
             ciphertext[pos..pos + 2]
                 .try_into()
-                .map_err(|_| CryptoError::InvalidParameter("Invalid tag length".to_string()))?,
+                .map_err(|_| CryptoError::InvalidParameter("无效的标签长度".to_string()))?,
         ) as usize;
         pos += 2;
         let _tag = &ciphertext[pos..pos + tag_len];
@@ -580,14 +575,14 @@ impl PqcKeyWrapper {
     pub fn unwrap(&self) -> Result<Vec<u8>> {
         if self.wrapped_key.len() < 10 || self.wrapped_key[..3] != [0x50, 0x51, 0x53] {
             return Err(CryptoError::InvalidParameter(
-                "Invalid wrapped key format".to_string(),
+                "无效的包装密钥格式".to_string(),
             ));
         }
 
         let key_len = u32::from_be_bytes(
             self.wrapped_key[4..8]
                 .try_into()
-                .map_err(|_| CryptoError::InvalidParameter("Invalid key length".to_string()))?,
+                .map_err(|_| CryptoError::InvalidParameter("无效的密钥长度".to_string()))?,
         ) as usize;
 
         let key_start = 8;
@@ -595,7 +590,7 @@ impl PqcKeyWrapper {
 
         if key_end > self.wrapped_key.len() - 8 {
             return Err(CryptoError::InvalidParameter(
-                "Key data exceeds wrapped size".to_string(),
+                "密钥数据超出包装大小".to_string(),
             ));
         }
 
@@ -608,7 +603,7 @@ impl PqcKeyWrapper {
 
         if stored_hash != &computed_hash[..8] {
             return Err(CryptoError::SecurityError(
-                "Wrapped key integrity check failed".to_string(),
+                "包装密钥完整性检查失败".to_string(),
             ));
         }
 

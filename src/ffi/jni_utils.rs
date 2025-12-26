@@ -69,12 +69,12 @@ impl<'a> JniEnv<'a> {
         self.env.convert_byte_array(array).map_err(JniError::from)
     }
 
-    /// Convert Rust string to Java string
+    /// 将 Rust 字符串转换为 Java 字符串
     pub fn new_string(&self, string: &str) -> JniResult<JString<'a>> {
         self.env.new_string(string).map_err(JniError::from)
     }
 
-    /// Create Java byte array from Rust slice
+    /// 从 Rust 切片创建 Java 字节数组
     pub fn byte_array_from_slice(&self, data: &[u8]) -> JniResult<JByteArray<'a>> {
         self.env.byte_array_from_slice(data).map_err(JniError::from)
     }

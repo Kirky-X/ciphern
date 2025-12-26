@@ -1,4 +1,7 @@
-use ciphern::{set_locale, get_locale, translate, translate_with_args, translate_safe, is_locale_supported, get_supported_locales, reset_for_testing};
+use ciphern::{
+    get_locale, get_supported_locales, is_locale_supported, reset_for_testing, set_locale,
+    translate, translate_safe, translate_with_args,
+};
 
 fn setup() {
     reset_for_testing();
@@ -135,11 +138,14 @@ fn test_missing_key_returns_placeholder() {
 #[test]
 fn test_error_translations_english() {
     setup();
-    use ciphern::{CryptoError, get_localized_error};
+    use ciphern::{get_localized_error, CryptoError};
 
     set_locale("en");
 
-    let error = CryptoError::InvalidKeySize { expected: 32, actual: 16 };
+    let error = CryptoError::InvalidKeySize {
+        expected: 32,
+        actual: 16,
+    };
     let (title, message) = get_localized_error(&error);
     assert_eq!(title, "Invalid Key Size");
     assert_eq!(message, "Expected 32 bytes, got 16 bytes");
@@ -172,7 +178,10 @@ fn test_error_translations_english() {
     let error = CryptoError::InsufficientEntropy;
     let (title, message) = get_localized_error(&error);
     assert_eq!(title, "Insufficient Entropy");
-    assert_eq!(message, "The system does not have enough entropy to generate secure random numbers");
+    assert_eq!(
+        message,
+        "The system does not have enough entropy to generate secure random numbers"
+    );
 
     let error = CryptoError::UnknownError;
     let (title, message) = get_localized_error(&error);
@@ -183,11 +192,14 @@ fn test_error_translations_english() {
 #[test]
 fn test_error_translations_chinese() {
     setup();
-    use ciphern::{CryptoError, get_localized_error};
+    use ciphern::{get_localized_error, CryptoError};
 
     set_locale("zh");
 
-    let error = CryptoError::InvalidKeySize { expected: 32, actual: 16 };
+    let error = CryptoError::InvalidKeySize {
+        expected: 32,
+        actual: 16,
+    };
     let (title, message) = get_localized_error(&error);
     assert_eq!(title, "无效的密钥大小");
     assert_eq!(message, "期望 32 字节，实际 16 字节");
@@ -258,10 +270,13 @@ fn test_error_with_complex_args() {
 #[test]
 fn test_error_title_only() {
     setup();
-    use ciphern::{CryptoError, get_localized_title};
+    use ciphern::{get_localized_title, CryptoError};
 
     set_locale("en");
-    let error = CryptoError::IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "file not found"));
+    let error = CryptoError::IoError(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "file not found",
+    ));
     assert_eq!(get_localized_title(&error), "I/O Error");
 
     set_locale("zh");

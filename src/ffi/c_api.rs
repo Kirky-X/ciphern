@@ -3,9 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-//! C API Implementation
+//! C API 实现
 //!
-//! Implements the C-compatible Foreign Function Interface (FFI).
+//! 实现兼容 C 的外部函数接口（FFI）。
 
 use std::ffi::CString;
 use std::os::raw::{c_char, c_int};
@@ -29,7 +29,7 @@ pub extern "C" fn ciphern_init() -> CiphernError {
             Err(_) => CiphernError::UnknownError,
         },
         Err(_) => {
-            eprintln!("ciphern_init: Panic occurred during initialization");
+            eprintln!("ciphern_init: 初始化过程中发生 panic");
             CiphernError::UnknownError
         }
     }
@@ -41,8 +41,8 @@ pub extern "C" fn ciphern_cleanup() {
     match std::panic::catch_unwind(context::cleanup_context) {
         Ok(_) => {}
         Err(_) => {
-            // Log the panic but don't propagate it across FFI boundary
-            eprintln!("ciphern_cleanup: Panic occurred during cleanup");
+            // 记录 panic 但不要在 FFI 边界传播它
+            eprintln!("ciphern_cleanup: 清理过程中发生 panic");
         }
     }
 }
@@ -91,8 +91,8 @@ pub extern "C" fn ciphern_is_fips_enabled() -> c_int {
     }) {
         Ok(result) => result,
         Err(_) => {
-            // Log the panic and return safe default
-            eprintln!("ciphern_is_fips_enabled: Panic occurred");
+            // 记录 panic 并返回安全的默认值
+            eprintln!("ciphern_is_fips_enabled: 发生 panic");
             0
         }
     }
@@ -114,7 +114,7 @@ pub extern "C" fn ciphern_generate_key(
             // 验证参数
             let algo_str = unsafe { validation::validate_c_str(algorithm_name) }
                 .map_err(|_e| CiphernError::InvalidParameter)?;
-            // output buffer should not be validated as c_str (which implies reading it)
+            // 不应对输出缓冲区调用 validate_mut_ptr 读取其内容
             validation::validate_mut_ptr(key_id_buffer, "key_id_buffer")
                 .map_err(|_e| CiphernError::InvalidParameter)?;
 
@@ -192,27 +192,18 @@ pub extern "C" fn ciphern_encrypt(
     ciphertext_buffer_size: usize,
     ciphertext_len: *mut usize,
 ) -> CiphernError {
-    debug_assert!(!key_id.is_null(), "Key ID should not be null");
-    debug_assert!(!plaintext.is_null(), "Plaintext should not be null");
-    debug_assert!(
-        !ciphertext.is_null(),
-        "Ciphertext buffer should not be null"
-    );
-    debug_assert!(
-        !ciphertext_len.is_null(),
-        "Ciphertext length pointer should not be null"
-    );
-    debug_assert!(
-        plaintext_len > 0,
-        "Plaintext length should be greater than 0"
-    );
+    debug_assert!(!key_id.is_null(), "密钥 ID 不应为 null");
+    debug_assert!(!plaintext.is_null(), "明文不应为 null");
+    debug_assert!(!ciphertext.is_null(), "密文缓冲区不应为 null");
+    debug_assert!(!ciphertext_len.is_null(), "密文长度指针不应为 null");
+    debug_assert!(plaintext_len > 0, "明文长度应大于 0");
     debug_assert!(
         plaintext_len <= 1024 * 1024,
-        "Plaintext length should not exceed 1MB for performance"
+        "出于性能考虑，明文长度不应超过 1MB"
     );
     debug_assert!(
         ciphertext_buffer_size >= plaintext_len + 32,
-        "Ciphertext buffer should be large enough to hold encrypted data"
+        "密文缓冲区应足够大以容纳加密数据"
     );
 
     if key_id.is_null() || plaintext.is_null() || ciphertext.is_null() || ciphertext_len.is_null() {
@@ -283,24 +274,18 @@ pub extern "C" fn ciphern_decrypt(
     plaintext_buffer_size: usize,
     plaintext_len: *mut usize,
 ) -> CiphernError {
-    debug_assert!(!key_id.is_null(), "Key ID should not be null");
-    debug_assert!(!ciphertext.is_null(), "Ciphertext should not be null");
-    debug_assert!(!plaintext.is_null(), "Plaintext buffer should not be null");
-    debug_assert!(
-        !plaintext_len.is_null(),
-        "Plaintext length pointer should not be null"
-    );
-    debug_assert!(
-        ciphertext_len > 0,
-        "Ciphertext length should be greater than 0"
-    );
+    debug_assert!(!key_id.is_null(), "密钥 ID 不应为 null");
+    debug_assert!(!ciphertext.is_null(), "密文不应为 null");
+    debug_assert!(!plaintext.is_null(), "明文缓冲区不应为 null");
+    debug_assert!(!plaintext_len.is_null(), "明文长度指针不应为 null");
+    debug_assert!(ciphertext_len > 0, "密文长度应大于 0");
     debug_assert!(
         ciphertext_len <= 1024 * 1024 + 32,
-        "Ciphertext length should not exceed 1MB + 32 bytes for performance"
+        "出于性能考虑，密文长度不应超过 1MB + 32 字节"
     );
     debug_assert!(
         plaintext_buffer_size >= ciphertext_len - 32,
-        "Plaintext buffer should be large enough to hold decrypted data"
+        "明文缓冲区应足够大以容纳解密数据"
     );
 
     if key_id.is_null() || ciphertext.is_null() || plaintext.is_null() || plaintext_len.is_null() {
@@ -363,7 +348,7 @@ pub extern "C" fn ciphern_decrypt(
     }
 }
 
-// Thread-local error storage
+// 线程局部错误存储
 thread_local! {
     static ERROR_STRING: std::cell::RefCell<Option<CString>> = const { std::cell::RefCell::new(None) };
 }
@@ -373,7 +358,7 @@ thread_local! {
 pub extern "C" fn ciphern_get_last_error() -> *const c_char {
     ERROR_STRING.with(|error_string| match error_string.borrow().as_ref() {
         Some(s) => s.as_ptr(),
-        None => c"Unknown error".as_ptr(),
+        None => c"未知错误".as_ptr(),
     })
 }
 

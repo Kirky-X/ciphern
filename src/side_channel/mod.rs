@@ -31,7 +31,7 @@ pub use error_injection::*;
 pub use masking::*;
 pub use power_analysis::*;
 
-/// Configuration for side-channel protection
+/// 侧信道保护配置
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct SideChannelConfig {
@@ -282,7 +282,7 @@ where
 
         if elapsed > config.operation_timeout {
             return Err(CryptoError::SideChannelError(format!(
-                "Operation timeout exceeded: {:?} > {:?}",
+                "操作超时: {:?} > {:?}",
                 elapsed, config.operation_timeout
             )));
         }
@@ -301,9 +301,7 @@ where
 
         if detector.detect_fault() {
             context.increment_error_detection_triggers();
-            return Err(CryptoError::SideChannelError(
-                "Fault injection detected".into(),
-            ));
+            return Err(CryptoError::SideChannelError("检测到故障注入".into()));
         }
 
         result
@@ -312,7 +310,7 @@ where
     }
 }
 
-/// Apply all side-channel protections to a critical operation using a cloned context
+/// 使用克隆的上下文对关键操作应用所有侧信道保护
 #[allow(dead_code)]
 pub fn protect_critical_operation_with_context<F, R>(
     context_arc: Arc<Mutex<SideChannelContext>>,
@@ -416,13 +414,13 @@ pub fn flush_cpu_cache() {
     use std::arch::asm;
 
     unsafe {
-        // CLFLUSH instruction to flush cache lines
+        // CLFLUSH指令刷新缓存行
         asm!("clflush [{0}]", in(reg) &0u8, options(nostack));
     }
 }
 
 #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
 pub fn flush_cpu_cache() {
-    // Fallback for non-x86 architectures
+    // 非x86架构的后备方案
     std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
 }

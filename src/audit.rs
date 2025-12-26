@@ -225,7 +225,7 @@ impl PerformanceMonitor {
         }
     }
 
-    /// Record performance metrics for an operation
+    /// 记录操作的性能指标
     #[allow(dead_code)]
     pub fn record_operation(
         &self,
@@ -331,35 +331,35 @@ impl PerformanceMonitor {
     }
 }
 
-// === Audit Logging ===
+// === 审计日志 ===
 
-/// Audit log entry
+/// 审计日志条目
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditLog {
-    /// Timestamp of the operation
+    /// 操作时间戳
     pub timestamp: DateTime<Utc>,
-    /// Operation type (e.g., "KEY_GENERATE", "ENCRYPT", "DECRYPT")
+    /// 操作类型（例如："KEY_GENERATE"、"ENCRYPT"、"DECRYPT"）
     pub operation: String,
-    /// Algorithm used (if applicable)
+    /// 使用的算法（如果适用）
     pub algorithm: Option<Algorithm>,
-    /// Key ID (if applicable)
+    /// 密钥 ID（如果适用）
     pub key_id: Option<String>,
-    /// Tenant ID (if applicable)
+    /// 租户 ID（如果适用）
     pub tenant_id: Option<String>,
-    /// Operation status ("SUCCESS", "FAILURE", "UNAUTHORIZED")
+    /// 操作状态（"SUCCESS"、"FAILURE"、"UNAUTHORIZED"）
     pub status: String,
-    /// Additional details
+    /// 附加详细信息
     pub details: String,
-    /// Access type (e.g., "authorized", "unauthorized")
+    /// 访问类型（例如："authorized"、"unauthorized"）
     pub access_type: String,
 }
 
-/// Audit logger with channel-based logging to reduce lock contention
+/// 基于通道的审计日志记录器，用于减少锁竞争
 pub struct AuditLogger {
     sender: Arc<Mutex<Sender<String>>>,
     sync_buffer: Arc<Mutex<Vec<String>>>,
-    _handle: Option<thread::JoinHandle<()>>, // Keep the handle to prevent thread from being dropped
-    fallback_enabled: Arc<Mutex<bool>>,      // Graceful degradation flag
+    _handle: Option<thread::JoinHandle<()>>, // 保留句柄以防止线程被丢弃
+    fallback_enabled: Arc<Mutex<bool>>,      // 优雅降级标志
 }
 
 impl Default for AuditLogger {
@@ -421,12 +421,18 @@ impl AuditLogger {
     }
 
     pub fn new() -> Self {
-        let (sender, receiver): (std::sync::mpsc::Sender<String>, std::sync::mpsc::Receiver<String>) = channel();
+        let (sender, receiver): (
+            std::sync::mpsc::Sender<String>,
+            std::sync::mpsc::Receiver<String>,
+        ) = channel();
 
         // Spawn background thread for logging with error recovery
         let handle = thread::spawn(move || {
             for log_entry in receiver {
-                log::info!("{}", translate_with_args("audit.audit_entry", &[("entry", &log_entry.as_str())]));
+                log::info!(
+                    "{}",
+                    translate_with_args("audit.audit_entry", &[("entry", log_entry.as_str())])
+                );
             }
             log::warn!("{}", translate("log.audit_background_terminated"));
         });
@@ -439,13 +445,13 @@ impl AuditLogger {
         }
     }
 
-    /// Initialize the audit logger (for backward compatibility)
+    /// 初始化审计日志记录器（向后兼容）
     pub fn init() {
-        // Logger is already initialized via lazy_static
+        // 日志记录器已通过 lazy_static 初始化
         log::info!("{}", translate("log.audit_initialized"));
     }
 
-    /// Log with tenant information (for backward compatibility)
+    /// 带租户信息的日志记录（向后兼容）
     pub fn log_with_tenant(
         operation: &str,
         algo: Option<Algorithm>,
@@ -532,7 +538,10 @@ impl AuditLogger {
             LOGGER.send_with_fallback(json.clone());
 
             // Also print to stdout for demo
-            log::info!("{}", translate_with_args("audit.entry", &[("entry", &json)]));
+            log::info!(
+                "{}",
+                translate_with_args("audit.entry", &[("entry", &json)])
+            );
         }
     }
 
@@ -596,7 +605,10 @@ impl AuditLogger {
             LOGGER.send_with_fallback(json.clone());
 
             // 记录到安全日志并触发警报
-            log::warn!("{}", translate_with_args("audit.security_alert", &[("alert", &json)]));
+            log::warn!(
+                "{}",
+                translate_with_args("audit.security_alert", &[("alert", &json)])
+            );
         }
     }
 
@@ -629,7 +641,10 @@ impl AuditLogger {
             LOGGER.send_with_fallback(json.clone());
 
             // Also print to stdout for demo
-            log::info!("{}", translate_with_args("audit.entry", &[("entry", &json)]));
+            log::info!(
+                "{}",
+                translate_with_args("audit.entry", &[("entry", &json)])
+            );
         }
     }
 
@@ -642,7 +657,13 @@ impl AuditLogger {
                 // 增加调试输出
                 for (i, log) in logs.iter().enumerate() {
                     if log.contains("KEY_GENERATE") {
-                        log::debug!("{}", translate_with_args("audit.key_generate_found", &[("index", &i.to_string())]));
+                        log::debug!(
+                            "{}",
+                            translate_with_args(
+                                "audit.key_generate_found",
+                                &[("index", &i.to_string())]
+                            )
+                        );
                     }
                 }
                 logs
@@ -703,12 +724,21 @@ impl AuditLogger {
             let listener = match TcpListener::bind(addr) {
                 Ok(l) => l,
                 Err(e) => {
-                    log::error!("{}", translate_with_args("audit.prometheus_bind_failed", &[("addr", &addr_str), ("error", &e.to_string())]));
+                    log::error!(
+                        "{}",
+                        translate_with_args(
+                            "audit.prometheus_bind_failed",
+                            &[("addr", &addr_str), ("error", &e.to_string())]
+                        )
+                    );
                     return;
                 }
             };
 
-            log::info!("{}", translate_with_args("audit.prometheus_listening", &[("addr", &addr_str)]));
+            log::info!(
+                "{}",
+                translate_with_args("audit.prometheus_listening", &[("addr", &addr_str)])
+            );
 
             for stream in listener.incoming() {
                 match stream {
@@ -719,8 +749,17 @@ impl AuditLogger {
                                 let metrics = match Self::gather_metrics() {
                                     Ok(m) => m,
                                     Err(e) => {
-                                        log::error!("{}", translate_with_args("audit.prometheus_gather_failed", &[("error", &e.to_string())]));
-                                        let error_msg = translate_with_args("audit.prometheus_gather_failed", &[("error", &e.to_string())]);
+                                        log::error!(
+                                            "{}",
+                                            translate_with_args(
+                                                "audit.prometheus_gather_failed",
+                                                &[("error", &e.to_string())]
+                                            )
+                                        );
+                                        let error_msg = translate_with_args(
+                                            "audit.prometheus_gather_failed",
+                                            &[("error", &e.to_string())],
+                                        );
                                         let response = format!(
                                             "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                                             error_msg.len(),
@@ -729,7 +768,13 @@ impl AuditLogger {
                                         if let Err(write_err) =
                                             stream.write_all(response.as_bytes())
                                         {
-                                            log::error!("{}", translate_with_args("audit.prometheus_write_response_failed", &[("error", &write_err.to_string())]));
+                                            log::error!(
+                                                "{}",
+                                                translate_with_args(
+                                                    "audit.prometheus_write_response_failed",
+                                                    &[("error", &write_err.to_string())]
+                                                )
+                                            );
                                         }
                                         let _ = stream.flush();
                                         continue;
@@ -742,7 +787,13 @@ impl AuditLogger {
                                 );
 
                                 if let Err(e) = stream.write_all(response.as_bytes()) {
-                                    log::error!("{}", translate_with_args("audit.prometheus_write_response_failed", &[("error", &e.to_string())]));
+                                    log::error!(
+                                        "{}",
+                                        translate_with_args(
+                                            "audit.prometheus_write_response_failed",
+                                            &[("error", &e.to_string())]
+                                        )
+                                    );
                                 }
                                 let _ = stream.flush();
                             }
@@ -750,7 +801,13 @@ impl AuditLogger {
                         }
                     }
                     Err(e) => {
-                        log::error!("{}", translate_with_args("audit.prometheus_accept_failed", &[("error", &e.to_string())]));
+                        log::error!(
+                            "{}",
+                            translate_with_args(
+                                "audit.prometheus_accept_failed",
+                                &[("error", &e.to_string())]
+                            )
+                        );
                     }
                 }
             }
@@ -763,7 +820,7 @@ lazy_static! {
     static ref PERFORMANCE_MONITOR: Arc<PerformanceMonitor> = Arc::new(PerformanceMonitor::new());
 }
 
-// Global performance monitoring functions
+// 全局性能监控函数
 #[allow(dead_code)]
 pub fn record_operation(
     operation: &str,

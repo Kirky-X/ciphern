@@ -27,9 +27,7 @@ thread_local! {
     static CURRENT_LOCALE: std::cell::RefCell<String> = std::cell::RefCell::new("en".to_string());
 }
 
-static TRANSLATIONS: Lazy<RwLock<AllTranslations>> = Lazy::new(|| {
-    RwLock::new(HashMap::new())
-});
+static TRANSLATIONS: Lazy<RwLock<AllTranslations>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
@@ -56,13 +54,17 @@ fn load_locale_file(locale: &str) -> Result<(), I18nError> {
     let path = Path::new(LOCALE_DIR).join(format!("{}.toml", locale));
     if !path.exists() {
         return Err(I18nError::LoadError {
-            source: std::io::Error::new(std::io::ErrorKind::NotFound, format!("File not found: {:?}", path)),
+            source: std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("File not found: {:?}", path),
+            ),
         });
     }
 
     let content = fs::read_to_string(&path).map_err(|e| I18nError::LoadError { source: e })?;
 
-    let toml_value: toml::Value = toml::from_str(&content).map_err(|e| I18nError::ParseError { source: e })?;
+    let toml_value: toml::Value =
+        toml::from_str(&content).map_err(|e| I18nError::ParseError { source: e })?;
 
     let mut locale_data = HashMap::<String, HashMap<String, String>>::new();
 
@@ -116,9 +118,7 @@ pub fn set_locale(locale: &str) {
 }
 
 pub fn get_locale() -> String {
-    CURRENT_LOCALE.with(|cell| {
-        cell.borrow().clone()
-    })
+    CURRENT_LOCALE.with(|cell| cell.borrow().clone())
 }
 
 pub fn translate(key: &str) -> String {
@@ -131,8 +131,11 @@ pub fn translate_with_locale(key: &str, locale: &str) -> Result<String, I18nErro
         ensure_locale_loaded(locale);
 
         let translations = TRANSLATIONS.read().unwrap();
-        let locale_data = translations.get(locale)
-            .ok_or_else(|| I18nError::InvalidLocale { locale: locale.to_string() })?;
+        let locale_data = translations
+            .get(locale)
+            .ok_or_else(|| I18nError::InvalidLocale {
+                locale: locale.to_string(),
+            })?;
 
         let parts: Vec<&str> = key.split('.').collect();
 
@@ -146,7 +149,9 @@ pub fn translate_with_locale(key: &str, locale: &str) -> Result<String, I18nErro
             }
         }
 
-        Err(I18nError::KeyNotFound { key: key.to_string() })
+        Err(I18nError::KeyNotFound {
+            key: key.to_string(),
+        })
     })
 }
 
@@ -185,6 +190,7 @@ pub fn get_supported_locales() -> Vec<&'static str> {
     vec!["en", "zh"]
 }
 
+#[allow(dead_code)]
 pub fn preload_all_locales() {
     for &locale in get_supported_locales().iter() {
         ensure_locale_loaded(locale);

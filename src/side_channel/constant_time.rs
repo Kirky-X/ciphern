@@ -10,7 +10,7 @@
 
 use std::hint::black_box;
 
-/// Constant-time comparison of two byte arrays
+/// 两个字节数组的恒定时间比较
 #[allow(dead_code)]
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
@@ -29,7 +29,7 @@ pub fn constant_time_select(condition: bool, a: u8, b: u8) -> u8 {
     (a & mask) | (b & !mask)
 }
 
-/// Constant-time byte array copy with conditional execution
+/// 带条件执行的恒定时间字节数组复制
 #[allow(dead_code)]
 pub fn constant_time_copy(condition: bool, dest: &mut [u8], src: &[u8]) {
     if dest.len() != src.len() {
@@ -60,7 +60,7 @@ pub fn constant_time_lookup(table: &[u8], index: usize) -> u8 {
     constant_time_select(found, result, 0)
 }
 
-/// Constant-time comparison of two u8 values
+/// 两个 u8 值的恒定时间比较
 fn constant_time_eq_u8(a: u8, b: u8) -> bool {
     black_box(a ^ b) == 0
 }
@@ -71,7 +71,7 @@ pub fn constant_time_eq_u32(a: u32, b: u32) -> bool {
     black_box(a ^ b) == 0
 }
 
-/// Constant-time comparison of two u64 values
+/// 两个 u64 值的恒定时间比较
 #[allow(dead_code)]
 pub fn constant_time_eq_u64(a: u64, b: u64) -> bool {
     black_box(a ^ b) == 0
@@ -95,7 +95,7 @@ pub fn constant_time_swap(condition: bool, a: &mut [u8], b: &mut [u8]) {
 }
 
 /// Constant-time comparison for u32
-/// Returns -1 if a < b, 0 if a == b, 1 if a > b
+/// 如果 a < b 返回 -1，如果 a == b 返回 0，如果 a > b 返回 1
 #[allow(dead_code)]
 pub fn constant_time_cmp_u32(a: u32, b: u32) -> i32 {
     let gt = (b.wrapping_sub(a) >> 31) as i32;
@@ -119,7 +119,7 @@ pub fn constant_time_mod_u32(value: u32, modulus: u32) -> u32 {
     constant_time_select_u32(condition, remainder, value)
 }
 
-/// Constant-time selection between two u32 values
+/// 在两个 u32 值之间进行恒定时间选择
 fn constant_time_select_u32(condition: bool, a: u32, b: u32) -> u32 {
     let mask = -(condition as i32) as u32;
     (a & mask) | (b & !mask)
@@ -151,13 +151,13 @@ pub fn constant_time_aes_sbox(input: u8) -> u8 {
     constant_time_lookup(&AES_SBOX, input as usize)
 }
 
-/// Constant-time conditional increment
+/// 恒定时间条件递增
 #[allow(dead_code)]
 pub fn constant_time_inc(condition: bool, value: u32) -> u32 {
     value + (condition as u32)
 }
 
-/// Constant-time conditional decrement
+/// 恒定时间条件递减
 #[allow(dead_code)]
 pub fn constant_time_dec(condition: bool, value: u32) -> u32 {
     value - (condition as u32)
@@ -191,7 +191,7 @@ mod tests {
         assert_eq!(constant_time_lookup(&table, 0), 0x00);
         assert_eq!(constant_time_lookup(&table, 2), 0x22);
         assert_eq!(constant_time_lookup(&table, 4), 0x44);
-        assert_eq!(constant_time_lookup(&table, 5), 0x00); // Out of bounds
+        assert_eq!(constant_time_lookup(&table, 5), 0x00); // 超出范围
     }
 
     #[test]

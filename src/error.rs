@@ -101,7 +101,9 @@ mod i18n_error_impl {
                 CryptoError::EncryptionFailed(_) => "crypto_error.encryption_failed",
                 CryptoError::KeyNotFound(_) => "crypto_error.key_not_found",
                 CryptoError::KeyError(_) => "crypto_error.key_error",
-                CryptoError::KeyUsageLimitExceeded { .. } => "crypto_error.key_usage_limit_exceeded",
+                CryptoError::KeyUsageLimitExceeded { .. } => {
+                    "crypto_error.key_usage_limit_exceeded"
+                }
                 CryptoError::UnsupportedAlgorithm(_) => "crypto_error.unsupported_algorithm",
                 CryptoError::InsufficientEntropy => "crypto_error.insufficient_entropy",
                 CryptoError::MemoryProtectionFailed(_) => "crypto_error.memory_protection_failed",
@@ -128,10 +130,16 @@ mod i18n_error_impl {
                 CryptoError::EncryptionFailed(_) => "crypto_error.encryption_failed_message",
                 CryptoError::KeyNotFound(_) => "crypto_error.key_not_found_message",
                 CryptoError::KeyError(_) => "crypto_error.key_error_message",
-                CryptoError::KeyUsageLimitExceeded { .. } => "crypto_error.key_usage_limit_exceeded_message",
-                CryptoError::UnsupportedAlgorithm(_) => "crypto_error.unsupported_algorithm_message",
+                CryptoError::KeyUsageLimitExceeded { .. } => {
+                    "crypto_error.key_usage_limit_exceeded_message"
+                }
+                CryptoError::UnsupportedAlgorithm(_) => {
+                    "crypto_error.unsupported_algorithm_message"
+                }
                 CryptoError::InsufficientEntropy => "crypto_error.insufficient_entropy_message",
-                CryptoError::MemoryProtectionFailed(_) => "crypto_error.memory_protection_failed_message",
+                CryptoError::MemoryProtectionFailed(_) => {
+                    "crypto_error.memory_protection_failed_message"
+                }
                 CryptoError::MemoryTampered => "crypto_error.memory_tampered_message",
                 CryptoError::FipsError(_) => "crypto_error.fips_error_message",
                 CryptoError::SideChannelError(_) => "crypto_error.side_channel_error_message",
@@ -148,15 +156,15 @@ mod i18n_error_impl {
     }
 
     pub fn get_localized_message(error: &CryptoError) -> String {
-        use crate::i18n::translate_with_args;
         use super::LocalizedError;
+        use crate::i18n::translate_with_args;
 
         let key = error.get_message_key();
         let args: Vec<(&str, String)> = match error {
             CryptoError::InvalidKeySize { expected, actual } => {
                 vec![
                     ("expected", expected.to_string()),
-                    ("actual", actual.to_string())
+                    ("actual", actual.to_string()),
                 ]
             }
             CryptoError::InvalidParameter(msg)
@@ -167,7 +175,12 @@ mod i18n_error_impl {
             | CryptoError::KeyError(msg) => {
                 vec![("message", msg.clone())]
             }
-            CryptoError::KeyUsageLimitExceeded { key_id, limit_type, current_count, max_count } => {
+            CryptoError::KeyUsageLimitExceeded {
+                key_id,
+                limit_type,
+                current_count,
+                max_count,
+            } => {
                 vec![
                     ("key_id", key_id.clone()),
                     ("limit_type", limit_type.clone()),
@@ -221,10 +234,7 @@ mod i18n_error_impl {
 
 #[cfg(feature = "i18n")]
 pub use i18n_error_impl::{
-    LocalizedError,
-    get_localized_message,
-    get_localized_title,
-    get_localized_error,
+    get_localized_error, get_localized_message, get_localized_title, LocalizedError,
 };
 
 pub type Result<T> = std::result::Result<T, CryptoError>;

@@ -63,7 +63,7 @@ impl std::fmt::Display for PluginLoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Plugin '{}' load error: {} (recoverable: {})",
+            "插件 '{}' 加载错误: {} (可恢复: {})",
             self.plugin_name, self.reason, self.recoverable
         )
     }

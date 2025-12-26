@@ -3,14 +3,14 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-//! Power analysis attack protection
+//! 功耗分析攻击防护
 //!
 //! This module provides countermeasures against Simple Power Analysis (SPA)
 //! and Differential Power Analysis (DPA) attacks through masking and randomization.
 //!
 //! Features:
 //! - XOR, multiplicative, and boolean masking
-//! - Power consumption randomization
+//! - 功耗消耗随机化
 //! - Advanced power trace obfuscation
 //! - Template attack protection
 //! - Configurable protection levels
@@ -20,15 +20,15 @@ use crate::random::SecureRandom;
 use rand::{RngCore, SeedableRng};
 use std::time::Instant;
 
-/// Power analysis protection levels
+/// 功耗分析防护级别
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum ProtectionLevel {
-    /// Basic protection: simple masking
+    /// 基础防护：简单掩码
     Basic,
     /// Enhanced protection: advanced masking + randomization
     Enhanced,
-    /// Maximum protection: full obfuscation + template attack resistance
+    /// 最大防护：完全混淆 + 模板攻击抵抗
     Maximum,
 }
 
@@ -38,13 +38,13 @@ pub enum ProtectionLevel {
 pub struct PowerAnalysisConfig {
     /// Protection level
     pub level: ProtectionLevel,
-    /// Enable power trace randomization
+    /// 启用功耗轨迹随机化
     pub enable_trace_randomization: bool,
-    /// Enable timing noise injection
+    /// 启用时序噪声注入
     pub enable_timing_noise: bool,
     /// Enable dummy operations
     pub enable_dummy_operations: bool,
-    /// Minimum dummy operation complexity (0-3)
+    /// 最小虚拟操作复杂度 (0-3)
     pub dummy_operation_level: u8,
 }
 
@@ -77,7 +77,7 @@ impl PowerAnalysisGuard {
     pub fn with_config(config: PowerAnalysisConfig) -> Result<Self> {
         let start_time = Instant::now();
 
-        // Use thread-local RNG to avoid global lock contention
+        // 使用线程局部 RNG 避免全局锁竞争
         thread_local! {
             static THREAD_RNG: std::cell::RefCell<rand::rngs::SmallRng> = std::cell::RefCell::new(
                 rand::rngs::SmallRng::from_entropy()
@@ -90,10 +90,10 @@ impl PowerAnalysisGuard {
             rng.fill_bytes(&mut dummy);
         });
 
-        // Apply protection based on configuration
+        // 根据配置应用防护
         match config.level {
             ProtectionLevel::Basic => {
-                // Basic protection: simple dummy operations
+                // 基础防护：简单虚拟操作
                 if config.enable_dummy_operations {
                     dummy_operations_complexity(config.dummy_operation_level);
                 }
@@ -111,7 +111,7 @@ impl PowerAnalysisGuard {
                 }
             }
             ProtectionLevel::Maximum => {
-                // Maximum protection: full obfuscation
+                // 最大防护：完全混淆
                 if config.enable_trace_randomization {
                     randomize_power_consumption_adaptive(20, 100);
                 }
@@ -143,10 +143,10 @@ impl Drop for PowerAnalysisGuard {
     }
 }
 
-/// Mask a value using XOR masking
+/// 使用 XOR 掩码对值进行掩码
 #[allow(dead_code)]
 pub fn mask_value(value: u8) -> Result<(u8, u8)> {
-    // Use thread-local RNG to avoid global lock contention
+    // 使用线程局部 RNG 避免全局锁竞争
     thread_local! {
         static THREAD_RNG: std::cell::RefCell<rand::rngs::SmallRng> = std::cell::RefCell::new(
             rand::rngs::SmallRng::from_entropy()
@@ -164,7 +164,7 @@ pub fn mask_value(value: u8) -> Result<(u8, u8)> {
     Ok((masked, mask))
 }
 
-/// Unmask a value using XOR masking
+/// 使用 XOR 掩码解除值的掩码
 #[allow(dead_code)]
 pub fn unmask_value(masked: u8, mask: u8) -> u8 {
     masked ^ mask
@@ -191,13 +191,13 @@ pub fn mask_u32(value: u32) -> Result<(u32, u32)> {
     Ok((masked, mask))
 }
 
-/// Unmask a 32-bit value
+/// 对 32 位值进行解掩码
 #[allow(dead_code)]
 pub fn unmask_u32(masked: u32, mask: u32) -> u32 {
     masked ^ mask
 }
 
-/// Mask a byte array
+/// 对字节数组进行掩码
 #[allow(dead_code)]
 pub fn mask_bytes(values: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut masks = vec![0u8; values.len()];
@@ -212,7 +212,7 @@ pub fn mask_bytes(values: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((masked, masks))
 }
 
-/// Unmask a byte array
+/// 对字节数组进行解掩码
 #[allow(dead_code)]
 pub fn unmask_bytes(masked: &[u8], masks: &[u8]) -> Vec<u8> {
     masked
@@ -222,7 +222,7 @@ pub fn unmask_bytes(masked: &[u8], masks: &[u8]) -> Vec<u8> {
         .collect()
 }
 
-/// Add power consumption randomization
+/// 添加功耗消耗随机化
 #[allow(dead_code)]
 pub fn randomize_power_consumption(iterations: usize) {
     use std::hint::black_box;
@@ -230,7 +230,7 @@ pub fn randomize_power_consumption(iterations: usize) {
     let mut dummy = [0u64; 8];
 
     for _ in 0..iterations {
-        // Perform operations with different power consumption patterns
+        // 执行具有不同功耗模式的操作
         for item in &mut dummy {
             *item = black_box(item.wrapping_add(1));
             *item = black_box(item.rotate_left(7));
@@ -239,7 +239,7 @@ pub fn randomize_power_consumption(iterations: usize) {
     }
 }
 
-/// Multiplicative masking for arithmetic operations
+/// 用于算术运算的乘法掩码
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct MultiplicativeMask {
@@ -250,11 +250,11 @@ pub struct MultiplicativeMask {
 #[allow(dead_code)]
 impl MultiplicativeMask {
     pub fn new() -> Result<Self> {
-        // Generate a random odd mask (odd numbers have modular inverses mod 2^32)
+        // 生成一个随机奇数掩码（奇数在模 2^32 下有模逆元）
         let mut mask = [0u8; 4];
         SecureRandom::new()?.fill(&mut mask)?;
         let mut mask = u32::from_le_bytes(mask);
-        mask |= 1; // Ensure it's odd
+        mask |= 1; // 确保它是奇数
 
         let inverse = mod_inverse(mask, 0x100000000u64) as u32;
 
@@ -291,14 +291,14 @@ fn mod_inverse(a: u32, modulus: u64) -> u64 {
     t as u64
 }
 
-/// Boolean masking for logical operations
+/// 用于逻辑运算的布尔掩码
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct BooleanMask {
     masks: Vec<bool>,
 }
 
-/// Safe wrapper for memory fill operations that handles raw pointers safely
+/// 内存填充操作的安全包装器，安全地处理原始指针
 #[allow(dead_code)]
 fn safe_fill_bytes(ptr: *mut u8, len: usize, rng: &mut dyn rand::RngCore) -> Result<()> {
     if ptr.is_null() {
@@ -311,9 +311,9 @@ fn safe_fill_bytes(ptr: *mut u8, len: usize, rng: &mut dyn rand::RngCore) -> Res
         return Ok(());
     }
 
-    // Create a temporary buffer on stack/heap instead of directly writing to raw pointer if possible,
-    // or validate pointer validity if possible.
-    // Here we wrap the unsafe block with checks
+    // 如果可能，在栈/堆上创建临时缓冲区而不是直接写入原始指针，
+    // 或者如果可能，验证指针有效性。
+    // 这里我们用检查包装不安全块
     let slice = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
     rng.fill_bytes(slice);
     Ok(())
@@ -345,10 +345,10 @@ impl BooleanMask {
 
         // Use safe fill method
         if let Ok(rng) = SecureRandom::new() {
-            // SecureRandom::fill is safe, but if we were using raw pointers we'd use safe_fill_bytes
+            // SecureRandom::fill 是安全的，但如果我们要使用原始指针，我们会使用 safe_fill_bytes
             rng.fill(&mut mask_bytes)?;
         } else {
-            // Fallback if RNG init fails
+            // 如果 RNG 初始化失败，使用回退方案
             for item in mask_bytes.iter_mut() {
                 *item = 0xAA;
             }
@@ -384,15 +384,15 @@ impl BooleanMask {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct PowerAnalysisStats {
-    /// Number of masking operations performed
+    /// 执行的掩码操作数量
     pub masking_operations: u64,
-    /// Number of randomization operations
+    /// 随机化操作数量
     pub randomization_operations: u64,
-    /// Number of dummy operations
+    /// 虚拟操作数量
     pub dummy_operations: u64,
-    /// Average execution time of protection operations
+    /// 防护操作的平均执行时间（毫秒）
     pub avg_protection_time_ms: f64,
-    /// Protection level used
+    /// 使用的防护级别
     pub protection_level: ProtectionLevel,
 }
 
@@ -415,29 +415,29 @@ impl Default for PowerAnalysisStats {
     }
 }
 
-/// Power analysis resistant AES S-box with enhanced protection
+/// 具有增强防护的功耗分析抗性 AES S 盒
 #[allow(dead_code)]
 pub fn masked_aes_sbox(input: u8, mask: u8) -> Result<u8> {
-    // Apply input mask
+    // 应用输入掩码
     let masked_input = input ^ mask;
 
-    // Add additional randomization for enhanced protection
+    // 为增强防护添加额外的随机化
     let mut additional_mask = [0u8; 1];
     SecureRandom::new()?.fill(&mut additional_mask)?;
     let randomized_input = masked_input ^ additional_mask[0];
 
-    // Regular AES S-box lookup
+    // 常规 AES S 盒查找
     let sbox_result = super::constant_time::constant_time_aes_sbox(randomized_input);
 
-    // Generate output mask
+    // 生成输出掩码
     let mut output_mask = [0u8; 1];
     SecureRandom::new()?.fill(&mut output_mask)?;
 
-    // Apply output mask and remove additional randomization
+    // 应用输出掩码并移除额外随机化
     Ok(sbox_result ^ output_mask[0] ^ additional_mask[0])
 }
 
-/// Power analysis protection manager
+/// 功耗分析防护管理器
 #[allow(dead_code)]
 pub struct PowerAnalysisManager {
     config: PowerAnalysisConfig,
@@ -452,7 +452,7 @@ impl PowerAnalysisManager {
         Self { config, stats }
     }
 
-    /// Apply masking with statistics tracking
+    /// 应用掩码并跟踪统计信息
     pub fn mask_bytes_tracked(&mut self, values: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
         let start = Instant::now();
         let result = mask_bytes(values)?;
@@ -497,34 +497,34 @@ impl PowerAnalysisManager {
     }
 }
 
-/// Advanced power trace randomization with adaptive complexity
+/// 具有自适应复杂度的高级功耗轨迹随机化
 pub fn randomize_power_consumption_adaptive(min_iterations: usize, max_iterations: usize) {
     use std::hint::black_box;
 
-    // Generate random number of iterations within range
+    // 在范围内生成随机迭代次数
     let mut seed = [0u8; 4];
     SecureRandom::new().unwrap().fill(&mut seed).unwrap();
     let seed = u32::from_le_bytes(seed);
     let iterations = min_iterations + (seed as usize % (max_iterations - min_iterations + 1));
 
-    let mut dummy = [0u64; 16]; // Larger array for more complex patterns
+    let mut dummy = [0u64; 16]; // 更大的数组用于更复杂的模式
 
     for _ in 0..iterations {
-        // Multiple power consumption patterns
+        // 多种功耗模式
         for i in 0..dummy.len() {
-            // Pattern 1: Arithmetic operations
+            // 模式 1：算术运算
             dummy[i] = black_box(dummy[i].wrapping_add(seed as u64));
             dummy[i] = black_box(dummy[i].rotate_left(seed % 64));
 
-            // Pattern 2: Bitwise operations
+            // 模式 2：位运算
             dummy[i] = black_box(dummy[i] ^ 0xAAAAAAAAAAAAAAAAu64);
             dummy[i] = black_box(dummy[i] & 0x5555555555555555u64);
 
-            // Pattern 3: Memory access patterns
+            // 模式 3：内存访问模式
             let idx = (dummy[i] as usize) % dummy.len();
             dummy[idx] = black_box(dummy[idx].wrapping_mul(0x123456789ABCDEF0u64));
 
-            // Pattern 4: Conditional operations (create branch prediction noise)
+            // 模式 4：条件操作（创建分支预测噪声）
             if dummy[i] & 1 == 0 {
                 dummy[i] = black_box(dummy[i].wrapping_sub(0xFEDCBA9876543210u64));
             } else {
@@ -534,11 +534,11 @@ pub fn randomize_power_consumption_adaptive(min_iterations: usize, max_iteration
     }
 }
 
-/// Inject timing noise to disrupt power analysis timing patterns
+/// 注入时序噪声以破坏功耗分析时序模式
 pub fn inject_timing_noise() {
     use std::hint::black_box;
 
-    // Generate random delay
+    // 生成随机延迟
     let mut delay_seed = [0u8; 2];
     if let Ok(rng) = SecureRandom::new() {
         if rng.fill(&mut delay_seed).is_err() {
@@ -549,12 +549,12 @@ pub fn inject_timing_noise() {
     }
     let delay_cycles = u16::from_le_bytes(delay_seed) as usize;
 
-    // Busy-wait loop with varying patterns
+    // 具有变化模式的忙等待循环
     let mut counter = 0u64;
     for _ in 0..delay_cycles {
         counter = black_box(counter.wrapping_add(1));
         if counter.is_multiple_of(7) {
-            // Occasionally add extra delay
+            // 偶尔添加额外延迟
             for _ in 0..10 {
                 counter = black_box(counter.wrapping_mul(0x1234567890ABCDEFu64));
             }
@@ -562,16 +562,16 @@ pub fn inject_timing_noise() {
     }
 }
 
-/// Advanced timing noise injection with cache effects
+/// 具有缓存效应的高级时序噪声注入
 pub fn inject_advanced_timing_noise() {
     use std::hint::black_box;
 
-    // Create cache-friendly and cache-unfriendly access patterns
+    // 创建缓存友好和缓存不友好的访问模式
     const BUFFER_SIZE: usize = 4096;
     let mut buffer = vec![0u8; BUFFER_SIZE];
     SecureRandom::new().unwrap().fill(&mut buffer).unwrap();
 
-    // Sequential access (cache-friendly)
+    // 顺序访问（缓存友好）
     let mut sum = 0u64;
     for item in buffer.iter().take(BUFFER_SIZE) {
         sum = black_box(sum.wrapping_add(*item as u64));
@@ -587,7 +587,7 @@ pub fn inject_advanced_timing_noise() {
         sum = black_box(sum.wrapping_add(buffer[idx] as u64));
     }
 
-    // Strided access (mixed cache behavior)
+    // 步进访问（混合缓存行为）
     for stride in [64, 128, 256, 512] {
         for i in (0..BUFFER_SIZE).step_by(stride) {
             sum = black_box(sum.wrapping_add(buffer[i] as u64));
@@ -595,38 +595,38 @@ pub fn inject_advanced_timing_noise() {
     }
 }
 
-/// Obfuscate template signatures to resist template attacks
+/// 混淆模板特征以抵抗模板攻击
 pub fn obfuscate_template_signatures() {
     use std::hint::black_box;
 
-    // Template attacks rely on consistent power signatures
-    // We introduce controlled variations to break templates
+    // 模板攻击依赖于一致的功耗特征
+    // 我们引入受控的变化来破坏模板
 
-    let mut signature_variations = [0u8; 32 * 8]; // 32 u64s as bytes
+    let mut signature_variations = [0u8; 32 * 8]; // 32 个 u64 作为字节
     if let Ok(rng) = SecureRandom::new() {
         if rng.fill(&mut signature_variations).is_err() {
             // Fallback if random generation fails
             signature_variations.fill(0xAA);
         }
     } else {
-        // Fallback if RNG init fails
+        // 如果 RNG 初始化失败，使用回退方案
         signature_variations.fill(0x55);
     }
     let signature_variations =
         unsafe { std::slice::from_raw_parts(signature_variations.as_ptr() as *const u64, 32) };
 
-    // Create multiple execution paths with different power signatures
+    // 创建具有不同功耗特征的多个执行路径
     for &variation in signature_variations {
         match variation % 8 {
             0 => {
-                // High power consumption path
+                // 高功耗路径
                 let mut acc = 0u128;
                 for i in 0..100 {
                     acc = black_box(acc.wrapping_add((i as u128) * (variation as u128)));
                 }
             }
             1 => {
-                // Low power consumption path
+                // 低功耗路径
                 let mut acc = 0u8;
                 for i in 0..50 {
                     acc = black_box(acc.wrapping_add((i as u8) & (variation as u8)));
@@ -641,7 +641,7 @@ pub fn obfuscate_template_signatures() {
                 }
             }
             _ => {
-                // Default path with medium power consumption
+                // 具有中等功耗的默认路径
                 let mut acc = variation;
                 for i in 0..60 {
                     acc = black_box(acc.wrapping_add(i as u64));
@@ -650,7 +650,7 @@ pub fn obfuscate_template_signatures() {
         }
     }
 
-    // Add memory access pattern variations
+    // 添加内存访问模式变化
     const PATTERN_SIZE: usize = 1024;
     let mut pattern_buffer = vec![0u8; PATTERN_SIZE];
     SecureRandom::new()
@@ -658,7 +658,7 @@ pub fn obfuscate_template_signatures() {
         .fill(&mut pattern_buffer)
         .unwrap();
 
-    // Varying access patterns to break memory-based templates
+    // 变化的访问模式以破坏基于内存的模板
     for offset in 0..8 {
         let mut sum = 0u64;
         for i in (offset..PATTERN_SIZE).step_by(8) {
@@ -667,14 +667,14 @@ pub fn obfuscate_template_signatures() {
     }
 }
 
-/// Advanced dummy operations with multiple complexity levels
+/// 具有多个复杂度级别的高级虚拟操作
 pub fn advanced_dummy_operations() {
     use std::hint::black_box;
 
     // Level 1: Simple operations
     let mut dummy1 = 0x12345678u32;
     for _ in 0..50 {
-        dummy1 = black_box(dummy1.wrapping_mul(0x9E3779B9u32)); // Golden ratio
+        dummy1 = black_box(dummy1.wrapping_mul(0x9E3779B9u32)); // 黄金比例
         dummy1 = black_box(dummy1.rotate_left(7));
     }
 

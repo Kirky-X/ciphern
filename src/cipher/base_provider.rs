@@ -36,7 +36,10 @@ impl BaseCipherProvider {
             })
             .map(|sbox| Some(Arc::new(Mutex::new(sbox))))?;
 
-        warn!("{}", translate_with_args("log.side_channel_init_masking", &[("mask_size", "4")]));
+        warn!(
+            "{}",
+            translate_with_args("log.side_channel_init_masking", &[("mask_size", "4")])
+        );
 
         Ok(Self {
             side_channel_context: Some(side_channel_context),
@@ -54,11 +57,17 @@ impl BaseCipherProvider {
                 ))
             })?;
 
-            warn!("{}", translate_with_args("log.power_analysis_enabled", &[("mask_size", "4")]));
+            warn!(
+                "{}",
+                translate_with_args("log.power_analysis_enabled", &[("mask_size", "4")])
+            );
 
             Some(Arc::new(Mutex::new(sbox)))
         } else {
-            warn!("{}", translate_with_args("log.power_analysis_disabled", &[]));
+            warn!(
+                "{}",
+                translate_with_args("log.power_analysis_disabled", &[])
+            );
             None
         };
 
@@ -159,8 +168,23 @@ impl BaseCipherProvider {
 impl Default for BaseCipherProvider {
     fn default() -> Self {
         Self::new().unwrap_or_else(|e| {
-            log::error!("{}", translate_with_args("metrics.create_provider_failed", &[("provider", "BaseCipherProvider"), ("error", &e.to_string())]));
-            panic!("{}", translate_with_args("metrics.init_security_component_failed", &[("error", &e.to_string())]))
+            log::error!(
+                "{}",
+                translate_with_args(
+                    "metrics.create_provider_failed",
+                    &[
+                        ("provider", "BaseCipherProvider"),
+                        ("error", &e.to_string())
+                    ]
+                )
+            );
+            panic!(
+                "{}",
+                translate_with_args(
+                    "metrics.init_security_component_failed",
+                    &[("error", &e.to_string())]
+                )
+            )
         })
     }
 }

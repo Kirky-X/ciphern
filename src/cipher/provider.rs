@@ -35,13 +35,13 @@ pub trait SymmetricCipher: Send + Sync {
     ) -> Result<Vec<u8>>;
 }
 
-/// Signer Trait
+/// 签名算法 Trait
 pub trait Signer: Send + Sync {
     fn sign(&self, key: &Key, message: &[u8]) -> Result<Vec<u8>>;
     fn verify(&self, key: &Key, message: &[u8], signature: &[u8]) -> Result<bool>;
 }
 
-/// Provider Registry
+/// 提供者注册表
 pub struct ProviderRegistry {
     symmetric: RwLock<HashMap<Algorithm, Arc<dyn SymmetricCipher>>>,
     signers: RwLock<HashMap<Algorithm, Arc<dyn Signer>>>,
@@ -105,7 +105,7 @@ impl ProviderRegistry {
     }
 
     pub fn get_symmetric(&self, algo: Algorithm) -> Result<Arc<dyn SymmetricCipher>> {
-        // FIPS Check
+        // FIPS 检查
         crate::fips::validate_algorithm_fips(&algo)?;
 
         let map = self
@@ -118,7 +118,7 @@ impl ProviderRegistry {
     }
 
     pub fn get_signer(&self, algo: Algorithm) -> Result<Arc<dyn Signer>> {
-        // FIPS Check
+        // FIPS 检查
         crate::fips::validate_algorithm_fips(&algo)?;
 
         let map = self

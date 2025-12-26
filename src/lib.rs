@@ -3,9 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-//! Ciphern Crypto Library
+//! Ciphern 加密库
 //!
-//! Enterprise-grade, security-first Rust cryptographic library.
+//! 企业级、安全优先的 Rust 加密库。
 
 pub(crate) mod audit;
 #[cfg(feature = "encrypt")]
@@ -53,9 +53,12 @@ pub use random::{EntropySource, SecureRandom};
 pub use types::Algorithm;
 
 #[cfg(feature = "i18n")]
-pub use i18n::{get_locale, set_locale, translate, translate_with_args, translate_safe, I18nError, is_locale_supported, get_supported_locales, reset_for_testing};
+pub use error::{get_localized_error, get_localized_message, get_localized_title, LocalizedError};
 #[cfg(feature = "i18n")]
-pub use error::{get_localized_message, get_localized_title, get_localized_error, LocalizedError};
+pub use i18n::{
+    get_locale, get_supported_locales, is_locale_supported, reset_for_testing, set_locale,
+    translate, translate_safe, translate_with_args, I18nError,
+};
 #[cfg(feature = "i18n")]
 pub use service::TranslationService;
 #[cfg(feature = "i18n")]
@@ -202,11 +205,11 @@ impl Cipher {
 
         // 将密钥相关的错误转换为通用错误，防止信息泄露
         let result = result.map_err(|e| match e {
-            CryptoError::KeyNotFound(_) => CryptoError::DecryptionFailed("Operation failed".into()),
+            CryptoError::KeyNotFound(_) => CryptoError::DecryptionFailed("操作失败".into()),
             _ => e,
         });
 
-        // Audit Log
+        // 审计日志
         let _duration = start.elapsed();
         audit::AuditLogger::log(
             "DECRYPT",
@@ -215,9 +218,7 @@ impl Cipher {
             if result.is_ok() {
                 Ok(())
             } else {
-                Err(CryptoError::DecryptionFailed(
-                    "Decryption operation failed".into(),
-                ))
+                Err(CryptoError::DecryptionFailed("解密操作失败".into()))
             },
         );
 
@@ -225,7 +226,7 @@ impl Cipher {
     }
 }
 
-/// High-level Signer API
+/// 高级签名 API
 #[cfg(feature = "encrypt")]
 pub struct Signer {
     provider: std::sync::Arc<dyn cipher::provider::Signer>,
@@ -234,7 +235,7 @@ pub struct Signer {
 
 #[cfg(feature = "encrypt")]
 impl Signer {
-    /// Create a new signer instance
+    /// 创建新的签名实例
     pub fn new(algorithm: Algorithm) -> Result<Self> {
         fips::validate_algorithm_fips(&algorithm)?;
         let provider = cipher::provider::REGISTRY.get_signer(algorithm)?;
@@ -323,7 +324,7 @@ impl Hash {
         Ok(hasher.finalize())
     }
 
-    /// Calculate SHA-384 hash
+    /// 计算 SHA-384 哈希
     pub fn sha384(data: &[u8]) -> Result<Vec<u8>> {
         use hash::{AlgorithmType, MultiHash};
         let mut hasher = MultiHash::new(AlgorithmType::Sha384)?;
@@ -339,7 +340,7 @@ impl Hash {
         Ok(hasher.finalize())
     }
 
-    /// Calculate SM3 hash
+    /// 计算 SM3 哈希
     pub fn sm3(data: &[u8]) -> Result<Vec<u8>> {
         use hash::{AlgorithmType, MultiHash};
         let mut hasher = MultiHash::new(AlgorithmType::Sm3)?;

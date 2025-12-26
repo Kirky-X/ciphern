@@ -3,9 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-//! FFI Context Management
+//! FFI 上下文管理
 //!
-//! Centralized context management for FFI operations
+//! 用于 FFI 操作的集中式上下文管理
 
 use crate::ffi::CiphernError;
 use crate::fips::{FipsContext, FipsMode};

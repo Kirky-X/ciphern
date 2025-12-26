@@ -27,12 +27,12 @@ impl Hkdf {
     ) -> Result<Key> {
         if salt.len() > 128 {
             return Err(CryptoError::InvalidParameter(
-                "Salt should not exceed 128 bytes for performance".to_string(),
+                "Salt长度不应超过128字节以保证性能".to_string(),
             ));
         }
         if info.len() > 1024 {
             return Err(CryptoError::InvalidParameter(
-                "Info should not exceed 1024 bytes for performance".to_string(),
+                "Info长度不应超过1024字节以保证性能".to_string(),
             ));
         }
 
@@ -174,25 +174,25 @@ impl Argon2id {
     }
 }
 
-/// SM3 Key Derivation Function (KDF) implementation
+/// SM3 密钥派生函数 (KDF) 实现
 ///
-/// This implementation follows the GB/T 32918.4-2016 standard.
+/// 此实现遵循 GB/T 32918.4-2016 标准。
 #[allow(dead_code)]
 pub struct Sm3Kdf;
 
 impl Sm3Kdf {
-    /// Derive a key using SM3-KDF
+    /// 使用 SM3-KDF 派生密钥
     ///
-    /// # Arguments
+    /// # 参数
     ///
-    /// * `master_key` - The master key to derive from
-    /// * `data` - The input data (Z || other info)
-    /// * `key_len` - The desired length of the derived key in bytes
-    /// * `output_algo` - The algorithm for the derived key
+    /// * `master_key` - 用于派生的主密钥
+    /// * `data` - 输入数据 (Z || 其他信息)
+    /// * `key_len` - 派生密钥的期望长度（字节）
+    /// * `output_algo` - 派生密钥的算法
     ///
-    /// # Returns
+    /// # 返回
     ///
-    /// Returns the derived key
+    /// 返回派生的密钥
     #[allow(dead_code)]
     pub fn derive(
         master_key: &Key,
@@ -274,47 +274,47 @@ mod sm3_tests {
 
     #[test]
     fn test_sm3_hash_implementation() {
-        // Test data
-        let master_key_bytes = vec![0x42u8; 32]; // Non-zero key data
-        let master_key = Key::new_active(Algorithm::AES256GCM, master_key_bytes)
-            .expect("Failed to create master key");
+        // 测试数据
+        let master_key_bytes = vec![0x42u8; 32]; // 非零密钥数据
+        let master_key =
+            Key::new_active(Algorithm::AES256GCM, master_key_bytes).expect("创建主密钥失败");
         let fixed_data = b"test_fixed_data";
 
-        // Test key derivation - use AES256GCM as output algorithm since Sm3Kdf is a KDF algorithm
+        // 测试密钥派生 - 使用 AES256GCM 作为输出算法，因为 Sm3Kdf 是 KDF 算法
         let key1 = Sm3Kdf::derive(&master_key, fixed_data, 32, Algorithm::AES256GCM)
-            .expect("SM3 key derivation should succeed");
+            .expect("SM3密钥派生应该成功");
 
-        let key1_bytes = key1.secret_bytes().expect("Should get secret bytes");
+        let key1_bytes = key1.secret_bytes().expect("应该获取到密钥字节");
 
-        // Verify the key is not all zeros (basic sanity check)
+        // 验证密钥不全为零（基本健全性检查）
         let is_non_zero = key1_bytes.as_bytes().iter().any(|&b| b != 0);
-        assert!(is_non_zero, "Derived key should contain non-zero bytes");
+        assert!(is_non_zero, "派生的密钥应包含非零字节");
 
-        // Test deterministic behavior - same input should produce same output
+        // 测试确定性行为 - 相同输入应产生相同输出
         let key2 = Sm3Kdf::derive(&master_key, fixed_data, 32, Algorithm::AES256GCM)
-            .expect("Second SM3 key derivation should succeed");
+            .expect("第二次SM3密钥派生应该成功");
 
-        let key2_bytes = key2.secret_bytes().expect("Should get secret bytes");
+        let key2_bytes = key2.secret_bytes().expect("应该获取到密钥字节");
 
         assert_eq!(
             key1_bytes.as_bytes(),
             key2_bytes.as_bytes(),
-            "SM3 implementation should be deterministic"
+            "SM3实现应该是确定性的"
         );
 
-        // Test different inputs produce different outputs
+        // 测试不同输入产生不同输出
         let different_data = b"different_data";
         let key3 = Sm3Kdf::derive(&master_key, different_data, 32, Algorithm::AES256GCM)
-            .expect("SM3 key derivation with different data should succeed");
+            .expect("使用不同数据的SM3密钥派生应该成功");
 
-        let key3_bytes = key3.secret_bytes().expect("Should get secret bytes");
+        let key3_bytes = key3.secret_bytes().expect("应该获取到密钥字节");
 
         assert_ne!(
             key1_bytes.as_bytes(),
             key3_bytes.as_bytes(),
-            "Different inputs should produce different keys"
+            "不同输入应该产生不同的密钥"
         );
 
-        println!("SM3 hash implementation test passed!");
+        println!("SM3哈希实现测试通过！");
     }
 }

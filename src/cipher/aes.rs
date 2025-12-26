@@ -17,13 +17,13 @@ use aes_gcm::aes::Aes192;
 use aes_gcm::{Aes128Gcm, AesGcm};
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
-/// Unified AES-GCM Provider supporting AES-128, AES-192, and AES-256
+/// 统一的 AES-GCM 提供者，支持 AES-128、AES-192 和 AES-256
 pub struct AesGcmProvider {
     base: BaseCipherProvider,
     algorithm: Algorithm,
 }
 
-/// Type alias for backward compatibility
+/// 类型别名，用于向后兼容
 pub type Aes256GcmProvider = AesGcmProvider;
 
 impl SymmetricCipher for AesGcmProvider {
@@ -130,7 +130,7 @@ impl SymmetricCipher for AesGcmProvider {
 }
 
 impl AesGcmProvider {
-    /// Create a new AES-256 GCM provider with default configuration (backward compatibility)
+    /// 创建一个新的 AES-256 GCM 提供者，使用默认配置（向后兼容）
     #[inline]
     pub fn new() -> Result<Self> {
         Ok(Self {
@@ -139,7 +139,7 @@ impl AesGcmProvider {
         })
     }
 
-    /// Create a new AES-GCM provider with specified algorithm
+    /// 创建一个新的 AES-GCM 提供者，使用指定算法
     #[inline]
     pub fn with_algorithm(algorithm: Algorithm) -> Result<Self> {
         match algorithm {
@@ -148,13 +148,13 @@ impl AesGcmProvider {
                 algorithm,
             }),
             _ => Err(CryptoError::UnsupportedAlgorithm(format!(
-                "Unsupported algorithm for AesGcmProvider: {:?}",
+                "AesGcmProvider 不支持的算法: {:?}",
                 algorithm
             ))),
         }
     }
 
-    /// Create a new AES-GCM provider with custom side-channel configuration
+    /// 创建一个新的 AES-GCM 提供者，使用自定义侧信道配置
     #[inline]
     #[allow(dead_code)]
     pub fn with_side_channel_config(config: SideChannelConfig) -> Result<Self> {
@@ -164,7 +164,7 @@ impl AesGcmProvider {
         })
     }
 
-    /// Create a new AES-GCM provider with specified algorithm and side-channel configuration
+    /// 创建一个新的 AES-GCM 提供者，使用指定算法和侧信道配置
     #[inline]
     pub fn with_algorithm_and_config(
         algorithm: Algorithm,
@@ -176,7 +176,7 @@ impl AesGcmProvider {
                 algorithm,
             }),
             _ => Err(CryptoError::UnsupportedAlgorithm(format!(
-                "Unsupported algorithm for AesGcmProvider: {:?}",
+                "AesGcmProvider 不支持的算法: {:?}",
                 algorithm
             ))),
         }
@@ -414,20 +414,32 @@ impl AesGcmProvider {
 impl Default for AesGcmProvider {
     fn default() -> Self {
         Self::new().unwrap_or_else(|e| {
-            log::error!("{}", translate_with_args("metrics.create_provider_failed", &[("provider", "AesGcmProvider"), ("error", &e.to_string())]));
-            panic!("{}", translate_with_args("metrics.init_security_component_failed", &[("error", &e.to_string())]))
+            log::error!(
+                "{}",
+                translate_with_args(
+                    "metrics.create_provider_failed",
+                    &[("provider", "AesGcmProvider"), ("error", &e.to_string())]
+                )
+            );
+            panic!(
+                "{}",
+                translate_with_args(
+                    "metrics.init_security_component_failed",
+                    &[("error", &e.to_string())]
+                )
+            )
         })
     }
 }
 
 impl Aes256GcmProvider {
-    /// Get side-channel protection statistics
+    /// 获取侧信道防护统计信息
     #[allow(dead_code)]
     pub fn get_side_channel_stats(&self) -> Option<crate::side_channel::SideChannelStats> {
         self.base.get_side_channel_stats()
     }
 
-    /// Check if side-channel protection is enabled
+    /// 检查是否启用了侧信道防护
     #[allow(dead_code)]
     pub fn is_side_channel_protected(&self) -> bool {
         self.base.is_side_channel_protected()

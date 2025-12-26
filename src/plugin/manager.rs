@@ -30,18 +30,20 @@ impl PluginManager {
     }
 
     pub fn register_plugin(&self, plugin: Arc<dyn Plugin>) -> Result<()> {
-        let mut plugins = self.plugins.write().map_err(|_| {
-            CryptoError::PluginError("Failed to acquire plugin registry lock".into())
-        })?;
+        let mut plugins = self
+            .plugins
+            .write()
+            .map_err(|_| CryptoError::PluginError("获取插件注册表锁失败".into()))?;
 
         plugins.insert(plugin.name().to_string(), plugin.clone());
         Ok(())
     }
 
     pub fn register_cipher_plugin(&self, plugin: Arc<dyn CipherPlugin>) -> Result<()> {
-        let mut cipher_plugins = self.cipher_plugins.write().map_err(|_| {
-            CryptoError::PluginError("Failed to acquire cipher plugin registry lock".into())
-        })?;
+        let mut cipher_plugins = self
+            .cipher_plugins
+            .write()
+            .map_err(|_| CryptoError::PluginError("获取密码插件注册表锁失败".into()))?;
 
         for algo in plugin.supported_algorithms() {
             cipher_plugins.insert(algo, plugin.clone());
@@ -100,7 +102,7 @@ impl PluginManager {
                 }
             }
 
-            // Stop monitoring after reasonable time for testing
+            // 出于测试目的，在合理时间后停止监控
             if start_time.elapsed() > Duration::from_secs(300) {
                 break;
             }
@@ -110,14 +112,14 @@ impl PluginManager {
     }
 
     fn handle_plugin_failure(&self, plugin_name: &str) -> Result<()> {
-        eprintln!("Plugin '{}' failed health check - unloading", plugin_name);
+        eprintln!("插件 '{}' 健康检查失败 - 正在卸载", plugin_name);
 
-        // Remove from registries
+        // 从注册表中移除
         if let Ok(mut plugins) = self.plugins.write() {
             plugins.remove(plugin_name);
         }
 
-        // Remove associated cipher plugins
+        // 移除关联的密码插件
         if let Ok(mut cipher_plugins) = self.cipher_plugins.write() {
             cipher_plugins.retain(|_, plugin| plugin.name() != plugin_name);
         }
@@ -126,13 +128,14 @@ impl PluginManager {
     }
 
     pub fn graceful_shutdown(&self) -> Result<()> {
-        let plugins = self.plugins.read().map_err(|_| {
-            CryptoError::PluginError("Failed to acquire plugin registry lock for shutdown".into())
-        })?;
+        let plugins = self
+            .plugins
+            .read()
+            .map_err(|_| CryptoError::PluginError("获取关闭插件注册表锁失败".into()))?;
 
         for (name, _plugin) in plugins.iter() {
-            println!("Unloading plugin: {}", name);
-            // In a real implementation, we would call a cleanup method on the plugin
+            println!("正在卸载插件: {}", name);
+            // 在实际实现中，我们会调用插件的清理方法
         }
 
         Ok(())

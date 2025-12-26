@@ -315,7 +315,11 @@ mod tests {
     #[test]
     fn test_notification_new() {
         i18n::set_locale("en");
-        let notification = Notification::new("error.not_found", "error.not_found_message", NotificationLevel::Error);
+        let notification = Notification::new(
+            "error.not_found",
+            "error.not_found_message",
+            NotificationLevel::Error,
+        );
         assert!(!notification.title.is_empty());
         assert!(!notification.message.is_empty());
     }

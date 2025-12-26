@@ -3,10 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-//! Error injection attack protection
+//! 错误注入攻击保护
 //!
-//! This module provides detection and protection against fault injection attacks
-//! including clock glitches, voltage faults, and electromagnetic pulses.
+//! 本模块提供针对故障注入攻击的检测和保护，包括时钟毛刺、电压故障和电磁脉冲。
 
 use crate::error::{CryptoError, Result};
 use std::collections::VecDeque;
@@ -15,7 +14,7 @@ use std::time::{Duration, Instant};
 
 // === Error Injection Detector ===
 
-/// Error injection detector
+/// 错误注入检测器
 #[allow(dead_code)]
 pub struct ErrorInjectionDetector {
     start_time: Instant,
@@ -93,7 +92,7 @@ impl ErrorInjectionDetector {
         let elapsed = self.start_time.elapsed();
 
         // Only detect extreme timing anomalies (sub-microsecond or multi-second)
-        // Normal crypto operations should not trigger this
+        // 正常的加密操作不应触发此检测
         if elapsed < Duration::from_nanos(100) || elapsed > Duration::from_secs(10) {
             return true;
         }
@@ -106,7 +105,7 @@ impl ErrorInjectionDetector {
         let counter = self.counter.load(Ordering::SeqCst);
 
         // Only detect fault if counter is extremely high (indicating potential overflow attack)
-        // Set very high threshold to avoid false positives in normal testing (but within u32 range)
+        // 设置非常高的阈值以避免正常测试中的误报（但在 u32 范围内）
         counter > 1_000_000_000
     }
 
@@ -177,7 +176,7 @@ impl ErrorCorrectionCode {
             let parity_bit = i % 8;
             // Count set bits in byte
             let bit_count = byte.count_ones() as u8;
-            // XOR with parity bit
+            // 与奇偶校验位进行异或
             if bit_count % 2 == 1 {
                 parity[parity_byte] ^= 1 << parity_bit;
             }
@@ -223,7 +222,7 @@ impl ErrorCorrectionCode {
             }
         }
 
-        // If we have more than one mismatch, we can't reliably correct with this simple parity scheme
+        // 如果不匹配数量超过一个，我们无法用这个简单的奇偶校验方案可靠地纠正
         if mismatch_count > 1 {
             return Err(CryptoError::SideChannelError(
                 "Multiple errors detected - cannot correct reliably".into(),
@@ -252,15 +251,13 @@ impl ErrorCorrectionCode {
             ));
         }
 
-        Err(CryptoError::SideChannelError(
-            "Unknown error condition".into(),
-        ))
+        Err(CryptoError::SideChannelError("未知错误条件".into()))
     }
 }
 
 // === Clock Glitch Detector ===
 
-/// Clock glitch detector
+/// 时钟毛刺检测器
 pub struct ClockGlitchDetector {
     timestamps: VecDeque<Instant>,
     threshold: Duration,
@@ -282,23 +279,21 @@ impl ClockGlitchDetector {
         if let Some(&last_timestamp) = self.timestamps.back() {
             let delta = now - last_timestamp;
 
-            // For testing purposes, skip timing checks if threshold is very small
-            // This allows tests to run without timing sensitivity
+            // 出于测试目的，如果阈值非常小，则跳过时序检查
+            // 这允许测试在不敏感于时序的情况下运行
             if self.threshold > Duration::from_micros(1) {
-                // Check for timing anomalies
-                // Only check for very fast glitches in normal operation
-                // Stall detection (delta > threshold * 100) is less sensitive for testing
+                // 检查时序异常
+                // 仅在正常操作中检查非常快的毛刺
+                // 停顿检测（delta > threshold * 100）对测试不太敏感
                 if delta < self.threshold || delta > self.threshold * 100 {
-                    return Err(CryptoError::SideChannelError(
-                        "Clock glitch detected".into(),
-                    ));
+                    return Err(CryptoError::SideChannelError("检测到时钟毛刺".into()));
                 }
             }
         }
 
         self.timestamps.push_back(now);
 
-        // Keep only recent timestamps
+        // 仅保留最近的时间戳
         if self.timestamps.len() > 10 {
             self.timestamps.pop_front();
         }
@@ -307,9 +302,9 @@ impl ClockGlitchDetector {
     }
 }
 
-// === Voltage Fault Detector ===
+// === 电压故障检测器 ===
 
-/// Voltage fault detector
+/// 电压故障检测器
 #[allow(dead_code)]
 pub struct VoltageFaultDetector {
     sensor_readings: VecDeque<u16>,
@@ -411,53 +406,51 @@ impl FaultInjectionShield {
         Self::default()
     }
 
-    /// Enable voltage detection
+    /// 启用电压检测
     #[allow(dead_code)]
     pub fn enable_voltage_detection(&mut self, baseline: u16, tolerance: u16) {
         self.voltage_detector = Some(VoltageFaultDetector::new(baseline, tolerance));
     }
 
-    /// Enable EM pulse detection
+    /// 启用电磁脉冲检测
     #[allow(dead_code)]
     pub fn enable_em_detection(&mut self, threshold: u32) {
         self.em_detector = Some(ElectromagneticPulseDetector::new(threshold));
     }
 
-    /// Check all fault injection protections
+    /// 检查所有故障注入保护
     #[allow(dead_code)]
     pub fn check_all(&mut self) -> Result<()> {
-        // Check clock glitches
+        // 检查时钟毛刺
         self.clock_detector.check()?;
 
-        // Check voltage faults
+        // 检查电压故障
         if let Some(ref mut detector) = self.voltage_detector {
-            // Simulate voltage reading
-            let simulated_reading = 3300u16; // 3.3V in millivolts
+            // 模拟电压读数
+            let simulated_reading = 3300u16; // 3.3V（毫伏）
             detector.add_reading(simulated_reading)?;
         }
 
-        // Check EM pulses
+        // 检查电磁脉冲
         if let Some(ref mut detector) = self.em_detector {
-            // Simulate EM reading
+            // 模拟电磁读数
             let simulated_reading = 100u32;
             detector.add_reading(simulated_reading)?;
         }
 
-        // Check general fault detection
+        // 检查一般故障检测
         if self.error_detector.detect_fault() {
-            return Err(CryptoError::SideChannelError(
-                "Fault injection detected".into(),
-            ));
+            return Err(CryptoError::SideChannelError("检测到故障注入".into()));
         }
 
-        // Update redundancy
+        // 更新冗余
         self.redundancy.update(true);
         self.redundancy.vote()?;
 
         Ok(())
     }
 
-    /// Add sensor reading from hardware
+    /// 从硬件添加传感器读数
     #[allow(dead_code)]
     pub fn add_sensor_reading(&mut self, sensor_type: SensorType, reading: u32) -> Result<()> {
         match sensor_type {
@@ -472,7 +465,7 @@ impl FaultInjectionShield {
                 }
             }
             SensorType::Clock => {
-                // Clock readings are handled internally
+                // 时钟读数在内部处理
             }
         }
 
@@ -480,7 +473,7 @@ impl FaultInjectionShield {
     }
 }
 
-/// Types of sensors for fault injection detection
+/// 用于故障注入检测的传感器类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum SensorType {

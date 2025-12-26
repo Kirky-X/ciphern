@@ -64,7 +64,7 @@ impl FipsAlgorithmValidator {
     pub fn validate_fips_compliance(algorithm: &Algorithm) -> Result<()> {
         if !Self::is_algorithm_approved(algorithm) {
             return Err(CryptoError::FipsError(format!(
-                "Algorithm {:?} is not FIPS 140-3 approved. Approved algorithms: {:?}",
+                "算法 {:?} 不符合 FIPS 140-3 要求。批准的算法: {:?}",
                 algorithm,
                 Self::get_approved_algorithms()
             )));

@@ -181,7 +181,10 @@ impl RngMonitor {
                 self.trigger_alert(
                     AlertSeverity::Warning,
                     AlertCategory::TestFailure,
-                    translate_with_args("log.nist_test_failed", &[("error", &nist_result.error_message.unwrap_or_default())]),
+                    translate_with_args(
+                        "log.nist_test_failed",
+                        &[("error", &nist_result.error_message.unwrap_or_default())],
+                    ),
                     Some("nist_randomness_test".to_string()),
                 );
             }
@@ -191,7 +194,10 @@ impl RngMonitor {
                 self.trigger_alert(
                     AlertSeverity::Warning,
                     AlertCategory::EntropyDegradation,
-                    translate_with_args("log.low_entropy_detected", &[("entropy", &format!("{:.2}", nist_result.entropy_bits))]),
+                    translate_with_args(
+                        "log.low_entropy_detected",
+                        &[("entropy", &format!("{:.2}", nist_result.entropy_bits))],
+                    ),
                     Some("entropy_check".to_string()),
                 );
             }
@@ -202,7 +208,10 @@ impl RngMonitor {
                 self.trigger_alert(
                     AlertSeverity::Critical,
                     AlertCategory::SystemMalfunction,
-                    translate_with_args("log.consecutive_failures", &[("count", &metrics.consecutive_failures.to_string())]),
+                    translate_with_args(
+                        "log.consecutive_failures",
+                        &[("count", &metrics.consecutive_failures.to_string())],
+                    ),
                     Some("consecutive_failures".to_string()),
                 );
             }
@@ -212,7 +221,10 @@ impl RngMonitor {
                 self.trigger_alert(
                     AlertSeverity::Warning,
                     AlertCategory::TestFailure,
-                    translate_with_args("log.failure_rate_high", &[("rate", &format!("{:.2}", metrics.failure_rate * 100.0))]),
+                    translate_with_args(
+                        "log.failure_rate_high",
+                        &[("rate", &format!("{:.2}", metrics.failure_rate * 100.0))],
+                    ),
                     Some("failure_rate".to_string()),
                 );
             }
@@ -319,7 +331,13 @@ impl RngMonitor {
             loop {
                 if self.should_run_test() {
                     if let Err(e) = self.perform_health_check() {
-                        log::error!("{}", translate_with_args("log.health_check_failed", &[("error", &e.to_string())]));
+                        log::error!(
+                            "{}",
+                            translate_with_args(
+                                "log.health_check_failed",
+                                &[("error", &e.to_string())]
+                            )
+                        );
                     }
                 }
                 std::thread::sleep(Duration::from_secs(60)); // 每分钟检查一次
@@ -374,7 +392,13 @@ impl RngMonitorManager {
             match monitor.perform_health_check() {
                 Ok(result) => results.push(result),
                 Err(e) => {
-                    log::error!("{}", translate_with_args("log.monitor_health_check_failed", &[("error", &e.to_string())]));
+                    log::error!(
+                        "{}",
+                        translate_with_args(
+                            "log.monitor_health_check_failed",
+                            &[("error", &e.to_string())]
+                        )
+                    );
                     results.push(false);
                 }
             }

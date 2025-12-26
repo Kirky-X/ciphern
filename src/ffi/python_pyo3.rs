@@ -242,7 +242,7 @@ impl SignerWrapper {
     pub fn new(key_manager: &Bound<'_, PyAny>, algorithm: &str) -> PyResult<Self> {
         if !key_manager.is_instance_of::<KeyManagerWrapper>() {
             return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                "Expected a KeyManager instance",
+                "需要 KeyManager 实例",
             ));
         }
         let wrapper: KeyManagerWrapper = key_manager.extract()?;

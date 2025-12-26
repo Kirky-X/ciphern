@@ -32,33 +32,40 @@ impl PluginLoader {
     pub fn load_plugin_from_file(&mut self, path: &Path) -> Result<Arc<dyn Plugin>> {
         let metadata = self.validate_plugin_file(path)?;
 
-        // Use libloading to load the dynamic library
+        // 使用 libloading 加载动态库
         let lib = unsafe {
             Library::new(path).map_err(|e| {
-                CryptoError::PluginError(translate_with_args("plugin.load_library_failed", &[("error", &e.to_string())]))
+                CryptoError::PluginError(translate_with_args(
+                    "plugin.load_library_failed",
+                    &[("error", &e.to_string())],
+                ))
             })?
         };
 
         let lib_arc = Arc::new(lib);
 
-        // In a real implementation, the plugin would export a function to create an instance
+        // 在实际实现中，插件会导出一个创建实例的函数
         type PluginConstructor = unsafe fn() -> *mut dyn Plugin;
 
         let plugin = unsafe {
             let constructor: Symbol<PluginConstructor> =
                 lib_arc.get(b"_create_plugin").map_err(|e| {
-                    CryptoError::PluginError(translate_with_args("plugin.find_symbol_failed", &[("error", &e.to_string())]))
+                    CryptoError::PluginError(translate_with_args(
+                        "plugin.find_symbol_failed",
+                        &[("error", &e.to_string())],
+                    ))
                 })?;
 
             let plugin_ptr = constructor();
             if plugin_ptr.is_null() {
-                return Err(CryptoError::PluginError(
-                    translate_with_args("plugin.constructor_null", &[]),
-                ));
+                return Err(CryptoError::PluginError(translate_with_args(
+                    "plugin.constructor_null",
+                    &[],
+                )));
             }
 
-            // Convert raw pointer to Box then to Arc
-            // Note: The plugin must be compiled with the same ABI
+            // 将原始指针转换为 Box 再转换为 Arc
+            // 注意：插件必须使用相同的 ABI 编译
             Arc::from_raw(plugin_ptr)
         };
 
@@ -91,41 +98,36 @@ impl PluginLoader {
     }
 
     fn validate_plugin_file(&self, path: &Path) -> Result<PluginMetadata> {
-        // Read and validate plugin file
+        // 读取并验证插件文件
         let content = fs::read(path)
-            .map_err(|e| CryptoError::PluginError(format!("Failed to read plugin file: {}", e)))?;
+            .map_err(|e| CryptoError::PluginError(format!("读取插件文件失败: {}", e)))?;
 
-        // Calculate checksum
+        // 计算校验和
         let mut hasher = Sha256::new();
         hasher.update(&content);
         let checksum = format!("{:x}", hasher.finalize());
 
-        // Parse metadata from sidecar file (e.g., plugin.json or plugin.toml)
+        // 从 sidecar 文件解析元数据（例如 plugin.json 或 plugin.toml）
         let metadata_path = path.with_extension("json");
         let metadata = if metadata_path.exists() {
-            let metadata_content = fs::read_to_string(&metadata_path).map_err(|e| {
-                CryptoError::PluginError(format!("Failed to read metadata file: {}", e))
-            })?;
-            let metadata: PluginMetadata =
-                serde_json::from_str(&metadata_content).map_err(|e| {
-                    CryptoError::PluginError(format!("Failed to parse metadata: {}", e))
-                })?;
-            // Verify checksum matches the actual file content
+            let metadata_content = fs::read_to_string(&metadata_path)
+                .map_err(|e| CryptoError::PluginError(format!("读取元数据文件失败: {}", e)))?;
+            let metadata: PluginMetadata = serde_json::from_str(&metadata_content)
+                .map_err(|e| CryptoError::PluginError(format!("解析元数据失败: {}", e)))?;
+            // 验证校验和与实际文件内容匹配
             if metadata.checksum != checksum {
-                return Err(CryptoError::PluginError(
-                    "Plugin checksum mismatch".to_string(),
-                ));
+                return Err(CryptoError::PluginError("插件校验和不匹配".to_string()));
             }
             metadata
         } else {
-            // Fallback/Default metadata for tests or when no sidecar exists, but warn about it
-            // In strict mode, this should probably fail.
-            // For now, we construct minimal metadata but mark it.
+            // 回退/默认元数据用于测试或当 sidecar 不存在时，但会发出警告
+            // 在严格模式下，这可能会失败
+            // 现在，我们构造最小元数据但标记它
             PluginMetadata {
                 name: path.file_stem().unwrap().to_string_lossy().to_string(),
                 version: "0.0.0".to_string(),
                 author: "Unknown".to_string(),
-                description: "No metadata file found".to_string(),
+                description: "未找到元数据文件".to_string(),
                 dependencies: vec![],
                 checksum,
             }
@@ -156,13 +158,13 @@ impl PluginLoader {
             // 注意：如果多个插件共享同一个库文件，这种简单的计数可能不够，需要更复杂的依赖管理
             self.libraries.retain(|lib| Arc::strong_count(lib) > 1);
 
-            log::info!("{}", translate_with_args("plugin.unloaded", &[("name", &name)]));
+            log::info!(
+                "{}",
+                translate_with_args("plugin.unloaded", &[("name", &name)])
+            );
             Ok(())
         } else {
-            Err(CryptoError::PluginError(format!(
-                "Plugin '{}' not found",
-                name
-            )))
+            Err(CryptoError::PluginError(format!("插件 '{}' 不存在", name)))
         }
     }
 

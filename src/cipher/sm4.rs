@@ -26,7 +26,7 @@ impl Sm4GcmProvider {
         ))));
         let rotating_sbox = RotatingSboxMasking::new(4)
             .ok()
-            .map(|sbox| Arc::new(Mutex::new(sbox))); // 4 rotating S-boxes
+            .map(|sbox| Arc::new(Mutex::new(sbox))); // 4个轮换S盒
 
         Self {
             side_channel_context,
@@ -34,13 +34,13 @@ impl Sm4GcmProvider {
         }
     }
 
-    /// Create a new SM4-GCM provider with custom side-channel configuration
+    /// 创建一个新的 SM4-GCM 提供者，使用自定义侧信道配置
     #[allow(dead_code)]
     pub fn with_side_channel_config(config: SideChannelConfig) -> Self {
         let side_channel_context = Some(Arc::new(Mutex::new(SideChannelContext::new(config))));
         let rotating_sbox = RotatingSboxMasking::new(4)
             .ok()
-            .map(|sbox| Arc::new(Mutex::new(sbox))); // 4 rotating S-boxes
+            .map(|sbox| Arc::new(Mutex::new(sbox))); // 4个轮换S盒
 
         Self {
             side_channel_context,
@@ -56,7 +56,7 @@ impl Default for Sm4GcmProvider {
 }
 
 impl Sm4GcmProvider {
-    /// Internal encryption method without side-channel protection
+    /// 内部加密方法，不包含侧信道防护
     fn encrypt_internal(
         &self,
         key: &Key,
@@ -77,14 +77,14 @@ impl Sm4GcmProvider {
             CryptoError::KeyError("Invalid SM4 key length, must be 128 bits".into())
         })?;
 
-        // 1. Prepare data with padding if requested
+        // 1. 准备数据，如果需要则进行填充
         let data_to_encrypt = if use_padding {
             Pkcs7Padding::pad(plaintext, 16)?
         } else {
             plaintext.to_vec()
         };
 
-        // 2. GHASH for AAD
+        // 2. 对 AAD 进行 GHASH
         let mut ghash = GHash::new(&key_bytes.into());
         match aad {
             Some(a) if !a.is_empty() => {
@@ -93,20 +93,20 @@ impl Sm4GcmProvider {
             _ => {}
         }
 
-        // 3. Encrypt with SM4-CTR
+        // 3. 使用 SM4-CTR 加密
         let mut iv = [0u8; 16];
         iv[..12].copy_from_slice(nonce);
-        iv[15] = 2; // GCM starts counter at 2 for data (1 is for tag)
+        iv[15] = 2; // GCM 从 2 开始计数用于数据（1 用于标签）
 
         let mut ciphertext = data_to_encrypt;
         type Sm4Ctr = ctr::Ctr128BE<Sm4>;
         let mut cipher = Sm4Ctr::new(&key_bytes.into(), &iv.into());
         cipher.apply_keystream(&mut ciphertext);
 
-        // 4. GHASH for ciphertext
+        // 4. 对密文进行 GHASH
         ghash.update_padded(&ciphertext);
 
-        // 5. GHASH for lengths
+        // 5. 对长度进行 GHASH
         let mut len_block = [0u8; 16];
         let aad_len = aad.map(|a| a.len() as u64).unwrap_or(0) * 8;
         let ct_len = (ciphertext.len() as u64) * 8;
@@ -116,7 +116,7 @@ impl Sm4GcmProvider {
 
         let mut tag = ghash.finalize();
 
-        // 6. Encrypt tag
+        // 6. 加密标签
         let mut j0 = [0u8; 16];
         j0[..12].copy_from_slice(nonce);
         j0[15] = 1;
@@ -133,7 +133,7 @@ impl Sm4GcmProvider {
         Ok(result)
     }
 
-    /// Internal decryption method without side-channel protection
+    /// 内部解密方法，不包含侧信道防护
     fn decrypt_internal(
         &self,
         key: &Key,
@@ -159,11 +159,12 @@ impl Sm4GcmProvider {
             ciphertext_with_tag.split_at(ciphertext_with_tag.len() - 16);
 
         let secret = key.secret_bytes()?;
-        let key_bytes: [u8; 16] = secret.as_bytes().try_into().map_err(|_| {
-            CryptoError::KeyError("Invalid SM4 key length, must be 128 bits".into())
-        })?;
+        let key_bytes: [u8; 16] = secret
+            .as_bytes()
+            .try_into()
+            .map_err(|_| CryptoError::KeyError("无效的 SM4 密钥长度，必须是 128 位".into()))?;
 
-        // 1. GHASH for AAD
+        // 1. 对 AAD 进行 GHASH
         let mut ghash = GHash::new(&key_bytes.into());
         if let Some(a) = aad {
             if !a.is_empty() {
@@ -171,10 +172,10 @@ impl Sm4GcmProvider {
             }
         }
 
-        // 2. GHASH for ciphertext
+        // 2. 对密文进行 GHASH
         ghash.update_padded(ciphertext);
 
-        // 3. GHASH for lengths
+        // 3. 对长度进行 GHASH
         let mut len_block = [0u8; 16];
         let aad_len = aad.map(|a| a.len() as u64).unwrap_or(0) * 8;
         let ct_len = (ciphertext.len() as u64) * 8;
@@ -184,7 +185,7 @@ impl Sm4GcmProvider {
 
         let mut tag = ghash.finalize();
 
-        // 4. Encrypt tag mask
+        // 4. 加密标签掩码
         let mut j0 = [0u8; 16];
         j0[..12].copy_from_slice(nonce);
         j0[15] = 1;
@@ -197,13 +198,13 @@ impl Sm4GcmProvider {
             tag[i] ^= tag_mask[i];
         }
 
-        // 5. Verify tag
+        // 5. 验证标签
         use subtle::ConstantTimeEq;
         if tag.as_slice().ct_eq(received_tag).unwrap_u8() != 1 {
-            return Err(CryptoError::DecryptionFailed("Tag mismatch".into()));
+            return Err(CryptoError::DecryptionFailed("标签不匹配".into()));
         }
 
-        // 6. Decrypt ciphertext
+        // 6. 解密密文
         let mut iv = [0u8; 16];
         iv[..12].copy_from_slice(nonce);
         iv[15] = 2;
@@ -212,7 +213,7 @@ impl Sm4GcmProvider {
         let mut cipher = Sm4Ctr::new(&key_bytes.into(), &iv.into());
         cipher.apply_keystream(&mut plaintext);
 
-        // 7. Remove padding if requested
+        // 7. 如果需要则移除填充
         if use_padding {
             Pkcs7Padding::unpad(&plaintext, 16)
         } else {
@@ -229,14 +230,12 @@ impl SymmetricCipher for Sm4GcmProvider {
             ));
         }
 
-        // FIPS Check: SM4 is not FIPS 140-3 approved (usually)
+        // FIPS 检查：SM4 通常不被 FIPS 140-3 批准
         if crate::fips::FipsContext::is_enabled() {
-            return Err(CryptoError::FipsError(
-                "SM4 not allowed in FIPS mode".into(),
-            ));
+            return Err(CryptoError::FipsError("FIPS 模式下不允许使用 SM4".into()));
         }
 
-        // Generate Nonce
+        // 生成 Nonce
         let mut nonce = [0u8; 12];
         SecureRandom::new()?.fill(&mut nonce)?;
 
@@ -249,7 +248,7 @@ impl SymmetricCipher for Sm4GcmProvider {
             self.encrypt_internal(key, plaintext, &nonce, aad, true)?
         };
 
-        // Prepend Nonce
+        // 前置 Nonce
         let mut result = nonce.to_vec();
         result.extend_from_slice(&ciphertext);
 
@@ -271,7 +270,7 @@ impl SymmetricCipher for Sm4GcmProvider {
 
         if ciphertext.len() < 12 + 16 {
             // Nonce(12) + Tag(16)
-            return Err(CryptoError::DecryptionFailed("Invalid length".into()));
+            return Err(CryptoError::DecryptionFailed("无效长度".into()));
         }
 
         let (nonce, data) = ciphertext.split_at(12);
@@ -347,33 +346,33 @@ mod tests {
     #[test]
     fn test_sm4_with_side_channel_protection() {
         let provider = Sm4GcmProvider::new();
-        let key_data = vec![0x01; 16]; // SM4 uses 128-bit keys
+        let key_data = vec![0x01; 16]; // SM4 使用 128 位密钥
         let mut key = Key::new(Algorithm::SM4GCM, key_data).unwrap();
 
-        // Activate the key before use
+        // 使用前激活密钥
         key.activate(None).unwrap();
 
         let plaintext = b"Hello, SM4 with side-channel protection!";
 
-        // Test encryption with side-channel protection
+        // 测试带侧信道防护的加密
         let ciphertext = provider.encrypt(&key, plaintext, None).unwrap();
         assert!(!ciphertext.is_empty());
         assert_ne!(ciphertext, plaintext);
 
-        // Test decryption with side-channel protection
+        // 测试带侧信道防护的解密
         let decrypted = provider.decrypt(&key, &ciphertext, None).unwrap();
         assert_eq!(decrypted, plaintext);
 
-        // Verify that side-channel protection was applied by checking if context exists
-        // (The debug prints will show the protection was applied)
+        // 通过检查上下文是否存在来验证是否应用了侧信道防护
+        // (调试输出将显示已应用防护)
         println!("SM4 encryption/decryption with side-channel protection completed successfully");
     }
 
     #[test]
     fn test_sm4_fips_rejection() {
-        // Test that SM4 is rejected when FIPS mode is enabled
-        // Note: In a real implementation, we would enable FIPS mode here
-        // For now, we just test the existing FIPS check in the decrypt method
+        // 测试启用 FIPS 模式时 SM4 被拒绝
+        // 注意：在实际实现中，我们会在此处启用 FIPS 模式
+        // 目前，我们只测试解密方法中现有的 FIPS 检查
 
         // crate::fips::FipsContext::set_enabled(true);
 
@@ -382,11 +381,11 @@ mod tests {
         let key = Key::new_active(Algorithm::SM4GCM, key_data).unwrap();
         let plaintext = b"Test data";
 
-        // Since we can't easily enable/disable FIPS mode in tests,
-        // we just verify that the FIPS check exists by checking the implementation
-        // The actual FIPS rejection is tested in the registry or higher level tests
+        // 由于我们无法轻松地在测试中启用/禁用 FIPS 模式，
+        // 我们通过检查实现来验证 FIPS 检查是否存在
+        // 实际的 FIPS 拒绝测试在注册表或更高级别测试中进行
 
-        // Test that encryption works normally when FIPS is not enabled
+        // 测试未启用 FIPS 时加密正常工作
         let result = provider.encrypt(&key, plaintext, None);
 
         // crate::fips::FipsContext::set_enabled(false);

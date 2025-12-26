@@ -3,17 +3,16 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-//! Cryptographic masking for side-channel protection
+//! 用于侧信道防护的加密掩码
 //!
-//! This module provides various masking techniques to protect against
-//! power analysis and electromagnetic analysis attacks.
+//! 本模块提供各种掩码技术，用于防护功耗分析和电磁分析攻击。
 
 use crate::error::{CryptoError, Result};
 use crate::random::SecureRandom;
 
-// === Boolean Masking ===
+// === 布尔掩码 ===
 
-/// Boolean masking for boolean values
+/// 用于布尔值的布尔掩码
 #[allow(dead_code)]
 pub struct BooleanMasking {
     masks: Vec<bool>,
@@ -30,7 +29,7 @@ impl BooleanMasking {
         Ok(Self { masks })
     }
 
-    /// Mask a boolean value
+    /// 掩码一个布尔值
     #[allow(dead_code)]
     pub fn mask_bool(&self, index: usize, value: bool) -> bool {
         if index < self.masks.len() {
@@ -40,15 +39,15 @@ impl BooleanMasking {
         }
     }
 
-    /// Unmask a boolean value (XOR is its own inverse)
+    /// 解除布尔值的掩码（XOR 是其自身的逆运算）
     pub fn unmask_bool(&self, index: usize, masked: bool) -> bool {
         self.mask_bool(index, masked)
     }
 }
 
-// === Arithmetic Masking ===
+// === 算术掩码 ===
 
-/// Arithmetic masking for arithmetic operations
+/// 用于算术运算的算术掩码
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct ArithmeticMasking {
@@ -65,17 +64,17 @@ impl ArithmeticMasking {
         Ok(Self { mask })
     }
 
-    /// Mask a value using modular addition
+    /// 使用模加法掩码一个值
     pub fn mask(&self, value: u32) -> u32 {
         value.wrapping_add(self.mask)
     }
 
-    /// Unmask a value
+    /// 解除值的掩码
     pub fn unmask(&self, masked: u32) -> u32 {
         masked.wrapping_sub(self.mask)
     }
 
-    /// Perform masked addition
+    /// 执行掩码加法
     pub fn masked_add(&self, a: u32, b: u32) -> u32 {
         let masked_a = self.mask(a);
         let masked_b = self.mask(b);
@@ -83,9 +82,9 @@ impl ArithmeticMasking {
     }
 }
 
-// === Multiplicative Masking ===
+// === 乘法掩码 ===
 
-/// Multiplicative masking for multiplicative operations
+/// 用于乘法运算的乘法掩码
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct MultiplicativeMasking {
@@ -96,31 +95,31 @@ pub struct MultiplicativeMasking {
 #[allow(dead_code)]
 impl MultiplicativeMasking {
     pub fn new() -> Result<Self> {
-        // Generate odd mask (has modular inverse mod 2^32)
+        // 生成奇数掩码（在模 2^32 下有模逆元）
         let mut mask_bytes = [0u8; 4];
         SecureRandom::new()?.fill(&mut mask_bytes)?;
         let mut mask = u32::from_le_bytes(mask_bytes);
-        mask |= 1; // Ensure odd
+        mask |= 1; // 确保为奇数
 
         let inverse = mod_inverse_u32(mask);
 
         Ok(Self { mask, inverse })
     }
 
-    /// Mask a value using modular multiplication
+    /// 使用模乘法掩码一个值
     pub fn mask(&self, value: u32) -> u32 {
         value.wrapping_mul(self.mask)
     }
 
-    /// Unmask a value
+    /// 解除值的掩码
     pub fn unmask(&self, masked: u32) -> u32 {
         masked.wrapping_mul(self.inverse)
     }
 }
 
-// === XOR Masking ===
+// === XOR 掩码 ===
 
-/// XOR masking for bitwise operations
+/// 用于位运算的 XOR 掩码
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct XorMasking {
@@ -136,7 +135,7 @@ impl XorMasking {
         Ok(Self { masks })
     }
 
-    /// Mask a byte array using XOR
+    /// 使用 XOR 掩码字节数组
     #[allow(dead_code)]
     pub fn mask(&self, values: &[u8]) -> Vec<u8> {
         values
@@ -146,15 +145,15 @@ impl XorMasking {
             .collect()
     }
 
-    /// Unmask a byte array (XOR is its own inverse)
+    /// 解除字节数组的掩码（XOR 是其自身的逆运算）
     pub fn unmask(&self, masked: &[u8]) -> Vec<u8> {
         self.mask(masked)
     }
 }
 
-// === Higher-Order Masking ===
+// === 高阶掩码 ===
 
-/// Higher-order masking using multiple shares
+/// 使用多个分片的高阶掩码
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct HigherOrderMasking {
@@ -167,7 +166,7 @@ impl HigherOrderMasking {
     pub fn new(order: usize, data_size: usize) -> Result<Self> {
         let mut shares = Vec::with_capacity(order + 1);
 
-        // Generate random shares
+        // 生成随机分片
         for _ in 0..order {
             let mut share = vec![0u8; data_size];
             SecureRandom::new()?.fill(&mut share)?;
@@ -177,13 +176,13 @@ impl HigherOrderMasking {
         Ok(Self { order, shares })
     }
 
-    /// Mask data using XOR of all shares
+    /// 使用所有分片的 XOR 掩码数据
     pub fn mask(&mut self, data: &[u8]) -> Result<Vec<Vec<u8>>> {
         if data.len() != self.shares[0].len() {
-            return Err(CryptoError::InvalidParameter("Size mismatch".into()));
+            return Err(CryptoError::InvalidParameter("大小不匹配".into()));
         }
 
-        // Compute the last share as data XOR all other shares
+        // 计算最后一个分片为数据 XOR 所有其他分片
         let mut last_share = data.to_vec();
 
         for share in &self.shares[0..self.order] {
@@ -197,13 +196,11 @@ impl HigherOrderMasking {
         Ok(self.shares.clone())
     }
 
-    /// Unmask data by XORing all shares
+    /// 通过 XOR 所有分片解除数据的掩码
     #[allow(dead_code)]
     pub fn unmask(&self) -> Result<Vec<u8>> {
         if self.shares.len() != self.order + 1 {
-            return Err(CryptoError::InvalidParameter(
-                "Invalid number of shares".into(),
-            ));
+            return Err(CryptoError::InvalidParameter("无效的分片数量".into()));
         }
 
         let mut result = vec![0u8; self.shares[0].len()];
@@ -217,12 +214,10 @@ impl HigherOrderMasking {
         Ok(result)
     }
 
-    /// Refresh masking (re-randomize shares without changing value)
+    /// 刷新掩码（重新随机化分片而不改变值）
     pub fn refresh(&mut self) -> Result<()> {
         if self.shares.len() != self.order + 1 {
-            return Err(CryptoError::InvalidParameter(
-                "Invalid number of shares".into(),
-            ));
+            return Err(CryptoError::InvalidParameter("无效的分片数量".into()));
         }
         for i in 0..self.order {
             let mut new_mask = vec![0u8; self.shares[i].len()];
@@ -236,9 +231,9 @@ impl HigherOrderMasking {
     }
 }
 
-// === Masked Lookup Table ===
+// === 掩码查找表 ===
 
-/// Masked lookup table for S-boxes and other lookup operations
+/// 用于 S 盒和其他查找操作的掩码查找表
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct MaskedLookupTable {
@@ -260,15 +255,15 @@ impl MaskedLookupTable {
         let input_mask = input_mask[0];
         let output_mask = output_mask[0];
 
-        // Create full 256-entry table to support all possible u8 indices
-        let mut table = vec![output_mask; 256]; // Initialize with masked default value (0 ^ output_mask)
+        // 创建完整的 256 条目表以支持所有可能的 u8 索引
+        let mut table = vec![output_mask; 256]; // 使用掩码默认值（0 ^ output_mask）初始化
 
-        // For each position in the original table, create a masked entry
+        // 对于原始表中的每个位置，创建一个掩码条目
         for (i, &value) in original_table.iter().enumerate() {
-            // Calculate the masked position for this index
+            // 计算此索引的掩码位置
             let masked_position = (i as u8) ^ input_mask;
 
-            // Store the masked value at the masked position
+            // 在掩码位置存储掩码值
             table[masked_position as usize] = value ^ output_mask;
         }
 
@@ -280,20 +275,20 @@ impl MaskedLookupTable {
         })
     }
 
-    /// Perform masked lookup
+    /// 执行掩码查找
     pub fn lookup(&self, masked_input: u8) -> u8 {
-        // Use the masked_input directly as table index
+        // 直接使用 masked_input 作为表索引
         let table_index = masked_input as usize;
-        // Get the masked value from the table
+        // 从表中获取掩码值
         let masked_value = self.table[table_index];
-        // Unmask the value
+        // 解除值的掩码
         masked_value ^ self.output_mask
     }
 }
 
-// === Rotating S-Box Masking ===
+// === 旋转 S 盒掩码 ===
 
-/// Rotating S-box masking for AES
+/// 用于 AES 的旋转 S 盒掩码
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct RotatingSboxMasking {
@@ -338,21 +333,21 @@ impl RotatingSboxMasking {
         })
     }
 
-    /// Perform lookup with rotating masks
+    /// 使用旋转掩码执行查找
     #[allow(dead_code)]
     pub fn lookup(&mut self, masked_input: u8) -> u8 {
         let result = self.sboxes[self.current_index].lookup(masked_input);
 
-        // Rotate to next S-box
+        // 旋转到下一个 S 盒
         self.current_index = (self.current_index + 1) % self.sboxes.len();
 
         result
     }
 }
 
-// === Utility Functions ===
+// === 工具函数 ===
 
-/// Compute modular inverse for 32-bit values
+/// 计算 32 位值的模逆元
 #[allow(dead_code)]
 fn mod_inverse_u32(a: u32) -> u32 {
     let mut t = 0i64;
@@ -441,39 +436,39 @@ mod tests {
         let table = vec![0x00, 0x11, 0x22, 0x33, 0x44];
         let masked_table = MaskedLookupTable::new(&table).unwrap();
 
-        println!("Original table: {:?}", table);
-        println!("Input mask: 0x{:02x}", masked_table._input_mask);
-        println!("Output mask: 0x{:02x}", masked_table.output_mask);
-        println!("Masked table length: {}", masked_table.table.len());
+        println!("原始表: {:?}", table);
+        println!("输入掩码: 0x{:02x}", masked_table._input_mask);
+        println!("输出掩码: 0x{:02x}", masked_table.output_mask);
+        println!("掩码表长度: {}", masked_table.table.len());
 
-        // Test lookup for each index
+        // 测试每个索引的查找
         for (i, &expected) in table.iter().enumerate() {
             let masked_input = (i as u8) ^ masked_table._input_mask;
             let result = masked_table.lookup(masked_input);
 
             println!(
-                "Index {}: masked_input=0x{:02x}, expected=0x{:02x}, result=0x{:02x}",
+                "索引 {}: masked_input=0x{:02x}, 期望值=0x{:02x}, 结果=0x{:02x}",
                 i, masked_input, expected, result
             );
 
-            // The result should be the original value (unmasked)
+            // 结果应该是原始值（已解掩码）
             assert_eq!(result, expected);
 
-            // Test that lookup is consistent
+            // 测试查找的一致性
             let result2 = masked_table.lookup(masked_input);
             assert_eq!(result2, expected);
         }
 
-        // Test that invalid indices return 0 (or some default)
+        // 测试无效索引是否返回 0（或默认值）
         let invalid_indices = vec![5u8, 6, 10, 100, 255];
         for &invalid_idx in &invalid_indices {
             let masked_input = invalid_idx ^ masked_table._input_mask;
             let result = masked_table.lookup(masked_input);
             println!(
-                "Invalid index {}: masked_input=0x{:02x}, result=0x{:02x}",
+                "无效索引 {}: masked_input=0x{:02x}, 结果=0x{:02x}",
                 invalid_idx, masked_input, result
             );
-            // Should return 0 for invalid indices
+            // 应该为无效索引返回 0
             assert_eq!(result, 0);
         }
     }

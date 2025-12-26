@@ -17,7 +17,7 @@ use std::sync::Arc;
 #[cfg(feature = "encrypt")]
 use std::sync::Mutex;
 
-// Note: Key is used in internal test methods within impl blocks
+// 注意：密钥用于impl块内的内部测试方法
 #[cfg(feature = "encrypt")]
 use crate::key::Key;
 
@@ -260,8 +260,8 @@ impl FipsSelfTestEngine {
         let provider = Aes256GcmProvider::new()?;
         let key = Key::new_active(Algorithm::AES256GCM, key_bytes)?;
 
-        // NIST SP 800-38D KAT verification
-        // IV is fixed for KAT to ensure determinism
+        // NIST SP 800-38D KAT 验证
+        // IV 固定用于 KAT 以确保确定性
         let mut full_ciphertext = Vec::with_capacity(iv_bytes.len() + plaintext_bytes.len() + 16);
         full_ciphertext.extend_from_slice(&iv_bytes);
         full_ciphertext.extend_from_slice(&hex::decode(expected_ciphertext_hex).unwrap());
@@ -320,7 +320,7 @@ impl FipsSelfTestEngine {
         })
     }
 
-    /// SM4 encryption known answer test
+    /// SM4 加密已知答案测试
     fn sm4_kat_test(&self) -> Result<SelfTestResult> {
         let test_name = String::from("sm4_ctr_kat");
         let timestamp = std::time::SystemTime::now();
@@ -394,28 +394,28 @@ impl FipsSelfTestEngine {
         let algo = Algorithm::RSA2048;
         let signer = REGISTRY.get_signer(algo)?;
 
-        // Generate a test RSA key pair for FIPS compliance
+        // 为 FIPS 合规性生成测试 RSA 密钥对
         use rand::rngs::OsRng;
         use rsa::{pkcs8::EncodePrivateKey, RsaPrivateKey};
 
         let mut rng = OsRng;
         let private_key_rsa = RsaPrivateKey::new(&mut rng, 2048)
-            .map_err(|e| CryptoError::KeyError(format!("Failed to generate RSA key: {}", e)))?;
+            .map_err(|e| CryptoError::KeyError(format!("生成 RSA 密钥失败: {}", e)))?;
 
         let pkcs8_bytes = private_key_rsa
             .to_pkcs8_der()
-            .map_err(|e| CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e)))?;
+            .map_err(|e| CryptoError::KeyError(format!("转换为 PKCS#8 失败: {}", e)))?;
         let pkcs8_bytes = pkcs8_bytes.as_bytes().to_vec();
 
-        // Create private key from the pre-generated PKCS#8 for FIPS KAT
+        // 从预生成的 PKCS#8 创建私钥用于 FIPS KAT
         let private_key = Key::new_active(algo, pkcs8_bytes.clone())?;
 
-        // Extract public key from the PKCS#8 for verification
+        // 从 PKCS#8 中提取公钥用于验证
         let public_key = Key::new_active(algo, pkcs8_bytes)?;
 
         let message = b"test message for RSA";
 
-        // Test signature generation and verification
+        // 测试签名生成和验证
         let signature = signer.sign(&private_key, message);
         let passed = match signature {
             Ok(sig) => signer.verify(&public_key, message, &sig).unwrap_or(false),
@@ -428,7 +428,7 @@ impl FipsSelfTestEngine {
             error_message: if passed {
                 None
             } else {
-                Some("RSA signature self-test failed".to_string())
+                Some("RSA 签名自检失败".to_string())
             },
             timestamp,
         })
@@ -484,7 +484,7 @@ impl FipsSelfTestEngine {
                 None
             } else {
                 Some(format!(
-                    "RNG health test failed: {}",
+                    "RNG 健康测试失败: {}",
                     nist_result.error_message.unwrap_or_default()
                 ))
             },
@@ -505,7 +505,7 @@ impl FipsSelfTestEngine {
             if self.frequency_test(data) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Frequency test failed");
+                error_messages.push("频率测试失败");
             }
 
             // 2. 块内频率测试
@@ -513,7 +513,7 @@ impl FipsSelfTestEngine {
             if self.block_frequency_test(data, 128) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Block frequency test failed");
+                error_messages.push("块内频率测试失败");
             }
 
             // 3. 游程测试
@@ -521,7 +521,7 @@ impl FipsSelfTestEngine {
             if self.runs_test(data) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Runs test failed");
+                error_messages.push("游程测试失败");
             }
 
             // 4. 最长游程测试
@@ -529,7 +529,7 @@ impl FipsSelfTestEngine {
             if self.longest_run_test(data) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Longest run test failed");
+                error_messages.push("最长游程测试失败");
             }
 
             // 5. 二进制矩阵秩测试
@@ -537,7 +537,7 @@ impl FipsSelfTestEngine {
             if self.binary_matrix_rank_test(data) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Binary matrix rank test failed");
+                error_messages.push("二进制矩阵秩测试失败");
             }
 
             // 6. 离散傅里叶变换测试
@@ -545,7 +545,7 @@ impl FipsSelfTestEngine {
             if self.dft_test(data) {
                 tests_passed += 1;
             } else {
-                error_messages.push("DFT test failed");
+                error_messages.push("离散傅里叶变换测试失败");
             }
 
             // 7. 非重叠模板匹配测试
@@ -553,7 +553,7 @@ impl FipsSelfTestEngine {
             if self.non_overlapping_template_test(data, &[0, 1, 0, 0, 1]) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Non-overlapping template test failed");
+                error_messages.push("非重叠模板匹配测试失败");
             }
 
             // 8. 重叠模板匹配测试
@@ -561,7 +561,7 @@ impl FipsSelfTestEngine {
             if self.overlapping_template_test(data, &[1, 1, 1, 1, 1]) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Overlapping template test failed");
+                error_messages.push("重叠模板匹配测试失败");
             }
 
             // 9. 通用统计测试
@@ -569,7 +569,7 @@ impl FipsSelfTestEngine {
             if self.universal_statistical_test(data, 7) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Universal statistical test failed");
+                error_messages.push("通用统计测试失败");
             }
 
             // 10. 线性复杂度测试
@@ -577,7 +577,7 @@ impl FipsSelfTestEngine {
             if self.linear_complexity_test(data, 500) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Linear complexity test failed");
+                error_messages.push("线性复杂度测试失败");
             }
 
             // 11. 序列测试
@@ -585,7 +585,7 @@ impl FipsSelfTestEngine {
             if self.serial_test(data, 16) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Serial test failed");
+                error_messages.push("序列测试失败");
             }
 
             // 12. 近似熵测试
@@ -593,7 +593,7 @@ impl FipsSelfTestEngine {
             if self.approximate_entropy_test(data, 10) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Approximate entropy test failed");
+                error_messages.push("近似熵测试失败");
             }
 
             // 13. 累加和测试
@@ -601,7 +601,7 @@ impl FipsSelfTestEngine {
             if self.cumulative_sums_test(data) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Cumulative sums test failed");
+                error_messages.push("累加和测试失败");
             }
 
             // 14. 随机游走测试
@@ -609,7 +609,7 @@ impl FipsSelfTestEngine {
             if self.random_excursion_test(data) {
                 tests_passed += 1;
             } else {
-                error_messages.push("Random excursion test failed");
+                error_messages.push("随机游走测试失败");
             }
 
             // 计算熵值 (使用 Min-Entropy)
@@ -785,7 +785,7 @@ impl FipsSelfTestEngine {
                     hex::decode("308187020100301306072a8648ce3d020106082a8648ce3d030107046d306b02010104205c0b313ded1bd01223a22c84ba0e5007277eb979de0b747f3cf1612255b74156a144034200049a0f0dc6d486d4db63a8c829f206168661d6a5b7da9b9cdcab62901bee0ba048f4d5e5caccc931fa063d0176c570c144b3f57a57347b99f608a0218be57c4753").unwrap()
                 },
                 Algorithm::ECDSAP384 => {
-                    // Generate P-384 test key dynamically
+                    // 动态生成 P-384 测试密钥
                     use ring::signature::EcdsaKeyPair;
                     let rng = ring::rand::SystemRandom::new();
                     let pkcs8_bytes = EcdsaKeyPair::generate_pkcs8(&ring::signature::ECDSA_P384_SHA384_FIXED_SIGNING, &rng)
@@ -881,7 +881,7 @@ impl FipsSelfTestEngine {
         for (algo, test_vector_name) in test_cases {
             let signer = REGISTRY.get_signer(algo)?;
 
-            // Generate RSA test keys dynamically for PKCS#8 compatibility
+            // 为 PKCS#8 兼容性动态生成 RSA 测试密钥
             let key_bytes = match algo {
                 Algorithm::RSA2048 | Algorithm::RSA3072 | Algorithm::RSA4096 => {
                     use rand::rngs::OsRng;
@@ -914,7 +914,7 @@ impl FipsSelfTestEngine {
             };
             let key = Key::new_active(algo, key_bytes)?;
 
-            // Use multiple test vectors including boundary cases
+            // 使用多个测试向量，包括边界情况
             let test_vectors = [
                 (
                     b"RSA pairwise consistency test message 1" as &[u8],
@@ -931,24 +931,24 @@ impl FipsSelfTestEngine {
                 (b"Short", "short message test"),
             ];
 
-            // Test each test vector
+            // 测试每个测试向量
             for (message, description) in test_vectors.iter() {
-                // Sign with key
+                // 使用密钥签名
                 let signature = signer.sign(&key, message)?;
 
-                // Verify with same key (RSA uses the same key for both operations)
+                // 使用相同密钥验证 (RSA使用相同密钥进行两种操作)
                 let verify_result = signer.verify(&key, message, &signature);
 
                 match verify_result {
                     Ok(true) => {
-                        // Verification passed, continue testing error cases
+                        // 验证通过，继续测试错误情况
                         let wrong_message =
                             b"This is a different message that should fail verification";
                         let wrong_verify = signer.verify(&key, wrong_message, &signature);
 
                         match wrong_verify {
                             Ok(false) => {
-                                // Wrong message verification failed as expected
+                                // 错误消息验证按预期失败
                             }
                             Ok(true) => {
                                 all_passed = false;
@@ -994,7 +994,7 @@ impl FipsSelfTestEngine {
             timestamp,
         };
 
-        // Record test results
+        // 记录测试结果
         if let Ok(mut results) = self.test_results.lock() {
             results.insert(result.test_name.clone(), result.clone());
         }
@@ -1002,7 +1002,7 @@ impl FipsSelfTestEngine {
         Ok(result)
     }
 
-    /// Ed25519 pairwise consistency test (called during key generation)
+    /// Ed25519成对一致性测试 (密钥生成时调用)
     fn ed25519_pairwise_consistency_test(&self) -> Result<SelfTestResult> {
         let test_name = "ed25519_pairwise_consistency".to_string();
         let timestamp = std::time::SystemTime::now();
@@ -1012,34 +1012,34 @@ impl FipsSelfTestEngine {
 
         let signer = REGISTRY.get_signer(Algorithm::Ed25519)?;
 
-        // Generate Ed25519 test key dynamically for PKCS#8 v2 format compatibility
+        // 动态生成Ed25519测试密钥以确保PKCS#8 v2格式兼容性
         use ring::rand::SystemRandom;
         use ring::signature::Ed25519KeyPair;
 
         let rng = SystemRandom::new();
         let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)
-            .map_err(|e| CryptoError::KeyError(format!("Failed to generate Ed25519 key: {}", e)))?;
+            .map_err(|e| CryptoError::KeyError(format!("生成Ed25519密钥失败: {}", e)))?;
         let key_bytes = pkcs8_bytes.as_ref().to_vec();
         let key = Key::new_active(Algorithm::Ed25519, key_bytes)?;
 
-        // Use multiple test vectors including boundary cases
+        // 使用多个测试向量，包括边界情况
         let test_vectors = [
             (
                 b"Ed25519 pairwise consistency test message 1" as &[u8],
-                "test message 1",
+                "Test message 1",
             ),
             (
                 b"Ed25519 pairwise consistency test message 2",
-                "test message 2",
+                "Test message 2",
             ),
             (
-                b"A longer test message to verify signature consistency",
-                "long message test",
+                b"A longer message to verify signature consistency",
+                "Long message test",
             ),
-            (&[0u8; 32], "zero message test"),
-            (&[0xFFu8; 64], "all ones message test"),
-            (b"", "empty message test"),
-            (b"Short", "short message test"),
+            (&[0u8; 32], "Zero message test"),
+            (&[0xFFu8; 64], "All 1s message test"),
+            (b"", "Empty message test"),
+            (b"short", "Short message test"),
         ];
 
         let mut all_passed = true;
@@ -1047,31 +1047,33 @@ impl FipsSelfTestEngine {
         let test_vector_name = "Ed25519 测试向量";
 
         for (message, description) in test_vectors.iter() {
-            // Sign with key
+            // 使用密钥签名
             let signature = signer.sign(&key, message)?;
 
-            // Verify with same key (Ed25519 uses the same key for both operations)
+            // 使用相同密钥验证 (Ed25519使用相同密钥进行签名和验证)
             let verify_result = signer.verify(&key, message, &signature);
 
             match verify_result {
                 Ok(true) => {
-                    // Verification passed, continue testing error cases
-                    let wrong_message =
-                        b"This is a different message that should fail verification";
+                    // 验证通过，继续测试错误情况
+                    let wrong_message = b"Another message that should fail verification";
                     let wrong_verify = signer.verify(&key, wrong_message, &signature);
 
                     match wrong_verify {
                         Ok(false) => {
-                            // Wrong message verification failed as expected
+                            // 错误消息验证按预期失败
                         }
                         Ok(true) => {
                             all_passed = false;
-                            error_messages.push(format!("{} - {} - Ed25519: wrong message verification should fail but passed", test_vector_name, description));
+                            error_messages.push(format!(
+                                "{} - {} - Ed25519: 错误消息验证应该失败但通过了",
+                                test_vector_name, description
+                            ));
                         }
                         Err(e) => {
                             all_passed = false;
                             error_messages.push(format!(
-                                "{} - {} - Ed25519: wrong message verification error: {}",
+                                "{} - {} - Ed25519: 错误消息验证错误: {}",
                                 test_vector_name, description, e
                             ));
                         }
@@ -1080,24 +1082,23 @@ impl FipsSelfTestEngine {
                 Ok(false) => {
                     all_passed = false;
                     error_messages.push(format!(
-                        "{} - {} - Ed25519: signature verification failed",
+                        "{} - {} - Ed25519: 签名验证失败",
                         test_vector_name, description
                     ));
                 }
                 Err(e) => {
                     all_passed = false;
                     error_messages.push(format!(
-                        "{} - {} - Ed25519: verification error: {}",
+                        "{} - {} - Ed25519: 验证错误: {}",
                         test_vector_name, description, e
                     ));
                 }
             }
         }
 
-        // Add key rotation test using a different test key
-        let pkcs8_bytes2 = Ed25519KeyPair::generate_pkcs8(&rng).map_err(|e| {
-            CryptoError::KeyError(format!("Failed to generate second Ed25519 key: {}", e))
-        })?;
+        // 添加密钥轮换测试，使用不同的测试密钥
+        let pkcs8_bytes2 = Ed25519KeyPair::generate_pkcs8(&rng)
+            .map_err(|e| CryptoError::KeyError(format!("生成第二个Ed25519密钥失败: {}", e)))?;
         let key_bytes2 = pkcs8_bytes2.as_ref().to_vec();
         let key2 = Key::new_active(Algorithm::Ed25519, key_bytes2)?;
         let message = b"Key rotation test message";
@@ -1105,22 +1106,19 @@ impl FipsSelfTestEngine {
         let signature1 = signer.sign(&key, message)?;
         let signature2 = signer.sign(&key2, message)?;
 
-        // Ensure different keys generate different signatures
+        // 确保不同密钥生成不同的签名
         if signature1 == signature2 {
             all_passed = false;
-            error_messages.push(
-                "Key rotation test failed: different keys generated same signature".to_string(),
-            );
+            error_messages.push("密钥轮换测试失败: 不同密钥生成了相同的签名".to_string());
         }
 
-        // Ensure each key can only verify its own signature
+        // 确保每个密钥只能验证自己的签名
         let verify1_with_2 = signer.verify(&key2, message, &signature1)?;
         let verify2_with_1 = signer.verify(&key, message, &signature2)?;
 
         if verify1_with_2 || verify2_with_1 {
             all_passed = false;
-            error_messages
-                .push("Key rotation test failed: key cross-verification passed".to_string());
+            error_messages.push("密钥轮换测试失败: 密钥交叉验证通过了".to_string());
         }
 
         let error_message = if all_passed {
@@ -1154,11 +1152,11 @@ impl FipsSelfTestEngine {
         self.test_results.lock().ok()?.get(test_name).cloned()
     }
 
-    /// Check if all required tests have passed
+    /// 检查所有必需测试是否通过
     pub fn all_required_tests_passed(&self) -> bool {
         let test_results = self.get_test_results();
 
-        // List of required test names (must match the names used in test methods)
+        // 必需测试名称列表 (必须与测试方法中使用的名称一致)
         let required_tests = vec![
             "aes_256_gcm_kat",
             "sha_256_kat",
@@ -1178,7 +1176,7 @@ impl FipsSelfTestEngine {
                     }
                 }
                 None => {
-                    // Test hasn't been run yet
+                    // 测试尚未运行
                     return false;
                 }
             }
@@ -1195,9 +1193,9 @@ impl FipsSelfTestEngine {
         let aes_result = self.aes_kat_test()?;
 
         let mut test_results = self.test_results.lock().unwrap();
-        // If the health test fails due to statistical anomalies, we should log it but not fail hard
-        // unless it's a catastrophic failure.
-        // However, for FIPS, failure means failure.
+        // 如果健康测试由于统计异常而失败，我们应该记录它但不应严重失败
+        // 除非是灾难性故障。
+        // 但是对于FIPS，失败就是失败。
 
         test_results.insert(rng_result.test_name.clone(), rng_result);
         test_results.insert(aes_result.test_name.clone(), aes_result);
@@ -1249,7 +1247,7 @@ impl FipsSelfTestEngine {
         }
 
         // NIST SP 800-22 Rev 1a 2.2.4
-        // Chi-squared = 4M * sum((pi_i - 1/2)^2)
+        // 卡方 = 4M * sum((pi_i - 1/2)^2)
         let chi_squared =
             4.0 * block_size as f64 * proportions.iter().map(|&p| (p - 0.5).powi(2)).sum::<f64>();
 
@@ -1753,8 +1751,8 @@ impl FipsSelfTestEngine {
         let df1 = (1 << (m - 2)) as f64;
         let df2 = (1 << (m - 3)) as f64;
 
-        // Critical values for alpha = 0.01
-        // Approximation: CV = df + 2.33 * sqrt(2*df) + 4/3 * (2.33^2 - 1) ... simplified to:
+        // alpha = 0.01 的临界值
+        // 近似公式: CV = df + 2.33 * sqrt(2*df) + 4/3 * (2.33^2 - 1) ... 简化为:
         let threshold1 = df1 + 2.33 * (2.0 * df1).sqrt();
         let threshold2 = df2 + 2.33 * (2.0 * df2).sqrt();
 
@@ -1803,20 +1801,20 @@ impl FipsSelfTestEngine {
         let phi_m_plus_1 = get_phi(m + 1);
         let apen = phi_m - phi_m_plus_1;
 
-        // Chi-squared statistic: chi_sq = 2 * N * (ln(2) - ApEn)
+        // 卡方统计量: chi_sq = 2 * N * (ln(2) - ApEn)
         let chi_sq = 2.0 * n as f64 * (2.0f64.ln() - apen);
 
-        // df = 2^m
+        // 自由度 df = 2^m
         let df = (1 << m) as f64;
 
-        // Critical value for alpha = 0.01
-        // Since ApEn should be close to ln(2) for random data, small chi_sq is good?
-        // Wait, NIST SP 800-22 Section 2.12.7:
+        // alpha = 0.01 的临界值
+        // 由于 ApEn 对于随机数据应该接近 ln(2)，chi_sq 越小越好？
+        // 注意，NIST SP 800-22 Section 2.12.7:
         // P-value = igamc(2^(m-1), chi_sq / 2)
-        // If P-value < 0.01, reject.
-        // Large chi_sq means ApEn is far from ln(2), which means non-random.
-        // So we reject if chi_sq is LARGE.
-        // Critical value for chi-squared with df = 2^m
+        // 如果 P-value < 0.01，则拒绝。
+        // chi_sq 越大意味着 ApEn 偏离 ln(2) 越远，意味着非随机。
+        // 因此，如果 chi_sq 很大，我们拒绝。
+        // 自由度为 df = 2^m 的卡方分布临界值
         let threshold = df + 2.33 * (2.0 * df).sqrt();
 
         chi_sq < threshold
@@ -1992,38 +1990,38 @@ impl FipsSelfTestEngine {
             }
         }
 
-        // entropy * 8.0; // Normalized entropy per byte? No, Shannon entropy is bits per symbol.
-        // If symbol is byte, max entropy is 8.
-        // The original code `entropy * 8.0` suggests it wants to scale it?
-        // Wait, `entropy` calculated above is in bits (log2). Max value is 8.
-        // If we multiply by 8.0, we get 64? That's wrong.
-        // Original code: `entropy * 8.0`. Maybe it meant `entropy` was in bytes? No log2 returns bits.
-        // Let's correct this. We return pure Shannon Entropy in bits per byte.
+        // entropy * 8.0; // 每字节归一化熵？不，香农熵是每符号的比特数。
+        // 如果符号是字节，最大熵是 8。
+        // 原始代码 `entropy * 8.0` 表明它想要缩放它？
+        // 注意，`entropy` 上面计算的是比特数 (log2)。最大值是 8。
+        // 如果我们乘以 8.0，得到 64？这是错误的。
+        // 原始代码: `entropy * 8.0`。也许它的意思是 `entropy` 是以字节为单位？不，log2 返回的是比特。
+        // 我们来纠正这一点。我们返回纯香农熵，单位是每字节比特。
         entropy
     }
 
     /// 估算线性复杂度
     #[allow(dead_code)]
     fn estimate_linear_complexity(&self, sequence: &[u8]) -> usize {
-        // Berlekamp-Massey Algorithm Implementation
-        // Input: sequence of bits (not bytes)
-        // Output: linear complexity L
+        // Berlekamp-Massey 算法实现
+        // 输入: 比特序列 (不是字节)
+        // 输出: 线性复杂度 L
 
         let n = sequence.len();
         if n == 0 {
             return 0;
         }
 
-        // Convert bytes to bits if the input is meant to be bytes?
-        // The signature takes &[u8], and the usage in estimate_entropy uses data directly.
-        // However, linear complexity is defined for bit sequences usually.
-        // If sequence contains 0s and 1s only, we treat as bits.
-        // If it contains arbitrary bytes, we should probably expand to bits or treat as field elements?
-        // Standard NIST test is for binary sequences.
-        // Let's assume input is a byte slice representing a bit sequence (0 or 1 per byte)
-        // OR expand bytes to bits. Given the simplified implementation check `x != 0`,
-        // it likely treated bytes as elements of GF(2^8) or just non-zero?
-        // Let's stick to standard GF(2) Berlekamp-Massey on the expanded bit sequence for correctness.
+        // 如果输入是字节，是否需要将字节转换为比特？
+        // 函数签名接受 &[u8]，estimate_entropy 中直接使用 data。
+        // 但是，线性复杂度通常是为比特序列定义的。
+        // 如果序列只包含 0 和 1，我们将其视为比特。
+        // 如果它包含任意字节，我们可能应该扩展为比特或将比特视为域元素？
+        // 标准 NIST 测试用于二进制序列。
+        // 我们假设输入是一个字节片，表示比特序列（每字节 0 或 1）
+        // 或者将字节扩展为比特。考虑到简化实现中检查 `x != 0`，
+        // 它可能将字节视为 GF(2^8) 的元素或只是非零？
+        // 为了正确性，我们坚持在扩展的比特序列上使用标准的 GF(2) Berlekamp-Massey 算法。
 
         let bits: Vec<u8> = sequence
             .iter()
@@ -2199,41 +2197,34 @@ mod tests {
         let engine = FipsSelfTestEngine::new();
         let result = engine.run_power_on_self_tests();
         if let Err(e) = &result {
-            println!("Power-on self tests failed with error: {:?}", e);
+            println!("上电自检失败，错误: {:?}", e);
         }
-        assert!(
-            result.is_ok(),
-            "Power-on self tests failed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "上电自检失败: {:?}", result.err());
     }
 
     #[test]
     fn test_pairwise_consistency_tests() {
         let engine = FipsSelfTestEngine::new();
 
-        // Test ECDSA
+        // 测试 ECDSA
         let ecdsa_result = engine.ecdsa_pairwise_consistency_test().unwrap();
         if !ecdsa_result.passed {
-            panic!(
-                "ECDSA pairwise consistency test failed: {:?}",
-                ecdsa_result.error_message
-            );
+            panic!("ECDSA 成对一致性测试失败: {:?}", ecdsa_result.error_message);
         }
         assert!(ecdsa_result.passed);
 
-        // Test Ed25519
+        // 测试 Ed25519
         let ed25519_result = engine.ed25519_pairwise_consistency_test().unwrap();
         if !ed25519_result.passed {
             panic!(
-                "Ed25519 pairwise consistency test failed: {:?}",
+                "Ed25519 成对一致性测试失败: {:?}",
                 ed25519_result.error_message
             );
         }
         assert!(ed25519_result.passed);
 
-        // RSA pairwise consistency test
-        // We check if it runs without error.
+        // RSA 成对一致性测试
+        // 我们检查它是否运行无误。
         let _rsa_result = engine.rsa_pairwise_consistency_test();
     }
 
@@ -2241,7 +2232,7 @@ mod tests {
     fn test_nist_randomness_tests() {
         let engine = FipsSelfTestEngine::new();
 
-        // Test with periodic data (should fail some tests)
+        // 测试周期性数据 (应该失败一些测试)
         let mut data = vec![0u8; 1000];
         for (i, item) in data.iter_mut().enumerate() {
             *item = (i % 256) as u8;
@@ -2249,12 +2240,12 @@ mod tests {
         let result1 = engine.nist_randomness_tests(&data);
         assert!(result1.total_tests > 0);
 
-        // Test with all zeros (should fail entropy)
+        // 测试全零数据 (应该失败熵测试)
         let data_zeros = vec![0u8; 1000];
         let result2 = engine.nist_randomness_tests(&data_zeros);
         assert!(result2.entropy_bits < 1.0);
 
-        // Test with random-looking data
+        // 测试随机数据
         let mut data_rand = vec![0u8; 1000];
         for (i, item) in data_rand.iter_mut().enumerate() {
             *item = (i * 31 + 17) as u8;
@@ -2267,13 +2258,13 @@ mod tests {
     fn test_all_required_tests_passed() {
         let engine = FipsSelfTestEngine::new();
 
-        // Initially should be false as no tests have run
+        // 最初应该为 false，因为还没有运行任何测试
         assert!(!engine.all_required_tests_passed());
 
-        // Run POST
+        // 运行 POST
         engine.run_power_on_self_tests().unwrap();
 
-        // Now it should pass because POST runs all required tests with correct names
+        // 现在应该通过，因为 POST 运行了所有名称正确的必需测试
         assert!(engine.all_required_tests_passed());
     }
 
@@ -2321,23 +2312,23 @@ mod tests {
     fn test_run_conditional_self_test() {
         let engine = FipsSelfTestEngine::new();
 
-        // Test AES
+        // 测试 AES
         assert!(engine
             .run_conditional_self_test(Algorithm::AES256GCM)
             .is_ok());
 
-        // Test ECDSA
+        // 测试 ECDSA
         assert!(engine
             .run_conditional_self_test(Algorithm::ECDSAP256)
             .is_ok());
 
-        // Test Ed25519
+        // 测试 Ed25519
         assert!(engine.run_conditional_self_test(Algorithm::Ed25519).is_ok());
 
-        // Test RSA (might fail due to simplified implementation in self_test.rs, but should return Ok if implementation returns Ok)
+        // 测试 RSA (可能由于 self_test.rs 中的简化实现而失败，但如果实现返回 Ok 则应返回 Ok)
         let _ = engine.run_conditional_self_test(Algorithm::RSA2048);
 
-        // Test unsupported/default branch
+        // 测试不支持的/默认分支
         assert!(engine.run_conditional_self_test(Algorithm::SM4GCM).is_ok());
     }
 
@@ -2361,7 +2352,7 @@ mod tests {
         engine.trigger_alert(
             AlertSeverity::Warning,
             AlertCategory::TestFailure,
-            "test alert".to_string(),
+            "测试告警".to_string(),
             None,
         );
 
@@ -2372,37 +2363,37 @@ mod tests {
     fn test_dft_implementation_details() {
         let engine = FipsSelfTestEngine::new();
 
-        // 1. Test with random data (should pass)
-        // We use a simple LCG to generate "random-looking" data
-        let mut random_data = vec![0u8; 10000]; // Increased to 10000 bytes (80000 bits) for better statistical properties
+        // 1. 测试随机数据 (应该通过)
+        // 我们使用简单的 LCG 生成"随机"数据
+        let mut random_data = vec![0u8; 10000]; // 增加到 10000 字节 (80000 位) 以获得更好的统计特性
         let mut state: u32 = 0xDEADBEEF;
         for x in random_data.iter_mut() {
             state = state.wrapping_mul(1664525).wrapping_add(1013904223);
             *x = (state >> 24) as u8;
         }
 
-        // Ensure the data is not too short for meaningful FFT
+        // 确保数据不会太短而无法进行有意义的 FFT
         if random_data.len() >= 1000 {
-            // Note: Random data might occasionally fail statistical tests, but LCG should generally pass
-            // We use assert but acknowledge statistical nature
+            // 注意: 随机数据偶尔可能无法通过统计测试，但 LCG 通常应该通过
+            // 我们使用 assert 但承认统计性质
             // let passed_random = engine.dft_test(&random_data);
             // if !passed_random {
-            //     println!("Warning: Random data failed DFT test (statistically possible)");
+            //     println!("警告: 随机数据 DFT 测试失败 (统计上可能发生)");
             // }
-            // For unit test stability, we might skip strict assertion on random data or use known good seed
-            // But here we just want to ensure it runs without panic
+            // 为了单元测试稳定性，我们可能不严格断言随机数据或使用已知良好的种子
+            // 但这里我们只想确保它能运行而不 panic
             let _ = engine.dft_test(&random_data);
         }
 
-        // 2. Test with periodic data (should fail)
-        // Pattern: 10101010... (0xAA repeated)
+        // 2. 测试周期性数据 (应该失败)
+        // 模式: 10101010... (重复 0xAA)
         let periodic_data = vec![0xAAu8; 2500];
         let passed_periodic = engine.dft_test(&periodic_data);
-        assert!(!passed_periodic, "Periodic data should fail DFT test");
+        assert!(!passed_periodic, "周期性数据应该失败 DFT 测试");
 
-        // 3. Test with all zeros (should fail)
+        // 3. 测试全零数据 (应该失败)
         let zero_data = vec![0u8; 2500];
         let passed_zeros = engine.dft_test(&zero_data);
-        assert!(!passed_zeros, "All zero data should fail DFT test");
+        assert!(!passed_zeros, "全零数据应该失败 DFT 测试");
     }
 }

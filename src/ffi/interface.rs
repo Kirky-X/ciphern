@@ -3,9 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-//! FFI Interface Definitions
+//! FFI 接口定义
 //!
-//! Unified interface definitions for all FFI bindings
+//! 所有 FFI 绑定的统一接口定义
 
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -36,19 +36,19 @@ impl CiphernError {
     /// 获取错误描述
     pub fn description(&self) -> &'static str {
         match self {
-            CiphernError::Success => "Success",
-            CiphernError::InvalidParameter => "Invalid parameter",
-            CiphernError::MemoryAllocationFailed => "Memory allocation failed",
-            CiphernError::KeyNotFound => "Key not found",
-            CiphernError::AlgorithmNotSupported => "Algorithm not supported",
-            CiphernError::EncryptionFailed => "Encryption failed",
-            CiphernError::DecryptionFailed => "Decryption failed",
-            CiphernError::FipsError => "FIPS error",
-            CiphernError::KeyLifecycleError => "Key lifecycle error",
-            CiphernError::BufferTooSmall => "Buffer too small",
-            CiphernError::InvalidKeySize => "Invalid key size",
-            CiphernError::NullPointer => "Null pointer",
-            CiphernError::UnknownError => "Unknown error",
+            CiphernError::Success => "成功",
+            CiphernError::InvalidParameter => "无效参数",
+            CiphernError::MemoryAllocationFailed => "内存分配失败",
+            CiphernError::KeyNotFound => "密钥未找到",
+            CiphernError::AlgorithmNotSupported => "不支持的算法",
+            CiphernError::EncryptionFailed => "加密失败",
+            CiphernError::DecryptionFailed => "解密失败",
+            CiphernError::FipsError => "FIPS 错误",
+            CiphernError::KeyLifecycleError => "密钥生命周期错误",
+            CiphernError::BufferTooSmall => "缓冲区太小",
+            CiphernError::InvalidKeySize => "无效的密钥大小",
+            CiphernError::NullPointer => "空指针",
+            CiphernError::UnknownError => "未知错误",
         }
     }
 
@@ -304,7 +304,7 @@ pub mod validation {
         name: &str,
     ) -> Result<&'a [u8], CiphernError> {
         validate_ptr(data, name)?;
-        validate_length(len, 1024 * 1024, name)?; // 1MB limit
+        validate_length(len, 1024 * 1024, name)?; // 1MB 限制
 
         Ok(slice::from_raw_parts(data, len))
     }
@@ -430,14 +430,13 @@ pub mod plugin_interface {
         CiphernError::AlgorithmNotSupported
     }
 
-    /// 获取插件信息
+    /// 获取插件信息（占位实现）
     #[no_mangle]
     pub unsafe extern "C" fn ciphern_plugin_get_info(
         _name: *const c_char,
         _buf: *mut c_char,
         _len: usize,
     ) -> CiphernError {
-        // Implementation placeholder
         CiphernError::AlgorithmNotSupported
     }
 
@@ -451,10 +450,9 @@ pub mod plugin_interface {
         CiphernError::AlgorithmNotSupported
     }
 
-    /// 获取插件列表
+    /// 获取插件列表（占位实现）
     #[no_mangle]
     pub unsafe extern "C" fn ciphern_plugin_list(_buf: *mut c_char, _len: usize) -> CiphernError {
-        // Implementation placeholder
         CiphernError::AlgorithmNotSupported
     }
 }
