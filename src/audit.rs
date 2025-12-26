@@ -82,6 +82,11 @@ fn sanitize_error_for_log(error: &CryptoError) -> String {
             "Key usage limit exceeded - operation rejected".to_string()
         }
         CryptoError::SecurityError(_) => "Security error detected - operation rejected".to_string(),
+        CryptoError::InvalidKeyLength(_) => "Invalid key length - operation rejected".to_string(),
+        CryptoError::HardwareAccelerationUnavailable(_) => {
+            "Hardware acceleration unavailable - using software fallback".to_string()
+        }
+        CryptoError::AsyncOperationFailed(_) => "Async operation failed".to_string(),
     }
 }
 

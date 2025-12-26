@@ -3,9 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use crate::cipher::provider::Signer;
 use crate::error::{CryptoError, Result};
 use crate::key::Key;
-use crate::provider::Signer;
 use crate::types::Algorithm;
 use ring::signature::{KeyPair, RsaKeyPair};
 

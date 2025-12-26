@@ -9,7 +9,7 @@
 //!
 //! Run with: cargo run --example demo
 
-use ciphern::{init, Algorithm, Cipher, Hash, Hkdf, KeyManager, Result, Signer};
+use ciphern::{init, Algorithm, Cipher, Hasher, Hkdf, KeyManager, Result};
 
 fn main() -> Result<()> {
     println!("{}", "=".repeat(70));
@@ -19,11 +19,11 @@ fn main() -> Result<()> {
     init()?;
 
     demo_symmetric_encryption()?;
-    demo_digital_signatures()?;
     demo_hashing()?;
     demo_random_generation()?;
     demo_key_management()?;
     demo_key_derivation()?;
+    demo_hmac()?;
 
     println!("\n{}", "=".repeat(70));
     println!("  All demos completed successfully!");
@@ -55,44 +55,20 @@ fn demo_symmetric_encryption() -> Result<()> {
     Ok(())
 }
 
-fn demo_digital_signatures() -> Result<()> {
-    println!("\n[2] Digital Signatures (Ed25519)");
-    println!("{}", "-".repeat(50));
-
-    let key_manager = KeyManager::new()?;
-    let key_id = key_manager.generate_key(Algorithm::Ed25519)?;
-    let signer = Signer::new(Algorithm::Ed25519)?;
-
-    let message = b"Message to be signed";
-    println!("  Message: {}", std::str::from_utf8(message).unwrap());
-
-    let signature = signer.sign(&key_manager, &key_id, message)?;
-    println!("  Signature (hex): {}...", hex::encode(&signature[..32]));
-
-    let is_valid = signer.verify(&key_manager, &key_id, message, &signature)?;
-    println!(
-        "  Verification: {}",
-        if is_valid { "Valid" } else { "Invalid" }
-    );
-
-    assert!(is_valid);
-    println!("  ✓ Ed25519 signature verified!");
-
-    Ok(())
-}
-
 fn demo_hashing() -> Result<()> {
-    println!("\n[3] Hash Operations (SHA-256, SM3)");
+    println!("\n[2] Hash Operations (SHA-256, SM3)");
     println!("{}", "-".repeat(50));
 
     let data = b"Ciphern - Modern Cryptographic Library";
 
     println!("  Data: {}", std::str::from_utf8(data).unwrap());
 
-    let sha256 = Hash::sha256(data)?;
+    let hasher_sha256 = Hasher::new(Algorithm::SHA256)?;
+    let sha256 = hasher_sha256.hash(data);
     println!("  SHA-256: {}...", hex::encode(&sha256[..16]));
 
-    let sm3 = Hash::sm3(data)?;
+    let hasher_sm3 = Hasher::new(Algorithm::SM3)?;
+    let sm3 = hasher_sm3.hash(data);
     println!("  SM3:    {}...", hex::encode(&sm3[..16]));
 
     println!("  ✓ Hash operations completed!");
@@ -101,7 +77,7 @@ fn demo_hashing() -> Result<()> {
 }
 
 fn demo_random_generation() -> Result<()> {
-    println!("\n[4] Secure Random Generation");
+    println!("\n[3] Secure Random Generation");
     println!("{}", "-".repeat(50));
 
     let rng = ciphern::SecureRandom::new()?;
@@ -118,7 +94,7 @@ fn demo_random_generation() -> Result<()> {
 }
 
 fn demo_key_management() -> Result<()> {
-    println!("\n[5] Key Management");
+    println!("\n[4] Key Management");
     println!("{}", "-".repeat(50));
 
     let key_manager = KeyManager::new()?;
@@ -134,7 +110,7 @@ fn demo_key_management() -> Result<()> {
 }
 
 fn demo_key_derivation() -> Result<()> {
-    println!("\n[6] Key Derivation");
+    println!("\n[5] Key Derivation");
     println!("{}", "-".repeat(50));
 
     let key_manager = KeyManager::new()?;
@@ -150,6 +126,30 @@ fn demo_key_derivation() -> Result<()> {
     println!("  Derived key algorithm: {:?}", derived_key.algorithm());
 
     println!("  ✓ Key derivation completed!");
+
+    Ok(())
+}
+
+fn demo_hmac() -> Result<()> {
+    println!("\n[6] HMAC Operations (HMAC-SHA256)");
+    println!("{}", "-".repeat(50));
+
+    let key = b"secret_key";
+    let message = b"Message to be authenticated";
+
+    let hmac = ciphern::Hmac::new(Algorithm::SHA256)?;
+    let signature = hmac.sign(key, message)?;
+    println!("  Message: {}", std::str::from_utf8(message).unwrap());
+    println!("  HMAC-SHA256: {}...", hex::encode(&signature[..16]));
+
+    let is_valid = hmac.verify(key, message, &signature)?;
+    println!(
+        "  Verification: {}",
+        if is_valid { "Valid" } else { "Invalid" }
+    );
+
+    assert!(is_valid);
+    println!("  ✓ HMAC verification verified!");
 
     Ok(())
 }

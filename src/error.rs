@@ -80,6 +80,15 @@ pub enum CryptoError {
 
     #[error("Unknown error")]
     UnknownError,
+
+    #[error("Invalid key length: {0}")]
+    InvalidKeyLength(usize),
+
+    #[error("Hardware acceleration unavailable: {0}")]
+    HardwareAccelerationUnavailable(String),
+
+    #[error("Async operation failed: {0}")]
+    AsyncOperationFailed(String),
 }
 
 #[cfg(feature = "i18n")]
@@ -118,6 +127,11 @@ mod i18n_error_impl {
                 CryptoError::InternalError(_) => "crypto_error.internal_error",
                 CryptoError::SigningFailed(_) => "crypto_error.signing_failed",
                 CryptoError::UnknownError => "crypto_error.unknown_error",
+                CryptoError::InvalidKeyLength(_) => "crypto_error.invalid_key_length",
+                CryptoError::HardwareAccelerationUnavailable(_) => {
+                    "crypto_error.hardware_acceleration_unavailable"
+                }
+                CryptoError::AsyncOperationFailed(_) => "crypto_error.async_operation_failed",
             }
         }
 
@@ -151,6 +165,13 @@ mod i18n_error_impl {
                 CryptoError::InternalError(_) => "crypto_error.internal_error_message",
                 CryptoError::SigningFailed(_) => "crypto_error.signing_failed_message",
                 CryptoError::UnknownError => "crypto_error.unknown_error_message",
+                CryptoError::InvalidKeyLength(_) => "crypto_error.invalid_key_length_message",
+                CryptoError::HardwareAccelerationUnavailable(_) => {
+                    "crypto_error.hardware_acceleration_unavailable_message"
+                }
+                CryptoError::AsyncOperationFailed(_) => {
+                    "crypto_error.async_operation_failed_message"
+                }
             }
         }
     }
@@ -210,6 +231,11 @@ mod i18n_error_impl {
             | CryptoError::MemoryTampered
             | CryptoError::TimeError
             | CryptoError::UnknownError => {
+                vec![]
+            }
+            CryptoError::InvalidKeyLength(_)
+            | CryptoError::HardwareAccelerationUnavailable(_)
+            | CryptoError::AsyncOperationFailed(_) => {
                 vec![]
             }
         };

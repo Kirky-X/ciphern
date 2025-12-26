@@ -3,9 +3,9 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use crate::cipher::provider::SymmetricCipher;
 use crate::error::CryptoError;
 use crate::i18n::translate_with_args;
-use crate::provider::SymmetricCipher;
 use crate::side_channel::{
     protect_critical_operation, RotatingSboxMasking, SideChannelConfig, SideChannelContext,
 };

@@ -174,6 +174,8 @@ impl FipsSelfTestEngine {
             self.kdf_test()?,
             // 8. SM4 加密自检
             self.sm4_kat_test()?,
+            // 9. 硬件加速功能检测
+            self.hardware_acceleration_test()?,
         ];
 
         // 存储测试结果
@@ -270,7 +272,7 @@ impl FipsSelfTestEngine {
 
         // 使用实际的加密实现进行校验
         use crate::cipher::aes::Aes256GcmProvider;
-        use crate::provider::SymmetricCipher;
+        use crate::cipher::provider::SymmetricCipher;
 
         let provider = Aes256GcmProvider::new()?;
         let key = Key::new_active(Algorithm::AES256GCM, key_bytes)?;
@@ -364,6 +366,88 @@ impl FipsSelfTestEngine {
             passed,
             error_message: None,
             timestamp,
+        })
+    }
+
+    /// 硬件加速功能检测测试
+    #[cfg(feature = "encrypt")]
+    fn hardware_acceleration_test(&self) -> Result<SelfTestResult> {
+        let test_name = "hardware_acceleration_test".to_string();
+        let timestamp = std::time::SystemTime::now();
+
+        use crate::hardware::{CpuFeatures, AES_NI_SUPPORTED, AVX2_SUPPORTED, SHA_NI_SUPPORTED};
+
+        // 初始化 CPU 特征（确保原子变量被正确初始化）
+        crate::hardware::init_cpu_features();
+
+        let detected_features = CpuFeatures::detect();
+        let stored_aes_ni = AES_NI_SUPPORTED.load(std::sync::atomic::Ordering::Relaxed);
+        let stored_avx2 = AVX2_SUPPORTED.load(std::sync::atomic::Ordering::Relaxed);
+        let stored_sha_ni = SHA_NI_SUPPORTED.load(std::sync::atomic::Ordering::Relaxed);
+
+        let consistency_check = detected_features.aes_ni == stored_aes_ni
+            && detected_features.avx2 == stored_avx2
+            && detected_features.sha_ni == stored_sha_ni;
+
+        let accelerated_hash_test = if detected_features.sha_ni || detected_features.avx2 {
+            let test_data = b"FIPS hardware acceleration test data";
+            let hash_result =
+                crate::hardware::accelerated_hash(test_data, crate::types::Algorithm::SHA256);
+            hash_result.is_ok()
+        } else {
+            true
+        };
+
+        let accelerated_aes_test = if detected_features.aes_ni {
+            let key = [0u8; 32];
+            let nonce = [0u8; 12];
+            let plaintext = b"test";
+            if let Ok(ciphertext) =
+                crate::hardware::accelerated_aes_encrypt(&key, plaintext, &nonce)
+            {
+                match crate::hardware::accelerated_aes_decrypt(&key, &ciphertext, &nonce) {
+                    Ok(decrypted) => decrypted[..plaintext.len()] == *plaintext,
+                    Err(_) => false,
+                }
+            } else {
+                false
+            }
+        } else {
+            true
+        };
+
+        let passed = consistency_check && accelerated_hash_test && accelerated_aes_test;
+
+        let mut error_messages = Vec::new();
+        if !consistency_check {
+            error_messages.push("CPU feature detection inconsistency");
+        }
+        if !accelerated_hash_test {
+            error_messages.push("Accelerated hash test failed");
+        }
+        if !accelerated_aes_test {
+            error_messages.push("Accelerated AES test failed");
+        }
+
+        Ok(SelfTestResult {
+            test_name,
+            passed,
+            error_message: if passed {
+                None
+            } else {
+                Some(error_messages.join("; "))
+            },
+            timestamp,
+        })
+    }
+
+    #[cfg(not(feature = "encrypt"))]
+    fn hardware_acceleration_test(&self) -> Result<SelfTestResult> {
+        Ok(SelfTestResult {
+            test_name: "hardware_acceleration_test".to_string(),
+            passed: true,
+            error_message: None,
+            timestamp: std::time::SystemTime::now(),
         })
     }
 

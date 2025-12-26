@@ -4,10 +4,10 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::cipher::pkcs7::Pkcs7Padding;
+use crate::cipher::provider::SymmetricCipher;
 use crate::error::{CryptoError, Result};
 use crate::i18n::translate;
 use crate::key::Key;
-use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
 use crate::side_channel::{
     protect_critical_operation, RotatingSboxMasking, SideChannelConfig, SideChannelContext,

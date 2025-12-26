@@ -358,6 +358,9 @@ impl FipsContext {
 /// 全局 FIPS 模式状态
 static FIPS_MODE: std::sync::OnceLock<FipsMode> = std::sync::OnceLock::new();
 
+/// 全局 FIPS 上下文
+static FIPS_CONTEXT: std::sync::OnceLock<FipsContext> = std::sync::OnceLock::new();
+
 /// 设置全局 FIPS 模式
 fn set_fips_mode(mode: FipsMode) {
     let _ = FIPS_MODE.set(mode);
@@ -366,6 +369,25 @@ fn set_fips_mode(mode: FipsMode) {
 /// 获取全局 FIPS 模式
 fn get_fips_mode() -> FipsMode {
     *FIPS_MODE.get().unwrap_or(&FipsMode::Disabled)
+}
+
+/// 获取全局 FIPS 上下文
+pub fn get_fips_context() -> Option<&'static FipsContext> {
+    FIPS_CONTEXT.get()
+}
+
+/// 设置全局 FIPS 上下文（仅用于测试）
+#[cfg(test)]
+#[allow(dead_code)]
+pub fn set_fips_context(context: FipsContext) {
+    let _ = FIPS_CONTEXT.set(context);
+}
+
+/// 初始化全局 FIPS 上下文
+pub(crate) fn init_fips_context() -> Result<()> {
+    let context = FipsContext::new(FipsMode::Enabled)?;
+    let _ = FIPS_CONTEXT.set(context);
+    Ok(())
 }
 
 /// 验证算法是否在 FIPS 模式下被允许

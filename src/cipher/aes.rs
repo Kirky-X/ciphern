@@ -4,10 +4,10 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::cipher::base_provider::BaseCipherProvider;
+use crate::cipher::provider::SymmetricCipher;
 use crate::error::{CryptoError, Result};
 use crate::i18n::translate_with_args;
 use crate::key::Key;
-use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
 use crate::side_channel::SideChannelConfig;
 use crate::types::Algorithm;

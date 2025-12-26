@@ -3,127 +3,73 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-//! Hash Operations Examples
-//!
-//! This module demonstrates cryptographic hash functions:
-//! - SHA-256, SHA-384, SHA-512: International standards
-//! - SM3: Chinese national standard
+//! Hashing examples for ciphern cryptographic library
 
-#[path = "_common/mod.rs"]
-mod common;
+use ciphern::{Hasher, Result};
 
-use common::{print_result, print_section};
+fn run_all() -> Result<()> {
+    println!("=== Hash Function Examples ===\n");
 
-pub fn run_all() -> Result<(), Box<dyn std::error::Error>> {
-    run_sha256_example()?;
-    run_sha512_example()?;
-    run_sha384_example()?;
-    run_sm3_example()?;
-    run_hash_comparison()?;
-    Ok(())
-}
-
-/// SHA-256 Hash Example
-///
-/// SHA-256 produces a 256-bit (32-byte) hash value.
-/// It's the most widely used hash function and is part of the SHA-2 family.
-///
-/// Use cases:
-/// - Data integrity verification
-/// - Digital signatures
-/// - Password hashing (with salt)
-/// - Blockchain applications
-pub fn run_sha256_example() -> Result<(), Box<dyn std::error::Error>> {
-    print_section("SHA-256 Hash Example");
-
-    let data = b"Ciphern cryptographic hash - SHA-256";
-    let result = ciphern::Hash::sha256(data)?;
-    print_result("SHA-256 Hash", &result);
-    println!("  Hash length: {} bytes (256 bits)", result.len());
-
-    println!("  [OK] SHA-256 hash computed!");
+    example_sha256()?;
+    example_sha512()?;
+    example_multi_hash()?;
+    example_sm3()?;
 
     Ok(())
 }
 
-/// SHA-512 Hash Example
-///
-/// SHA-512 produces a 512-bit (64-byte) hash value.
-/// It offers higher security than SHA-256 but is slower.
-pub fn run_sha512_example() -> Result<(), Box<dyn std::error::Error>> {
-    print_section("SHA-512 Hash Example");
+fn example_sha256() -> Result<()> {
+    println!("[1] SHA-256 Example");
 
-    let data = b"Ciphern cryptographic hash - SHA-512";
-    let result = ciphern::Hash::sha512(data)?;
-    print_result("SHA-512 Hash", &result);
-    println!("  Hash length: {} bytes (512 bits)", result.len());
+    let data = b"Hello, World!";
+    let hasher = Hasher::new(ciphern::Algorithm::SHA256)?;
+    let hash = hasher.hash(data);
 
-    println!("  [OK] SHA-512 hash computed!");
+    println!("  Input: \"Hello, World!\"");
+    println!("  SHA-256: {}", hex::encode(&hash));
+    println!("  Length: {} bytes", hash.len());
 
+    println!("  [OK] SHA-256 example completed!\n");
     Ok(())
 }
 
-/// SHA-384 Hash Example
-///
-/// SHA-384 produces a 384-bit (48-byte) hash value.
-/// It's a truncated version of SHA-512 with different initial values.
-pub fn run_sha384_example() -> Result<(), Box<dyn std::error::Error>> {
-    print_section("SHA-384 Hash Example");
+fn example_sha512() -> Result<()> {
+    println!("[2] SHA-512 Example");
 
-    let data = b"Ciphern cryptographic hash - SHA-384";
-    let result = ciphern::Hash::sha384(data)?;
-    print_result("SHA-384 Hash", &result);
-    println!("  Hash length: {} bytes (384 bits)", result.len());
+    let data = b"Hello, World!";
+    let hasher = Hasher::new(ciphern::Algorithm::SHA512)?;
+    let hash = hasher.hash(data);
 
-    println!("  [OK] SHA-384 hash computed!");
+    println!("  Input: \"Hello, World!\"");
+    println!("  SHA-512: {}", hex::encode(&hash));
+    println!("  Length: {} bytes", hash.len());
 
+    println!("  [OK] SHA-512 example completed!\n");
     Ok(())
 }
 
-/// SM3 Hash Example
-///
-/// SM3 is the Chinese national standard cryptographic hash function.
-/// It produces a 256-bit hash similar to SHA-256.
-///
-/// Required for:
-/// - Government applications in China
-/// - Financial applications in China
-/// - Compliance with Chinese cryptographic regulations
-pub fn run_sm3_example() -> Result<(), Box<dyn std::error::Error>> {
-    print_section("SM3 Hash Example (Chinese National Standard)");
-
-    let data = b"Ciphern cryptographic hash - SM3";
-    let result = ciphern::Hash::sm3(data)?;
-    print_result("SM3 Hash", &result);
-    println!("  Hash length: {} bytes (256 bits)", result.len());
-
-    println!("  [OK] SM3 hash computed!");
-
-    Ok(())
-}
-
-/// Hash Comparison Example
-///
-/// Compares performance and output characteristics of different hash functions.
-pub fn run_hash_comparison() -> Result<(), Box<dyn std::error::Error>> {
-    print_section("Hash Function Comparison");
+fn example_multi_hash() -> Result<()> {
+    println!("[3] Multiple Hash Algorithms Comparison");
 
     let data = b"Test data for hash comparison";
 
-    let algorithms: Vec<(
-        &str,
-        fn(&[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>>,
-    )> = vec![
-        ("SHA-256", |d| {
-            ciphern::Hash::sha256(d).map_err(|e| e.into())
+    let algorithms: Vec<(String, fn(&[u8]) -> Result<Vec<u8>>)> = vec![
+        ("SHA-256".to_string(), |d| {
+            let hasher = Hasher::new(ciphern::Algorithm::SHA256)?;
+            Ok(hasher.hash(d))
         }),
-        ("SHA-384", |d| {
-            ciphern::Hash::sha384(d).map_err(|e| e.into())
+        ("SHA-384".to_string(), |d| {
+            let hasher = Hasher::new(ciphern::Algorithm::SHA384)?;
+            Ok(hasher.hash(d))
         }),
-        ("SHA-512", |d| {
-            ciphern::Hash::sha512(d).map_err(|e| e.into())
+        ("SHA-512".to_string(), |d| {
+            let hasher = Hasher::new(ciphern::Algorithm::SHA512)?;
+            Ok(hasher.hash(d))
         }),
-        ("SM3", |d| ciphern::Hash::sm3(d).map_err(|e| e.into())),
+        ("SM3".to_string(), |d| {
+            let hasher = Hasher::new(ciphern::Algorithm::SM3)?;
+            Ok(hasher.hash(d))
+        }),
     ];
 
     println!("  Output sizes:");
@@ -147,6 +93,21 @@ pub fn run_hash_comparison() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("  [OK] Hash function comparison completed!");
 
+    Ok(())
+}
+
+fn example_sm3() -> Result<()> {
+    println!("\n[4] SM3 Example (Chinese National Standard)");
+
+    let data = b"Hello, World!";
+    let hasher = Hasher::new(ciphern::Algorithm::SM3)?;
+    let hash = hasher.hash(data);
+
+    println!("  Input: \"Hello, World!\"");
+    println!("  SM3: {}", hex::encode(&hash));
+    println!("  Length: {} bytes", hash.len());
+
+    println!("  [OK] SM3 example completed!\n");
     Ok(())
 }
 

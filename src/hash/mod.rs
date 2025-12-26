@@ -15,12 +15,102 @@ pub trait HashAlgorithm: Send + Sync {
     fn reset(&mut self);
 }
 
+pub enum AnyHash {
+    Sha256(Sha256Hasher),
+    Sha384(Sha384Hasher),
+    Sha512(Sha512Hasher),
+    Sm3(Sm3Hasher),
+}
+
+impl AnyHash {
+    pub fn new(algorithm: AlgorithmType) -> Self {
+        match algorithm {
+            AlgorithmType::Sha256 => AnyHash::Sha256(Sha256Hasher::new()),
+            AlgorithmType::Sha384 => AnyHash::Sha384(Sha384Hasher::new()),
+            AlgorithmType::Sha512 => AnyHash::Sha512(Sha512Hasher::new()),
+            AlgorithmType::Sm3 => AnyHash::Sm3(Sm3Hasher::new()),
+        }
+    }
+}
+
+impl HashAlgorithm for AnyHash {
+    fn name(&self) -> &'static str {
+        match self {
+            AnyHash::Sha256(h) => h.name(),
+            AnyHash::Sha384(h) => h.name(),
+            AnyHash::Sha512(h) => h.name(),
+            AnyHash::Sm3(h) => h.name(),
+        }
+    }
+
+    fn output_size(&self) -> usize {
+        match self {
+            AnyHash::Sha256(h) => h.output_size(),
+            AnyHash::Sha384(h) => h.output_size(),
+            AnyHash::Sha512(h) => h.output_size(),
+            AnyHash::Sm3(h) => h.output_size(),
+        }
+    }
+
+    fn update(&mut self, data: &[u8]) {
+        match self {
+            AnyHash::Sha256(h) => h.update(data),
+            AnyHash::Sha384(h) => h.update(data),
+            AnyHash::Sha512(h) => h.update(data),
+            AnyHash::Sm3(h) => h.update(data),
+        }
+    }
+
+    fn finalize(&mut self) -> Vec<u8> {
+        match self {
+            AnyHash::Sha256(h) => h.finalize(),
+            AnyHash::Sha384(h) => h.finalize(),
+            AnyHash::Sha512(h) => h.finalize(),
+            AnyHash::Sm3(h) => h.finalize(),
+        }
+    }
+
+    fn reset(&mut self) {
+        match self {
+            AnyHash::Sha256(h) => h.reset(),
+            AnyHash::Sha384(h) => h.reset(),
+            AnyHash::Sha512(h) => h.reset(),
+            AnyHash::Sm3(h) => h.reset(),
+        }
+    }
+}
+
+impl Clone for AnyHash {
+    fn clone(&self) -> Self {
+        Self::new(self.algorithm())
+    }
+}
+
+impl AnyHash {
+    fn algorithm(&self) -> AlgorithmType {
+        match self {
+            AnyHash::Sha256(_) => AlgorithmType::Sha256,
+            AnyHash::Sha384(_) => AlgorithmType::Sha384,
+            AnyHash::Sha512(_) => AlgorithmType::Sha512,
+            AnyHash::Sm3(_) => AlgorithmType::Sm3,
+        }
+    }
+}
+
 pub struct Sha256Hasher {
     hasher: sha2::Sha256,
 }
 
 impl Sha256Hasher {
     pub fn new() -> Self {
+        Self {
+            hasher: Digest::new(),
+        }
+    }
+}
+
+impl Clone for Sha256Hasher {
+    fn clone(&self) -> Self {
         Self {
             hasher: Digest::new(),
         }
@@ -67,6 +157,14 @@ impl Sha384Hasher {
     }
 }
 
+impl Clone for Sha384Hasher {
+    fn clone(&self) -> Self {
+        Self {
+            hasher: Digest::new(),
+        }
+    }
+}
+
 impl Default for Sha384Hasher {
     fn default() -> Self {
         Self::new()
@@ -101,6 +199,14 @@ pub struct Sha512Hasher {
 
 impl Sha512Hasher {
     pub fn new() -> Self {
+        Self {
+            hasher: Digest::new(),
+        }
+    }
+}
+
+impl Clone for Sha512Hasher {
+    fn clone(&self) -> Self {
         Self {
             hasher: Digest::new(),
         }
@@ -149,6 +255,12 @@ impl Sm3Hasher {
     }
 }
 
+impl Clone for Sm3Hasher {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
 impl Default for Sm3Hasher {
     fn default() -> Self {
         Self::new()
@@ -193,20 +305,16 @@ pub enum AlgorithmType {
 #[allow(dead_code)]
 pub struct MultiHash {
     algorithm: AlgorithmType,
-    hasher: Box<dyn HashAlgorithm>,
+    hasher: AnyHash,
 }
 
 #[allow(dead_code)]
 impl MultiHash {
     pub fn new(algorithm: AlgorithmType) -> Result<Self> {
-        let hasher: Box<dyn HashAlgorithm> = match algorithm {
-            AlgorithmType::Sha256 => Box::new(Sha256Hasher::new()),
-            AlgorithmType::Sha384 => Box::new(Sha384Hasher::new()),
-            AlgorithmType::Sha512 => Box::new(Sha512Hasher::new()),
-            AlgorithmType::Sm3 => Box::new(Sm3Hasher::new()),
-        };
-
-        Ok(Self { algorithm, hasher })
+        Ok(Self {
+            algorithm,
+            hasher: AnyHash::new(algorithm),
+        })
     }
 
     pub fn algorithm(&self) -> AlgorithmType {
@@ -227,6 +335,13 @@ impl MultiHash {
 
     pub fn reset(&mut self) {
         self.hasher.reset();
+    }
+
+    pub fn clone(&self) -> Self {
+        Self {
+            algorithm: self.algorithm,
+            hasher: self.hasher.clone(),
+        }
     }
 }
 

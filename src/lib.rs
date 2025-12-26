@@ -7,15 +7,18 @@
 //!
 //! 企业级、安全优先的 Rust 加密库。
 
+#[cfg(feature = "hash")]
+use hmac::Mac;
+
 pub(crate) mod audit;
 #[cfg(feature = "encrypt")]
 pub(crate) mod cipher;
 pub(crate) mod error;
 pub(crate) mod fips;
 #[cfg(feature = "encrypt")]
-pub(crate) mod hash;
+pub(crate) mod hardware;
 #[cfg(feature = "encrypt")]
-pub(crate) use cipher::provider;
+pub(crate) mod hash;
 #[cfg(feature = "encrypt")]
 pub(crate) mod key;
 pub(crate) mod memory;
@@ -72,6 +75,7 @@ pub fn init() -> Result<()> {
     #[cfg(feature = "fips")]
     {
         fips::FipsContext::enable()?;
+        fips::init_fips_context()?;
     }
 
     // 初始化审计日志
@@ -79,6 +83,12 @@ pub fn init() -> Result<()> {
 
     // 初始化 RNG 监控系统
     let _rng_monitor_manager = random::get_rng_monitor_manager();
+
+    // 初始化 CPU 硬件加速特性
+    #[cfg(feature = "encrypt")]
+    {
+        hardware::init_cpu_features();
+    }
 
     Ok(())
 }
@@ -147,7 +157,7 @@ impl Cipher {
         // FIPS 条件自检
         #[cfg(feature = "fips")]
         {
-            if let Some(fips_context) = get_fips_context() {
+            if let Some(fips_context) = fips::get_fips_context() {
                 fips_context.run_conditional_self_test(self.algorithm)?;
             }
         }
@@ -195,7 +205,7 @@ impl Cipher {
         // FIPS 条件自检
         #[cfg(feature = "fips")]
         {
-            if let Some(fips_context) = get_fips_context() {
+            if let Some(fips_context) = fips::get_fips_context() {
                 fips_context.run_conditional_self_test(self.algorithm)?;
             }
         }
@@ -205,12 +215,13 @@ impl Cipher {
 
         // 将密钥相关的错误转换为通用错误，防止信息泄露
         let result = result.map_err(|e| match e {
-            CryptoError::KeyNotFound(_) => CryptoError::DecryptionFailed("操作失败".into()),
+            CryptoError::KeyNotFound(_) => CryptoError::DecryptionFailed("Operation failed".into()),
             _ => e,
         });
 
-        // 审计日志
+        // Audit Log
         let _duration = start.elapsed();
+
         audit::AuditLogger::log(
             "DECRYPT",
             Some(self.algorithm),
@@ -218,164 +229,216 @@ impl Cipher {
             if result.is_ok() {
                 Ok(())
             } else {
-                Err(CryptoError::DecryptionFailed(translate(
-                    "error.decryption_failed",
-                )))
+                Err(CryptoError::DecryptionFailed(
+                    "Decryption operation failed".into(),
+                ))
             },
         );
 
         result
     }
+
+    /// Encrypt data with additional authenticated data (AAD)
+    ///
+    /// # Errors
+    /// Returns `CryptoError` if encryption fails
+    pub fn encrypt_aad(
+        &self,
+        key_manager: &KeyManager,
+        key_id: &str,
+        plaintext: &[u8],
+        aad: &[u8],
+    ) -> Result<Vec<u8>> {
+        key_manager.with_key(key_id, |key| {
+            self.provider.encrypt(key, plaintext, Some(aad))
+        })
+    }
+
+    /// Decrypt data with additional authenticated data (AAD)
+    ///
+    /// # Errors
+    /// Returns `CryptoError` if decryption fails or authentication fails
+    pub fn decrypt_aad(
+        &self,
+        key_manager: &KeyManager,
+        key_id: &str,
+        ciphertext: &[u8],
+        aad: &[u8],
+    ) -> Result<Vec<u8>> {
+        key_manager.with_key(key_id, |key| {
+            self.provider.decrypt(key, ciphertext, Some(aad))
+        })
+    }
 }
 
-/// 高级签名 API
+#[cfg(feature = "encrypt")]
+impl Drop for Cipher {
+    fn drop(&mut self) {
+        audit::AuditLogger::log("CIPHER_DROP", Some(self.algorithm), None, Ok(()));
+    }
+}
+
+/// High-level Hashing API
+#[cfg(feature = "hash")]
+pub struct Hasher {
+    hash: hash::MultiHash,
+}
+
+#[cfg(feature = "hash")]
+impl Hasher {
+    pub fn new(algorithm: types::Algorithm) -> Result<Self> {
+        let algo_type = match algorithm {
+            types::Algorithm::SHA256 => hash::AlgorithmType::Sha256,
+            types::Algorithm::SHA384 => hash::AlgorithmType::Sha384,
+            types::Algorithm::SHA512 => hash::AlgorithmType::Sha512,
+            types::Algorithm::SM3 => hash::AlgorithmType::Sm3,
+            _ => {
+                return Err(CryptoError::UnsupportedAlgorithm(
+                    "Unsupported hash algorithm".into(),
+                ))
+            }
+        };
+        Ok(Self {
+            hash: hash::MultiHash::new(algo_type)?,
+        })
+    }
+
+    pub fn hash(&self, data: &[u8]) -> Vec<u8> {
+        let mut hasher = self.hash.clone();
+        hasher.update(data);
+        hasher.finalize()
+    }
+
+    #[cfg(feature = "encrypt")]
+    pub fn hash_large(&self, data: &[u8]) -> Result<Vec<u8>> {
+        if hardware::has_sha_ni() || hardware::has_avx2() {
+            let algorithm = match self.hash.algorithm() {
+                hash::AlgorithmType::Sha256 => Algorithm::SHA256,
+                hash::AlgorithmType::Sha384 => Algorithm::SHA384,
+                hash::AlgorithmType::Sha512 => Algorithm::SHA512,
+                hash::AlgorithmType::Sm3 => Algorithm::SM3,
+            };
+            hardware::accelerated_hash(data, algorithm)
+        } else {
+            Ok(self.hash(data))
+        }
+    }
+}
+
+/// High-level MAC API
+#[cfg(feature = "hash")]
+pub struct Hmac {
+    algorithm: types::Algorithm,
+}
+
+#[cfg(feature = "hash")]
+impl Hmac {
+    pub fn new(algorithm: types::Algorithm) -> Result<Self> {
+        Ok(Self { algorithm })
+    }
+
+    pub fn sign(&self, key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        match self.algorithm {
+            types::Algorithm::SHA256 => {
+                let mut mac = hmac::Hmac::<sha2::Sha256>::new_from_slice(key)
+                    .map_err(|_| CryptoError::KeyError("Invalid HMAC key".into()))?;
+                mac.update(data);
+                Ok(mac.finalize().into_bytes().to_vec())
+            }
+            types::Algorithm::SHA384 => {
+                let mut mac = hmac::Hmac::<sha2::Sha384>::new_from_slice(key)
+                    .map_err(|_| CryptoError::KeyError("Invalid HMAC key".into()))?;
+                mac.update(data);
+                Ok(mac.finalize().into_bytes().to_vec())
+            }
+            types::Algorithm::SHA512 => {
+                let mut mac = hmac::Hmac::<sha2::Sha512>::new_from_slice(key)
+                    .map_err(|_| CryptoError::KeyError("Invalid HMAC key".into()))?;
+                mac.update(data);
+                Ok(mac.finalize().into_bytes().to_vec())
+            }
+            _ => Err(CryptoError::UnsupportedAlgorithm(
+                "Unsupported MAC algorithm".into(),
+            )),
+        }
+    }
+
+    pub fn verify(&self, key: &[u8], data: &[u8], signature: &[u8]) -> Result<bool> {
+        match self.algorithm {
+            types::Algorithm::SHA256 => {
+                let mut mac = hmac::Hmac::<sha2::Sha256>::new_from_slice(key)
+                    .map_err(|_| CryptoError::KeyError("Invalid HMAC key".into()))?;
+                mac.update(data);
+                Ok(mac.verify_slice(signature).is_ok())
+            }
+            types::Algorithm::SHA384 => {
+                let mut mac = hmac::Hmac::<sha2::Sha384>::new_from_slice(key)
+                    .map_err(|_| CryptoError::KeyError("Invalid HMAC key".into()))?;
+                mac.update(data);
+                Ok(mac.verify_slice(signature).is_ok())
+            }
+            types::Algorithm::SHA512 => {
+                let mut mac = hmac::Hmac::<sha2::Sha512>::new_from_slice(key)
+                    .map_err(|_| CryptoError::KeyError("Invalid HMAC key".into()))?;
+                mac.update(data);
+                Ok(mac.verify_slice(signature).is_ok())
+            }
+            _ => Err(CryptoError::UnsupportedAlgorithm(
+                "Unsupported MAC algorithm".into(),
+            )),
+        }
+    }
+}
+
+/// High-level Digital Signature API
 #[cfg(feature = "encrypt")]
 pub struct Signer {
-    provider: std::sync::Arc<dyn cipher::provider::Signer>,
-    algorithm: Algorithm,
+    algorithm: types::Algorithm,
 }
 
 #[cfg(feature = "encrypt")]
 impl Signer {
-    /// 创建新的签名实例
-    pub fn new(algorithm: Algorithm) -> Result<Self> {
-        fips::validate_algorithm_fips(&algorithm)?;
-        let provider = cipher::provider::REGISTRY.get_signer(algorithm)?;
-        Ok(Self {
-            provider,
-            algorithm,
-        })
+    pub fn new(algorithm: types::Algorithm) -> Result<Self> {
+        Ok(Self { algorithm })
     }
 
-    /// Get the algorithm
-    pub fn algorithm(&self) -> Algorithm {
-        self.algorithm
+    pub fn sign(&self, key_manager: &KeyManager, key_id: &str, data: &[u8]) -> Result<Vec<u8>> {
+        let signer = cipher::provider::REGISTRY.get_signer(self.algorithm)?;
+        key_manager.with_key(key_id, |key| signer.sign(key, data))
     }
 
-    /// Sign a message using the specified key
-    pub fn sign(&self, key_manager: &KeyManager, key_id: &str, message: &[u8]) -> Result<Vec<u8>> {
-        let start = std::time::Instant::now();
-        let result = key_manager.with_key(key_id, |key| self.provider.sign(key, message));
-
-        // Record metrics
-        audit::CRYPTO_OPERATIONS_TOTAL.inc();
-        audit::CRYPTO_OPERATION_LATENCY.observe(start.elapsed().as_secs_f64());
-
-        // Audit log
-        audit::AuditLogger::log(
-            "SIGN",
-            Some(self.algorithm),
-            Some(key_id),
-            if result.is_ok() {
-                Ok(())
-            } else {
-                Err(CryptoError::SigningFailed(
-                    "Signing operation failed".into(),
-                ))
-            },
-        );
-
-        result
-    }
-
-    /// Verify a signature
     pub fn verify(
         &self,
         key_manager: &KeyManager,
         key_id: &str,
-        message: &[u8],
+        data: &[u8],
         signature: &[u8],
     ) -> Result<bool> {
-        let start = std::time::Instant::now();
-        let result =
-            key_manager.with_key(key_id, |key| self.provider.verify(key, message, signature));
-
-        // Record metrics
-        audit::CRYPTO_OPERATIONS_TOTAL.inc();
-        audit::CRYPTO_OPERATION_LATENCY.observe(start.elapsed().as_secs_f64());
-
-        // Audit log
-        audit::AuditLogger::log(
-            "VERIFY",
-            Some(self.algorithm),
-            Some(key_id),
-            if result.is_ok() {
-                Ok(())
-            } else {
-                Err(CryptoError::SigningFailed(
-                    "Verification operation failed".into(),
-                ))
-            },
-        );
-
-        result
+        let signer = cipher::provider::REGISTRY.get_signer(self.algorithm)?;
+        key_manager.with_key(key_id, |key| signer.verify(key, data, signature))
     }
 }
 
-/// High-level Hash API
-#[cfg(feature = "hash")]
-pub struct Hash;
-
-#[cfg(feature = "hash")]
-impl Hash {
-    /// Calculate SHA-256 hash
-    pub fn sha256(data: &[u8]) -> Result<Vec<u8>> {
-        use hash::{AlgorithmType, MultiHash};
-        let mut hasher = MultiHash::new(AlgorithmType::Sha256)?;
-        hasher.update(data);
-        Ok(hasher.finalize())
-    }
-
-    /// 计算 SHA-384 哈希
-    pub fn sha384(data: &[u8]) -> Result<Vec<u8>> {
-        use hash::{AlgorithmType, MultiHash};
-        let mut hasher = MultiHash::new(AlgorithmType::Sha384)?;
-        hasher.update(data);
-        Ok(hasher.finalize())
-    }
-
-    /// Calculate SHA-512 hash
-    pub fn sha512(data: &[u8]) -> Result<Vec<u8>> {
-        use hash::{AlgorithmType, MultiHash};
-        let mut hasher = MultiHash::new(AlgorithmType::Sha512)?;
-        hasher.update(data);
-        Ok(hasher.finalize())
-    }
-
-    /// 计算 SM3 哈希
-    pub fn sm3(data: &[u8]) -> Result<Vec<u8>> {
-        use hash::{AlgorithmType, MultiHash};
-        let mut hasher = MultiHash::new(AlgorithmType::Sm3)?;
-        hasher.update(data);
-        Ok(hasher.finalize())
-    }
+/// Get the hardware acceleration status
+#[cfg(feature = "encrypt")]
+pub fn get_hardware_info() -> hardware::CpuFeatures {
+    hardware::CpuFeatures::detect()
 }
 
-use std::sync::{Arc, Mutex, OnceLock};
+/// Check if AES-NI is available
+#[cfg(feature = "encrypt")]
+pub fn has_aes_ni() -> bool {
+    hardware::has_aes_ni()
+}
 
-/// 全局 FIPS 上下文实例
-static GLOBAL_FIPS_CONTEXT: OnceLock<Arc<Mutex<Option<FipsContext>>>> = OnceLock::new();
+/// Check if AVX2 is available
+#[cfg(feature = "encrypt")]
+pub fn has_avx2() -> bool {
+    hardware::has_avx2()
+}
 
-/// 获取全局 FIPS 上下文
-///
-/// 返回一个线程安全的全局 FIPS 上下文引用。如果启用了 FIPS 模式且上下文尚未初始化，
-/// 将会尝试初始化一个新的上下文。
-#[cfg(feature = "fips")]
-#[allow(dead_code)]
-fn get_fips_context() -> Option<FipsContext> {
-    if !fips::is_fips_enabled() {
-        return None;
-    }
-
-    let context_lock = GLOBAL_FIPS_CONTEXT.get_or_init(|| Arc::new(Mutex::new(None)));
-
-    let mut context_guard = context_lock.lock().ok()?;
-
-    if context_guard.is_none() {
-        if let Ok(new_context) = FipsContext::new(fips::FipsMode::Enabled) {
-            *context_guard = Some(new_context);
-        }
-    }
-
-    context_guard.clone()
+/// Check if SHA-NI is available
+#[cfg(feature = "encrypt")]
+pub fn has_sha_ni() -> bool {
+    hardware::has_sha_ni()
 }
