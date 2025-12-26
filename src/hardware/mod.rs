@@ -10,6 +10,36 @@ use crate::types::Algorithm;
 use sha2::Digest;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(feature = "gpu")]
+mod gpu;
+
+#[cfg(feature = "gpu")]
+pub use gpu::{
+    accelerated_aes_gpu, accelerated_hash_gpu, get_gpu_config, init_gpu, is_gpu_enabled,
+    is_gpu_initialized, set_gpu_config, GpuThresholdConfig, GPU_CONFIG, GPU_ENABLED,
+    GPU_INITIALIZED,
+};
+
+#[cfg(not(feature = "gpu"))]
+#[allow(dead_code)]
+pub fn init_gpu() -> Result<()> {
+    Err(CryptoError::HardwareAccelerationUnavailable(
+        "GPU support not enabled".into(),
+    ))
+}
+
+#[cfg(not(feature = "gpu"))]
+#[allow(dead_code)]
+pub fn is_gpu_enabled() -> bool {
+    false
+}
+
+#[cfg(not(feature = "gpu"))]
+#[allow(dead_code)]
+pub fn is_gpu_initialized() -> bool {
+    false
+}
+
 pub static AES_NI_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static AVX2_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static SHA_NI_SUPPORTED: AtomicBool = AtomicBool::new(false);

@@ -377,7 +377,6 @@ impl FipsSelfTestEngine {
 
         use crate::hardware::{CpuFeatures, AES_NI_SUPPORTED, AVX2_SUPPORTED, SHA_NI_SUPPORTED};
 
-        // 初始化 CPU 特征（确保原子变量被正确初始化）
         crate::hardware::init_cpu_features();
 
         let detected_features = CpuFeatures::detect();
@@ -416,8 +415,6 @@ impl FipsSelfTestEngine {
             true
         };
 
-        let passed = consistency_check && accelerated_hash_test && accelerated_aes_test;
-
         let mut error_messages = Vec::new();
         if !consistency_check {
             error_messages.push("CPU feature detection inconsistency");
@@ -428,6 +425,45 @@ impl FipsSelfTestEngine {
         if !accelerated_aes_test {
             error_messages.push("Accelerated AES test failed");
         }
+
+        #[cfg(feature = "gpu")]
+        {
+            let gpu_init_result = crate::hardware::init_gpu();
+            let gpu_enabled = crate::hardware::is_gpu_enabled();
+            let gpu_initialized = crate::hardware::is_gpu_initialized();
+
+            let gpu_status_ok = if gpu_enabled || gpu_initialized {
+                true
+            } else {
+                matches!(gpu_init_result, Err(crate::error::CryptoError::HardwareAccelerationUnavailable(_)))
+            };
+
+            let gpu_functional_test = if gpu_enabled && gpu_initialized {
+                let test_data = b"FIPS GPU acceleration test data";
+                let hash_result =
+                    crate::hardware::accelerated_hash_gpu(test_data, crate::types::Algorithm::SHA256);
+                hash_result.is_ok()
+            } else {
+                true
+            };
+
+            if !gpu_status_ok {
+                error_messages.push("GPU status check failed");
+            }
+            if !gpu_functional_test {
+                error_messages.push("GPU functional test failed");
+            }
+        }
+
+        #[cfg(not(feature = "gpu"))]
+        {
+            let _ = crate::hardware::init_gpu();
+        }
+
+        let passed = consistency_check
+            && accelerated_hash_test
+            && accelerated_aes_test
+            && error_messages.is_empty();
 
         Ok(SelfTestResult {
             test_name,
