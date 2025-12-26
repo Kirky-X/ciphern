@@ -10,12 +10,6 @@
 //! 特别优化批量签名验证场景
 
 #[cfg(feature = "gpu-opencl")]
-mod opencl_driver;
-
-#[cfg(feature = "gpu-opencl")]
-use opencl_driver::{OpenclContext, OpenclDevice, OpenclKernel, OpenclMemory, OpenclQueue};
-
-#[cfg(feature = "gpu-opencl")]
 const ECDSA256_SIGNATURE_SIZE: usize = 64;
 #[cfg(feature = "gpu-opencl")]
 const ECDSA384_SIGNATURE_SIZE: usize = 96;
@@ -305,7 +299,10 @@ impl OpenclSignatureKernel {
         let config = super::BatchConfig::default();
         let state = Mutex::new(OpenclSignatureKernelState::new(config));
         let is_available = Self::check_opencl_availability();
-        Self { state, is_available }
+        Self {
+            state,
+            is_available,
+        }
     }
 
     fn check_opencl_availability() -> bool {
@@ -320,9 +317,10 @@ impl OpenclSignatureKernel {
     }
 
     fn initialize_internal(&mut self) -> Result<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e)))?;
 
         if state.initialized {
             return Ok(());
@@ -351,14 +349,17 @@ impl OpenclSignatureKernel {
             CryptoError::InitializationFailed(format!("Failed to create ECDSA program: {}", e))
         })?;
 
-        let ecdsa_kernel = OpenclKernel::new(&ecdsa_program, "ecdsa256_verify_kernel")
-            .map_err(|e| {
+        let ecdsa_kernel =
+            OpenclKernel::new(&ecdsa_program, "ecdsa256_verify_kernel").map_err(|e| {
                 CryptoError::InitializationFailed(format!("Failed to create ECDSA kernel: {}", e))
             })?;
 
         let batch_ecdsa_kernel = OpenclKernel::new(&ecdsa_program, "ecdsa_batch_verify_kernel")
             .map_err(|e| {
-                CryptoError::InitializationFailed(format!("Failed to create batch ECDSA kernel: {}", e))
+                CryptoError::InitializationFailed(format!(
+                    "Failed to create batch ECDSA kernel: {}",
+                    e
+                ))
             })?;
 
         state.context = Some(context);
@@ -373,9 +374,10 @@ impl OpenclSignatureKernel {
     }
 
     fn shutdown_internal(&mut self) -> Result<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e)))?;
 
         if !state.initialized {
             return Ok(());
@@ -401,19 +403,26 @@ impl OpenclSignatureKernel {
         signature: &[u8],
         algorithm: Algorithm,
     ) -> Result<bool> {
-        let state = self.state.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         let start = std::time::Instant::now();
 
-        let context = state.context.as_ref()
+        let context = state
+            .context
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("OpenCL context not initialized".into()))?;
 
-        let kernel = state.ecdsa_kernel.as_ref()
+        let kernel = state
+            .ecdsa_kernel
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("ECDSA kernel not loaded".into()))?;
 
-        let queue = state.queue.as_ref()
+        let queue = state
+            .queue
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("OpenCL queue not initialized".into()))?;
 
         let key_size = match algorithm {
@@ -469,28 +478,34 @@ impl OpenclSignatureKernel {
         kernel.set_arg(4, &output_buffer)?;
 
         let global_work_size = 1u32;
-        kernel.execute(&queue, &[global_work_size], None).map_err(|e| {
-            CryptoError::KernelLaunchFailed(format!("Failed to execute kernel: {}", e))
-        })?;
+        kernel
+            .execute(&queue, &[global_work_size], None)
+            .map_err(|e| {
+                CryptoError::KernelLaunchFailed(format!("Failed to execute kernel: {}", e))
+            })?;
 
         queue.finish().map_err(|e| {
             CryptoError::SynchronizationFailed(format!("Failed to finish queue: {}", e))
         })?;
 
         let mut result = [0u8; 1];
-        output_buffer.read(&queue, &mut result).map_err(|e| {
-            CryptoError::MemoryCopyFailed(format!("Failed to read result: {}", e))
-        })?;
+        output_buffer
+            .read(&queue, &mut result)
+            .map_err(|e| CryptoError::MemoryCopyFailed(format!("Failed to read result: {}", e)))?;
 
         let elapsed = start.elapsed();
-        let mut metrics = state.metrics.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut metrics = state
+            .metrics
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         metrics.execution_time_us = elapsed.as_micros() as u64;
-        metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = total_input_size + result.len();
-        metrics.compute_units_used = state.device.as_ref()
+        metrics.compute_units_used = state
+            .device
+            .as_ref()
             .map(|d| d.max_compute_units())
             .unwrap_or(0);
 
@@ -505,25 +520,30 @@ impl OpenclSignatureKernel {
         algorithm: Algorithm,
     ) -> Result<Vec<bool>> {
         if public_keys.len() != data.len() || public_keys.len() != signatures.len() {
-            return Err(CryptoError::InvalidInput(
-                "Batch sizes must match".into(),
-            ));
+            return Err(CryptoError::InvalidInput("Batch sizes must match".into()));
         }
 
         let batch_size = public_keys.len();
         let start = std::time::Instant::now();
 
-        let state = self.state.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
-        let context = state.context.as_ref()
+        let context = state
+            .context
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("OpenCL context not initialized".into()))?;
 
-        let kernel = state.batch_ecdsa_kernel.as_ref()
+        let kernel = state
+            .batch_ecdsa_kernel
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("Batch ECDSA kernel not loaded".into()))?;
 
-        let queue = state.queue.as_ref()
+        let queue = state
+            .queue
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("OpenCL queue not initialized".into()))?;
 
         let (key_size, sig_size) = match algorithm {
@@ -546,7 +566,12 @@ impl OpenclSignatureKernel {
         let mut data_lengths = vec![0u32; batch_size];
 
         let mut offset = 0usize;
-        for (i, (key, d, sig)) in public_keys.iter().zip(data.iter()).zip(signatures.iter()).enumerate() {
+        for (i, (key, d, sig)) in public_keys
+            .iter()
+            .zip(data.iter())
+            .zip(signatures.iter())
+            .enumerate()
+        {
             input_data[offset..offset + key_size].copy_from_slice(key);
             offset += key_size;
             input_data[offset..offset + d.len()].copy_from_slice(d);
@@ -595,9 +620,11 @@ impl OpenclSignatureKernel {
         kernel.set_arg(6, &(max_data_len as u32))?;
 
         let global_work_size = batch_size as u32;
-        kernel.execute(&queue, &[global_work_size], None).map_err(|e| {
-            CryptoError::KernelLaunchFailed(format!("Failed to execute batch kernel: {}", e))
-        })?;
+        kernel
+            .execute(&queue, &[global_work_size], None)
+            .map_err(|e| {
+                CryptoError::KernelLaunchFailed(format!("Failed to execute batch kernel: {}", e))
+            })?;
 
         queue.finish().map_err(|e| {
             CryptoError::SynchronizationFailed(format!("Failed to finish queue: {}", e))
@@ -608,14 +635,17 @@ impl OpenclSignatureKernel {
         })?;
 
         let elapsed = start.elapsed();
-        let mut metrics = state.metrics.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut metrics = state
+            .metrics
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         metrics.execution_time_us = elapsed.as_micros() as u64;
         metrics.batch_size = batch_size;
-        metrics.throughput_mbps = (total_data_size as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
-        metrics.memory_transferred_bytes = input_data.len() + output_data.len() + data_offsets.len() * 4 + data_lengths.len() * 4;
+        metrics.throughput_mbps =
+            (total_data_size as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.memory_transferred_bytes =
+            input_data.len() + output_data.len() + data_offsets.len() * 4 + data_lengths.len() * 4;
 
         let results: Vec<bool> = output_data.iter().map(|b| *b != 0).collect();
         Ok(results)
@@ -650,7 +680,10 @@ impl super::GpuKernel for OpenclSignatureKernel {
     }
 
     fn get_metrics(&self) -> Option<super::KernelMetrics> {
-        self.state.lock().ok().map(|s| s.metrics.lock().unwrap().clone())
+        self.state
+            .lock()
+            .ok()
+            .map(|s| s.metrics.lock().unwrap().clone())
     }
 
     fn reset_metrics(&mut self) {
@@ -736,7 +769,9 @@ mod opencl_driver {
 
     impl OpenclContext {
         pub fn new(device: &OpenclDevice) -> Result<Self> {
-            Ok(Self { device: device.clone() })
+            Ok(Self {
+                device: device.clone(),
+            })
         }
     }
 
@@ -838,13 +873,17 @@ mod opencl_driver {
 
     impl OpenclQueue {
         pub fn new(_context: &OpenclContext) -> Result<Self> {
-            Ok(Self { context: _context.clone() })
+            Ok(Self {
+                context: _context.clone(),
+            })
         }
 
         pub fn finish(&self) -> Result<()> {
             Ok(())
         }
     }
+
+    pub use {OpenclContext, OpenclDevice, OpenclKernel, OpenclMemory, OpenclQueue};
 }
 
 #[cfg(not(feature = "gpu-opencl"))]

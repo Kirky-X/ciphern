@@ -7,7 +7,7 @@
 //!
 //! 支持 SHA256、SHA512、SM3 等哈希算法的 GPU 加速
 
-use super::{BatchConfig, KernelMetrics, HashKernelConfig, GpuKernel, KernelType};
+use super::{BatchConfig, GpuKernel, HashKernelConfig, KernelMetrics, KernelType};
 use crate::error::{CryptoError, Result};
 use crate::types::Algorithm;
 use std::sync::Mutex;
@@ -127,7 +127,8 @@ impl GpuKernel for CpuHashKernel {
         let elapsed = start.elapsed();
         let mut metrics = self.state.metrics.lock().unwrap();
         metrics.execution_time_us = elapsed.as_micros() as u64;
-        metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = data.len() + result.len();
 
         Ok(result)

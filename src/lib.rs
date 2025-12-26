@@ -27,7 +27,7 @@ pub(crate) mod random;
 
 pub(crate) mod ffi;
 #[cfg(feature = "plugin")]
-pub(crate) mod plugin;
+pub mod plugin;
 #[cfg(feature = "encrypt")]
 pub(crate) mod side_channel;
 #[cfg(feature = "encrypt")]
@@ -66,6 +66,11 @@ pub use i18n::{
 pub use service::TranslationService;
 #[cfg(feature = "i18n")]
 pub use ui::{Button, FormField, Label, LocalizedMessage, MenuItem, Notification, UIElement};
+
+#[cfg(feature = "plugin")]
+pub use plugin::manager::PluginManager;
+#[cfg(feature = "plugin")]
+pub use plugin::{CipherPlugin, Plugin, PluginLoadError, PluginMetadata};
 
 /// Initialize the library (e.g., FIPS self-tests)
 ///

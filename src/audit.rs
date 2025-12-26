@@ -74,6 +74,7 @@ fn sanitize_error_for_log(error: &CryptoError) -> String {
         CryptoError::PluginError(_) => "Plugin operation failed".to_string(),
         CryptoError::InternalError(_) => "Internal error occurred".to_string(),
         CryptoError::SigningFailed(_) => "Signing operation failed".to_string(),
+        CryptoError::VerificationFailed(_) => "Verification operation failed".to_string(),
         CryptoError::UnknownError => "Unknown error occurred".to_string(),
         CryptoError::InsufficientEntropy => {
             "Insufficient entropy for cryptographic operation".to_string()

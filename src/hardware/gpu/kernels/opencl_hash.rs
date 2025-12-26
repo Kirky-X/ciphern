@@ -14,12 +14,6 @@ use crate::types::Algorithm;
 use std::sync::Mutex;
 
 #[cfg(feature = "gpu-opencl")]
-mod opencl_driver;
-
-#[cfg(feature = "gpu-opencl")]
-use opencl_driver::{OpenclContext, OpenclDevice, OpenclKernel, OpenclMemory, OpenclProgram, OpenclQueue};
-
-#[cfg(feature = "gpu-opencl")]
 const OPENCL_SHA256_SOURCE: &str = r#"
 __kernel void sha256_kernel(__global const uchar* input, __global uchar* output, uint input_size) {
     uint gid = get_global_id(0);
@@ -322,7 +316,10 @@ impl OpenclHashKernel {
         let config = HashKernelConfig::default();
         let state = Mutex::new(OpenclHashKernelState::new(config));
         let is_available = Self::check_opencl_availability();
-        Self { state, is_available }
+        Self {
+            state,
+            is_available,
+        }
     }
 
     fn check_opencl_availability() -> bool {
@@ -330,9 +327,10 @@ impl OpenclHashKernel {
     }
 
     fn initialize_internal(&mut self) -> Result<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e)))?;
 
         if state.initialized {
             return Ok(());
@@ -343,9 +341,10 @@ impl OpenclHashKernel {
     }
 
     fn shutdown_internal(&mut self) -> Result<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e)))?;
 
         if !state.initialized {
             return Ok(());
@@ -395,7 +394,10 @@ impl super::GpuKernel for OpenclHashKernel {
     }
 
     fn get_metrics(&self) -> Option<KernelMetrics> {
-        self.state.lock().ok().map(|s| s.metrics.lock().unwrap().clone())
+        self.state
+            .lock()
+            .ok()
+            .map(|s| s.metrics.lock().unwrap().clone())
     }
 
     fn reset_metrics(&mut self) {
@@ -482,7 +484,10 @@ mod opencl_driver {
 
     impl OpenclContext {
         pub fn new(_platform_id: usize, _device_id: usize) -> Result<Self> {
-            Ok(Self { platform_id: 0, device_id: 0 })
+            Ok(Self {
+                platform_id: 0,
+                device_id: 0,
+            })
         }
     }
 
@@ -572,13 +577,19 @@ mod opencl_driver {
 
     impl Clone for OpenclContext {
         fn clone(&self) -> Self {
-            Self { platform_id: self.platform_id, device_id: self.device_id }
+            Self {
+                platform_id: self.platform_id,
+                device_id: self.device_id,
+            }
         }
     }
 
     impl Clone for OpenclProgram {
         fn clone(&self) -> Self {
-            Self { context: self.context.clone(), source: self.source.clone() }
+            Self {
+                context: self.context.clone(),
+                source: self.source.clone(),
+            }
         }
     }
 

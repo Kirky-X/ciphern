@@ -78,6 +78,9 @@ pub enum CryptoError {
     #[error("Signing failed: {0}")]
     SigningFailed(String),
 
+    #[error("Verification failed: {0}")]
+    VerificationFailed(String),
+
     #[error("Unknown error")]
     UnknownError,
 
@@ -126,6 +129,7 @@ mod i18n_error_impl {
                 CryptoError::PluginError(_) => "crypto_error.plugin_error",
                 CryptoError::InternalError(_) => "crypto_error.internal_error",
                 CryptoError::SigningFailed(_) => "crypto_error.signing_failed",
+                CryptoError::VerificationFailed(_) => "crypto_error.verification_failed",
                 CryptoError::UnknownError => "crypto_error.unknown_error",
                 CryptoError::InvalidKeyLength(_) => "crypto_error.invalid_key_length",
                 CryptoError::HardwareAccelerationUnavailable(_) => {
@@ -164,6 +168,7 @@ mod i18n_error_impl {
                 CryptoError::PluginError(_) => "crypto_error.plugin_error_message",
                 CryptoError::InternalError(_) => "crypto_error.internal_error_message",
                 CryptoError::SigningFailed(_) => "crypto_error.signing_failed_message",
+                CryptoError::VerificationFailed(_) => "crypto_error.verification_failed_message",
                 CryptoError::UnknownError => "crypto_error.unknown_error_message",
                 CryptoError::InvalidKeyLength(_) => "crypto_error.invalid_key_length_message",
                 CryptoError::HardwareAccelerationUnavailable(_) => {
@@ -218,7 +223,8 @@ mod i18n_error_impl {
             | CryptoError::SecurityError(msg)
             | CryptoError::PluginError(msg)
             | CryptoError::InternalError(msg)
-            | CryptoError::SigningFailed(msg) => {
+            | CryptoError::SigningFailed(msg)
+            | CryptoError::VerificationFailed(msg) => {
                 vec![("message", msg.clone())]
             }
             CryptoError::NotImplemented(feature) => {

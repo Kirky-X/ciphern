@@ -17,18 +17,18 @@ pub mod aes_kernel;
 #[cfg(feature = "gpu")]
 pub mod hash_kernel;
 #[cfg(feature = "gpu")]
-pub mod sm4_kernel;
-#[cfg(feature = "gpu")]
 pub mod signature_kernel;
+#[cfg(feature = "gpu")]
+pub mod sm4_kernel;
 
 #[cfg(feature = "gpu")]
 pub use aes_kernel::AesKernel;
 #[cfg(feature = "gpu")]
 pub use hash_kernel::HashKernel;
 #[cfg(feature = "gpu")]
-pub use sm4_kernel::Sm4Kernel;
-#[cfg(feature = "gpu")]
 pub use signature_kernel::SignatureKernel;
+#[cfg(feature = "gpu")]
+pub use sm4_kernel::Sm4Kernel;
 
 /// Kernel 类型
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,6 +156,34 @@ pub trait GpuKernel: Send + Sync {
         nonces: &[&[u8]],
         data: &[&[u8]],
     ) -> Result<Vec<Vec<u8>>>;
+
+    fn execute_ecdsa_sign(
+        &self,
+        private_key: &[u8],
+        data: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<Vec<u8>>;
+    fn execute_ecdsa_verify(
+        &self,
+        public_key: &[u8],
+        data: &[u8],
+        signature: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<bool>;
+    fn execute_ecdsa_verify_batch(
+        &self,
+        public_keys: &[&[u8]],
+        data: &[&[u8]],
+        signatures: &[&[u8]],
+        algorithm: Algorithm,
+    ) -> Result<Vec<bool>>;
+    fn execute_ed25519_sign(&self, private_key: &[u8], data: &[u8]) -> Result<Vec<u8>>;
+    fn execute_ed25519_verify(
+        &self,
+        public_key: &[u8],
+        data: &[u8],
+        signature: &[u8],
+    ) -> Result<bool>;
 }
 
 /// Kernel 管理器
@@ -185,7 +213,8 @@ impl KernelManager {
     }
 
     pub fn get_kernel_by_type(&self, kernel_type: KernelType) -> Option<Arc<dyn GpuKernel>> {
-        self.kernels.iter()
+        self.kernels
+            .iter()
             .find(|k| k.kernel_type() == kernel_type)
             .map(Arc::clone)
     }

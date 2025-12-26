@@ -16,7 +16,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[cfg(feature = "gpu-cuda")]
-use cuda_bindings::{cudaMalloc, cudaFree, cudaMemcpy, cudaMemcpyKind};
+use cuda_bindings::{cudaFree, cudaMalloc, cudaMemcpy, cudaMemcpyKind};
 
 /// 内存类型
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,7 +68,9 @@ pub struct GpuBuffer<T: Copy> {
 impl<T: Copy> GpuBuffer<T> {
     pub fn new(size: usize, memory_type: MemoryType, device_id: u32) -> Result<Self> {
         if size == 0 {
-            return Err(CryptoError::InvalidInput("Buffer size cannot be zero".into()));
+            return Err(CryptoError::InvalidInput(
+                "Buffer size cannot be zero".into(),
+            ));
         }
 
         let ptr = match memory_type {
@@ -105,7 +107,9 @@ impl<T: Copy> GpuBuffer<T> {
                         .map_err(|_| CryptoError::MemoryAllocationFailed("Layout error".into()))?;
                     let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
                     if ptr.is_null() {
-                        return Err(CryptoError::MemoryAllocationFailed("Allocation failed".into()));
+                        return Err(CryptoError::MemoryAllocationFailed(
+                            "Allocation failed".into(),
+                        ));
                     }
                     NonNull::new(ptr as *mut T).unwrap()
                 }
@@ -115,7 +119,9 @@ impl<T: Copy> GpuBuffer<T> {
                     .map_err(|_| CryptoError::MemoryAllocationFailed("Layout error".into()))?;
                 let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
                 if ptr.is_null() {
-                    return Err(CryptoError::MemoryAllocationFailed("Allocation failed".into()));
+                    return Err(CryptoError::MemoryAllocationFailed(
+                        "Allocation failed".into(),
+                    ));
                 }
                 NonNull::new(ptr as *mut T).unwrap()
             }
@@ -124,8 +130,11 @@ impl<T: Copy> GpuBuffer<T> {
                 {
                     let mut d_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
                     unsafe {
-                        cudaMallocManaged(&mut d_ptr as *mut *mut _, size * std::mem::size_of::<T>())
-                            .map_err(|e| CryptoError::MemoryAllocationFailed(e.to_string()))?;
+                        cudaMallocManaged(
+                            &mut d_ptr as *mut *mut _,
+                            size * std::mem::size_of::<T>(),
+                        )
+                        .map_err(|e| CryptoError::MemoryAllocationFailed(e.to_string()))?;
                         NonNull::new_unchecked(d_ptr as *mut T)
                     }
                 }
@@ -137,9 +146,7 @@ impl<T: Copy> GpuBuffer<T> {
                 }
             }
             _ => {
-                return Err(CryptoError::InvalidInput(
-                    "Unsupported memory type".into(),
-                ));
+                return Err(CryptoError::InvalidInput("Unsupported memory type".into()));
             }
         };
 
@@ -196,9 +203,7 @@ impl<T: Copy> GpuBuffer<T> {
 
     pub fn copy_from_host(&mut self, host_data: &[T]) -> Result<()> {
         if host_data.len() != self.size {
-            return Err(CryptoError::InvalidInput(
-                "Host data size mismatch".into(),
-            ));
+            return Err(CryptoError::InvalidInput("Host data size mismatch".into()));
         }
 
         match self.memory_type {
@@ -211,7 +216,8 @@ impl<T: Copy> GpuBuffer<T> {
                             host_data.as_ptr() as *const _,
                             self.size_bytes(),
                             cudaMemcpyKind::cudaMemcpyHostToDevice,
-                        ).map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
+                        )
+                        .map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
                     }
                     Ok(())
                 }
@@ -236,9 +242,7 @@ impl<T: Copy> GpuBuffer<T> {
 
     pub fn copy_to_host(&self, host_data: &mut [T]) -> Result<()> {
         if host_data.len() != self.size {
-            return Err(CryptoError::InvalidInput(
-                "Host data size mismatch".into(),
-            ));
+            return Err(CryptoError::InvalidInput("Host data size mismatch".into()));
         }
 
         match self.memory_type {
@@ -251,7 +255,8 @@ impl<T: Copy> GpuBuffer<T> {
                             self.ptr.as_ptr() as *const _,
                             self.size_bytes(),
                             cudaMemcpyKind::cudaMemcpyDeviceToHost,
-                        ).map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
+                        )
+                        .map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
                     }
                     Ok(())
                 }
@@ -264,7 +269,11 @@ impl<T: Copy> GpuBuffer<T> {
             }
             MemoryType::HostPinned | MemoryType::HostPageable | MemoryType::Unified => {
                 unsafe {
-                    std::ptr::copy_nonoverlapping(self.ptr.as_ptr(), host_data.as_mut_ptr(), self.size);
+                    std::ptr::copy_nonoverlapping(
+                        self.ptr.as_ptr(),
+                        host_data.as_mut_ptr(),
+                        self.size,
+                    );
                 }
                 Ok(())
             }
@@ -289,7 +298,8 @@ impl<T: Copy> GpuBuffer<T> {
                     self.ptr.as_ptr() as *const _,
                     self.size_bytes(),
                     cudaMemcpyKind::cudaMemcpyDeviceToDevice,
-                ).map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
+                )
+                .map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
             }
             Ok(())
         }
@@ -323,12 +333,16 @@ impl<T: Copy> Drop for GpuBuffer<T> {
                 #[cfg(not(feature = "gpu-cuda"))]
                 {
                     let layout = std::alloc::Layout::array::<T>(self.size).unwrap();
-                    unsafe { std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout); }
+                    unsafe {
+                        std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
+                    }
                 }
             }
             MemoryType::HostPageable | MemoryType::Unified => {
                 let layout = std::alloc::Layout::array::<T>(self.size).unwrap();
-                unsafe { std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout); }
+                unsafe {
+                    std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
+                }
             }
             _ => {}
         }
@@ -447,13 +461,17 @@ impl MemoryStats {
     #[inline]
     pub fn record_allocation(&self, size: usize) {
         self.allocated_buffers.fetch_add(1, Ordering::Relaxed);
-        self.total_allocated_bytes.fetch_add(size as u64, Ordering::Relaxed);
+        self.total_allocated_bytes
+            .fetch_add(size as u64, Ordering::Relaxed);
         let active = self.active_allocations.fetch_add(1, Ordering::Relaxed) + 1;
 
         let mut peak = self.peak_concurrent_allocations.load(Ordering::Relaxed);
         while active > peak {
             match self.peak_concurrent_allocations.compare_exchange(
-                peak, active, Ordering::SeqCst, Ordering::SeqCst
+                peak,
+                active,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
             ) {
                 Ok(_) => break,
                 Err(new_peak) => peak = new_peak,
@@ -464,7 +482,8 @@ impl MemoryStats {
     #[inline]
     pub fn record_deallocation(&self, size: usize) {
         self.freed_buffers.fetch_add(1, Ordering::Relaxed);
-        self.total_freed_bytes.fetch_add(size as u64, Ordering::Relaxed);
+        self.total_freed_bytes
+            .fetch_add(size as u64, Ordering::Relaxed);
         self.active_allocations.fetch_sub(1, Ordering::Relaxed);
     }
 

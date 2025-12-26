@@ -5,11 +5,11 @@
 
 use crate::cipher::provider::Signer;
 use crate::error::{CryptoError, Result};
+use crate::hardware;
 use crate::key::Key;
 use crate::types::Algorithm;
-use ring::signature::{Ed25519KeyPair, KeyPair, ED25519};
 
-/// Ed25519 签名提供者
+/// Ed25519 签名提供者 - 使用硬件加速
 pub struct Ed25519Provider {
     algorithm: Algorithm,
 }
@@ -28,14 +28,8 @@ impl Signer for Ed25519Provider {
             ));
         }
 
-        let secret = key.secret_bytes()?;
-
-        let key_pair = Ed25519KeyPair::from_pkcs8(secret.as_bytes())
-            .map_err(|e| CryptoError::KeyError(format!("Invalid Ed25519 PKCS#8 key: {}", e)))?;
-
-        let signature = key_pair.sign(message);
-
-        Ok(signature.as_ref().to_vec())
+        let private_key = key.secret_bytes()?;
+        hardware::accelerated_ed25519_sign(private_key.as_bytes(), message)
     }
 
     fn verify(&self, key: &Key, message: &[u8], signature: &[u8]) -> Result<bool> {
@@ -45,20 +39,15 @@ impl Signer for Ed25519Provider {
             ));
         }
 
-        let secret = key.secret_bytes()?;
+        let public_key_bytes = if let Ok(private_key) = key.secret_bytes() {
+            use ring::signature::{Ed25519KeyPair, KeyPair};
+            let key_pair = Ed25519KeyPair::from_pkcs8(private_key.as_bytes())
+                .map_err(|e| CryptoError::KeyError(format!("Invalid Ed25519 PKCS#8 key: {}", e)))?;
+            key_pair.public_key().as_ref().to_vec()
+        } else {
+            key.public_bytes()?
+        };
 
-        let key_pair = Ed25519KeyPair::from_pkcs8(secret.as_bytes())
-            .map_err(|e| CryptoError::KeyError(format!("Invalid Ed25519 PKCS#8 key: {}", e)))?;
-
-        let public_key_bytes = key_pair.public_key().as_ref();
-
-        use ring::signature::UnparsedPublicKey;
-
-        let public_key = UnparsedPublicKey::new(&ED25519, public_key_bytes);
-
-        match public_key.verify(message, signature) {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
+        hardware::accelerated_ed25519_verify(&public_key_bytes, message, signature)
     }
 }

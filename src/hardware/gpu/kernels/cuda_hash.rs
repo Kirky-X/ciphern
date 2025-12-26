@@ -14,12 +14,6 @@ use crate::types::Algorithm;
 use std::sync::Mutex;
 
 #[cfg(feature = "gpu-cuda")]
-mod cuda_driver;
-
-#[cfg(feature = "gpu-cuda")]
-use cuda_driver::{CudaContext, CudaDevice, CudaKernel, CudaMemory, CudaStream};
-
-#[cfg(feature = "gpu-cuda")]
 const SHA256_BLOCK_SIZE: usize = 64;
 #[cfg(feature = "gpu-cuda")]
 const SHA256_DIGEST_SIZE: usize = 32;
@@ -71,7 +65,9 @@ impl CudaHashKernelState {
     }
 
     fn allocate_from_pool(&mut self, size: usize) -> Result<CudaMemory> {
-        let index = self.memory_pool.iter()
+        let index = self
+            .memory_pool
+            .iter()
             .position(|m| m.size() >= size && m.is_free());
 
         if let Some(idx) = index {
@@ -108,7 +104,10 @@ impl CudaHashKernel {
 
         let is_available = Self::check_cuda_availability();
 
-        Self { state, is_available }
+        Self {
+            state,
+            is_available,
+        }
     }
 
     fn check_cuda_availability() -> bool {
@@ -119,9 +118,10 @@ impl CudaHashKernel {
     }
 
     fn initialize_internal(&mut self) -> Result<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e)))?;
 
         if state.initialized {
             return Ok(());
@@ -147,23 +147,11 @@ impl CudaHashKernel {
             CryptoError::InitializationFailed(format!("Failed to create CUDA stream: {}", e))
         })?;
 
-        let sha256_kernel = CudaKernel::new(
-            &context,
-            CUDA_SHA256_KERNEL,
-            "sha256_kernel",
-        ).ok();
+        let sha256_kernel = CudaKernel::new(&context, CUDA_SHA256_KERNEL, "sha256_kernel").ok();
 
-        let sha512_kernel = CudaKernel::new(
-            &context,
-            CUDA_SHA512_KERNEL,
-            "sha512_kernel",
-        ).ok();
+        let sha512_kernel = CudaKernel::new(&context, CUDA_SHA512_KERNEL, "sha512_kernel").ok();
 
-        let sm3_kernel = CudaKernel::new(
-            &context,
-            CUDA_SM3_KERNEL,
-            "sm3_kernel",
-        ).ok();
+        let sm3_kernel = CudaKernel::new(&context, CUDA_SM3_KERNEL, "sm3_kernel").ok();
 
         state.context = Some(context);
         state.device = Some(device);
@@ -177,9 +165,10 @@ impl CudaHashKernel {
     }
 
     fn shutdown_internal(&mut self) -> Result<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e)))?;
 
         if !state.initialized {
             return Ok(());
@@ -197,19 +186,26 @@ impl CudaHashKernel {
     }
 
     fn execute_sha256_gpu(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let state = self.state.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         let start = std::time::Instant::now();
 
-        let ctx = state.context.as_ref()
+        let ctx = state
+            .context
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("CUDA context not initialized".into()))?;
 
-        let kernel = state.sha256_kernel.as_ref()
+        let kernel = state
+            .sha256_kernel
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("SHA256 kernel not loaded".into()))?;
 
-        let stream = state.stream.as_ref()
+        let stream = state
+            .stream
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("CUDA stream not initialized".into()))?;
 
         let block_count = (data.len() + SHA256_BLOCK_SIZE - 1) / SHA256_BLOCK_SIZE;
@@ -229,18 +225,20 @@ impl CudaHashKernel {
         let grid_dim = (block_count as u32, 1, 1);
         let block_dim = (256, 1, 1);
 
-        kernel.launch(
-            &stream,
-            grid_dim,
-            block_dim,
-            &[
-                input_memory.as_ptr() as *mut std::ffi::c_void,
-                output_memory.as_ptr() as *mut std::ffi::c_void,
-                &(data.len() as u32),
-            ],
-        ).map_err(|e| {
-            CryptoError::KernelLaunchFailed(format!("Failed to launch SHA256 kernel: {}", e))
-        })?;
+        kernel
+            .launch(
+                &stream,
+                grid_dim,
+                block_dim,
+                &[
+                    input_memory.as_ptr() as *mut std::ffi::c_void,
+                    output_memory.as_ptr() as *mut std::ffi::c_void,
+                    &(data.len() as u32),
+                ],
+            )
+            .map_err(|e| {
+                CryptoError::KernelLaunchFailed(format!("Failed to launch SHA256 kernel: {}", e))
+            })?;
 
         stream.synchronize().map_err(|e| {
             CryptoError::SynchronizationFailed(format!("Failed to synchronize stream: {}", e))
@@ -252,14 +250,18 @@ impl CudaHashKernel {
         })?;
 
         let elapsed = start.elapsed();
-        let mut metrics = state.metrics.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut metrics = state
+            .metrics
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         metrics.execution_time_us = elapsed.as_micros() as u64;
-        metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = data.len() + result.len();
-        metrics.compute_units_used = state.device.as_ref()
+        metrics.compute_units_used = state
+            .device
+            .as_ref()
             .map(|d| d.compute_capability().0)
             .unwrap_or(0) as u32;
 
@@ -267,19 +269,26 @@ impl CudaHashKernel {
     }
 
     fn execute_sha512_gpu(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let state = self.state.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         let start = std::time::Instant::now();
 
-        let ctx = state.context.as_ref()
+        let ctx = state
+            .context
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("CUDA context not initialized".into()))?;
 
-        let kernel = state.sha512_kernel.as_ref()
+        let kernel = state
+            .sha512_kernel
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("SHA512 kernel not loaded".into()))?;
 
-        let stream = state.stream.as_ref()
+        let stream = state
+            .stream
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("CUDA stream not initialized".into()))?;
 
         let block_count = (data.len() + SHA512_BLOCK_SIZE - 1) / SHA512_BLOCK_SIZE;
@@ -299,18 +308,20 @@ impl CudaHashKernel {
         let grid_dim = (block_count as u32, 1, 1);
         let block_dim = (256, 1, 1);
 
-        kernel.launch(
-            &stream,
-            grid_dim,
-            block_dim,
-            &[
-                input_memory.as_ptr() as *mut std::ffi::c_void,
-                output_memory.as_ptr() as *mut std::ffi::c_void,
-                &(data.len() as u32),
-            ],
-        ).map_err(|e| {
-            CryptoError::KernelLaunchFailed(format!("Failed to launch SHA512 kernel: {}", e))
-        })?;
+        kernel
+            .launch(
+                &stream,
+                grid_dim,
+                block_dim,
+                &[
+                    input_memory.as_ptr() as *mut std::ffi::c_void,
+                    output_memory.as_ptr() as *mut std::ffi::c_void,
+                    &(data.len() as u32),
+                ],
+            )
+            .map_err(|e| {
+                CryptoError::KernelLaunchFailed(format!("Failed to launch SHA512 kernel: {}", e))
+            })?;
 
         stream.synchronize().map_err(|e| {
             CryptoError::SynchronizationFailed(format!("Failed to synchronize stream: {}", e))
@@ -322,12 +333,14 @@ impl CudaHashKernel {
         })?;
 
         let elapsed = start.elapsed();
-        let mut metrics = state.metrics.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut metrics = state
+            .metrics
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         metrics.execution_time_us = elapsed.as_micros() as u64;
-        metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = data.len() + result.len();
 
         Ok(result)
@@ -362,7 +375,10 @@ impl super::GpuKernel for CudaHashKernel {
     }
 
     fn get_metrics(&self) -> Option<KernelMetrics> {
-        self.state.lock().ok().map(|s| s.metrics.lock().unwrap().clone())
+        self.state
+            .lock()
+            .ok()
+            .map(|s| s.metrics.lock().unwrap().clone())
     }
 
     fn reset_metrics(&mut self) {
@@ -381,29 +397,40 @@ impl super::GpuKernel for CudaHashKernel {
             }
             Algorithm::SHA512 => self.execute_sha512_gpu(data),
             Algorithm::SM3 => {
-                let state = self.state.lock().map_err(|e| {
-                    CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
+                let state = self
+                    .state
+                    .lock()
+                    .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
+
+                let ctx = state.context.as_ref().ok_or_else(|| {
+                    CryptoError::NotInitialized("CUDA context not initialized".into())
                 })?;
 
-                let ctx = state.context.as_ref()
-                    .ok_or_else(|| CryptoError::NotInitialized("CUDA context not initialized".into()))?;
-
-                let kernel = state.sm3_kernel.as_ref()
+                let kernel = state
+                    .sm3_kernel
+                    .as_ref()
                     .ok_or_else(|| CryptoError::NotInitialized("SM3 kernel not loaded".into()))?;
 
                 let start = std::time::Instant::now();
 
-                let stream = state.stream.as_ref()
-                    .ok_or_else(|| CryptoError::NotInitialized("CUDA stream not initialized".into()))?;
+                let stream = state.stream.as_ref().ok_or_else(|| {
+                    CryptoError::NotInitialized("CUDA stream not initialized".into())
+                })?;
 
                 let block_count = (data.len() + SM3_BLOCK_SIZE - 1) / SM3_BLOCK_SIZE;
 
                 let input_memory = CudaMemory::new(data.len()).map_err(|e| {
-                    CryptoError::MemoryAllocationFailed(format!("Failed to allocate input memory: {}", e))
+                    CryptoError::MemoryAllocationFailed(format!(
+                        "Failed to allocate input memory: {}",
+                        e
+                    ))
                 })?;
 
                 let output_memory = CudaMemory::new(SM3_DIGEST_SIZE).map_err(|e| {
-                    CryptoError::MemoryAllocationFailed(format!("Failed to allocate output memory: {}", e))
+                    CryptoError::MemoryAllocationFailed(format!(
+                        "Failed to allocate output memory: {}",
+                        e
+                    ))
                 })?;
 
                 input_memory.copy_from(data).map_err(|e| {
@@ -413,21 +440,29 @@ impl super::GpuKernel for CudaHashKernel {
                 let grid_dim = (block_count as u32, 1, 1);
                 let block_dim = (256, 1, 1);
 
-                kernel.launch(
-                    &stream,
-                    grid_dim,
-                    block_dim,
-                    &[
-                        input_memory.as_ptr() as *mut std::ffi::c_void,
-                        output_memory.as_ptr() as *mut std::ffi::c_void,
-                        &(data.len() as u32),
-                    ],
-                ).map_err(|e| {
-                    CryptoError::KernelLaunchFailed(format!("Failed to launch SM3 kernel: {}", e))
-                })?;
+                kernel
+                    .launch(
+                        &stream,
+                        grid_dim,
+                        block_dim,
+                        &[
+                            input_memory.as_ptr() as *mut std::ffi::c_void,
+                            output_memory.as_ptr() as *mut std::ffi::c_void,
+                            &(data.len() as u32),
+                        ],
+                    )
+                    .map_err(|e| {
+                        CryptoError::KernelLaunchFailed(format!(
+                            "Failed to launch SM3 kernel: {}",
+                            e
+                        ))
+                    })?;
 
                 stream.synchronize().map_err(|e| {
-                    CryptoError::SynchronizationFailed(format!("Failed to synchronize stream: {}", e))
+                    CryptoError::SynchronizationFailed(format!(
+                        "Failed to synchronize stream: {}",
+                        e
+                    ))
                 })?;
 
                 let mut result = vec![0u8; SM3_DIGEST_SIZE];
@@ -436,12 +471,14 @@ impl super::GpuKernel for CudaHashKernel {
                 })?;
 
                 let elapsed = start.elapsed();
-                let mut metrics = state.metrics.lock().map_err(|e| {
-                    CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-                })?;
+                let mut metrics = state
+                    .metrics
+                    .lock()
+                    .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
                 metrics.execution_time_us = elapsed.as_micros() as u64;
-                metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+                metrics.throughput_mbps =
+                    (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
                 metrics.memory_transferred_bytes = data.len() + result.len();
 
                 Ok(result)
@@ -611,7 +648,8 @@ mod cuda_driver {
         }
 
         pub fn set_used(&self, used: bool) {
-            self.is_used.store(used, std::sync::atomic::Ordering::Relaxed);
+            self.is_used
+                .store(used, std::sync::atomic::Ordering::Relaxed);
         }
 
         pub fn as_ptr(&self) -> *mut std::ffi::c_void {

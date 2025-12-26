@@ -364,6 +364,35 @@ impl Key {
         self.data.access()
     }
 
+    pub fn public_bytes(&self) -> Result<Vec<u8>> {
+        if !self.is_valid() {
+            return Err(crate::error::CryptoError::KeyError(
+                "Key is not valid for use".into(),
+            ));
+        }
+
+        let key_bytes = self.data.access()?;
+        let bytes = key_bytes.as_bytes();
+
+        match self.algorithm {
+            Algorithm::Ed25519 => {
+                if bytes.len() == 32 {
+                    Ok(bytes.to_vec())
+                } else if bytes.len() >= 32 {
+                    Ok(bytes[..32].to_vec())
+                } else {
+                    Err(crate::error::CryptoError::KeyError(
+                        "Invalid Ed25519 key length for public key extraction".into(),
+                    ))
+                }
+            }
+            _ => Err(crate::error::CryptoError::KeyError(format!(
+                "Public key extraction not implemented for algorithm {:?}",
+                self.algorithm
+            ))),
+        }
+    }
+
     pub fn created_at(&self) -> DateTime<Utc> {
         self.created_at
     }

@@ -15,9 +15,10 @@ mod gpu;
 
 #[cfg(feature = "gpu")]
 pub use gpu::{
-    accelerated_aes_gpu, accelerated_hash_gpu, get_gpu_config, init_gpu, is_gpu_enabled,
-    is_gpu_initialized, set_gpu_config, GpuThresholdConfig, GPU_CONFIG, GPU_ENABLED,
-    GPU_INITIALIZED,
+    accelerated_aes_gpu, accelerated_ecdsa_sign_gpu, accelerated_ecdsa_verify_batch_gpu,
+    accelerated_ecdsa_verify_gpu, accelerated_ed25519_sign_gpu, accelerated_ed25519_verify_gpu,
+    accelerated_hash_gpu, get_gpu_config, init_gpu, is_gpu_enabled, is_gpu_initialized,
+    set_gpu_config, GpuThresholdConfig, GPU_CONFIG, GPU_ENABLED, GPU_INITIALIZED,
 };
 
 #[cfg(not(feature = "gpu"))]
@@ -189,6 +190,194 @@ pub fn accelerated_aes_decrypt(key: &[u8], ciphertext: &[u8], nonce: &[u8]) -> R
         .map_err(|_| CryptoError::DecryptionFailed("Open failed".into()))?;
 
     Ok(in_out)
+}
+
+#[inline]
+pub fn accelerated_ecdsa_sign(
+    private_key: &[u8],
+    data: &[u8],
+    algorithm: Algorithm,
+) -> Result<Vec<u8>> {
+    #[cfg(feature = "gpu")]
+    {
+        if is_gpu_enabled() {
+            let config = get_gpu_config();
+            if config.should_use_gpu(data.len(), 1) {
+                if let Ok(sig) = accelerated_ecdsa_sign_gpu(private_key, data, algorithm) {
+                    return Ok(sig);
+                }
+            }
+        }
+    }
+
+    let _start = std::time::Instant::now();
+    let result = match algorithm {
+        Algorithm::ECDSAP256 => {
+            use ring::signature::EcdsaKeyPair;
+
+            let rng = ring::rand::SystemRandom::new();
+            let key_pair = EcdsaKeyPair::from_pkcs8(
+                &ring::signature::ECDSA_P256_SHA256_FIXED_SIGNING,
+                private_key,
+                &rng,
+            )
+            .map_err(|e| CryptoError::SigningFailed(e.to_string()))?;
+
+            let signature = key_pair
+                .sign(&rng, data)
+                .map_err(|e| CryptoError::SigningFailed(e.to_string()))?;
+            Ok(signature.as_ref().to_vec())
+        }
+        Algorithm::ECDSAP384 => {
+            use ring::signature::EcdsaKeyPair;
+
+            let rng = ring::rand::SystemRandom::new();
+            let key_pair = EcdsaKeyPair::from_pkcs8(
+                &ring::signature::ECDSA_P384_SHA384_FIXED_SIGNING,
+                private_key,
+                &rng,
+            )
+            .map_err(|e| CryptoError::SigningFailed(e.to_string()))?;
+
+            let signature = key_pair
+                .sign(&rng, data)
+                .map_err(|e| CryptoError::SigningFailed(e.to_string()))?;
+            Ok(signature.as_ref().to_vec())
+        }
+        Algorithm::ECDSAP521 => {
+            return Err(CryptoError::UnsupportedAlgorithm(
+                "ECDSA P-521 signing requires pkcs8 format key".into(),
+            ));
+        }
+        _ => Err(CryptoError::UnsupportedAlgorithm(
+            "ECDSA signing not supported for this algorithm".into(),
+        )),
+    };
+
+    result
+}
+
+#[inline]
+pub fn accelerated_ecdsa_verify(
+    public_key: &[u8],
+    data: &[u8],
+    signature: &[u8],
+    algorithm: Algorithm,
+) -> Result<bool> {
+    #[cfg(feature = "gpu")]
+    {
+        if is_gpu_enabled() {
+            let config = get_gpu_config();
+            if config.should_use_gpu(data.len(), 1) {
+                if let Ok(result) =
+                    accelerated_ecdsa_verify_gpu(public_key, data, signature, algorithm)
+                {
+                    return Ok(result);
+                }
+            }
+        }
+    }
+
+    match algorithm {
+        Algorithm::ECDSAP256 => {
+            use ring::signature::UnparsedPublicKey;
+
+            if public_key.len() != 65 {
+                return Err(CryptoError::InvalidParameter(
+                    "Invalid public key length".into(),
+                ));
+            }
+
+            let key = UnparsedPublicKey::new(&ring::signature::ECDSA_P256_SHA256_FIXED, public_key);
+            match key.verify(data, signature) {
+                Ok(()) => Ok(true),
+                Err(e) => Err(CryptoError::VerificationFailed(e.to_string())),
+            }
+        }
+        Algorithm::ECDSAP384 => {
+            use ring::signature::UnparsedPublicKey;
+
+            if public_key.len() != 97 {
+                return Err(CryptoError::InvalidParameter(
+                    "Invalid public key length".into(),
+                ));
+            }
+
+            let key = UnparsedPublicKey::new(&ring::signature::ECDSA_P384_SHA384_FIXED, public_key);
+            match key.verify(data, signature) {
+                Ok(()) => Ok(true),
+                Err(e) => Err(CryptoError::VerificationFailed(e.to_string())),
+            }
+        }
+        Algorithm::ECDSAP521 => Err(CryptoError::UnsupportedAlgorithm(
+            "ECDSA P-521 verification requires ring with proper format".into(),
+        )),
+        _ => Err(CryptoError::UnsupportedAlgorithm(
+            "ECDSA verification not supported for this algorithm".into(),
+        )),
+    }
+}
+
+#[inline]
+pub fn accelerated_ed25519_sign(private_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    #[cfg(feature = "gpu")]
+    {
+        if is_gpu_enabled() {
+            let config = get_gpu_config();
+            if config.should_use_gpu(data.len(), 1) {
+                if let Ok(sig) = accelerated_ed25519_sign_gpu(private_key, data) {
+                    return Ok(sig);
+                }
+            }
+        }
+    }
+
+    use ring::signature::Ed25519KeyPair;
+
+    let key_pair = Ed25519KeyPair::from_pkcs8(private_key)
+        .map_err(|e| CryptoError::SigningFailed(e.to_string()))?;
+
+    let signature = key_pair.sign(data);
+    Ok(signature.as_ref().to_vec())
+}
+
+#[inline]
+pub fn accelerated_ed25519_verify(
+    public_key: &[u8],
+    data: &[u8],
+    signature: &[u8],
+) -> Result<bool> {
+    #[cfg(feature = "gpu")]
+    {
+        if is_gpu_enabled() {
+            let config = get_gpu_config();
+            if config.should_use_gpu(data.len(), 1) {
+                if let Ok(result) = accelerated_ed25519_verify_gpu(public_key, data, signature) {
+                    return Ok(result);
+                }
+            }
+        }
+    }
+
+    use ring::signature::{UnparsedPublicKey, ED25519};
+
+    if public_key.len() != 32 {
+        return Err(CryptoError::InvalidParameter(
+            "Invalid Ed25519 public key length".into(),
+        ));
+    }
+
+    if signature.len() != 64 {
+        return Err(CryptoError::InvalidParameter(
+            "Invalid Ed25519 signature length".into(),
+        ));
+    }
+
+    let key = UnparsedPublicKey::new(&ED25519, public_key);
+    match key.verify(data, signature) {
+        Ok(()) => Ok(true),
+        Err(e) => Err(CryptoError::VerificationFailed(e.to_string())),
+    }
 }
 
 #[cfg(test)]

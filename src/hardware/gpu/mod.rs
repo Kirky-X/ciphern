@@ -15,16 +15,16 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(feature = "gpu")]
 mod device;
 #[cfg(feature = "gpu")]
-mod memory;
-#[cfg(feature = "gpu")]
 mod kernels;
+#[cfg(feature = "gpu")]
+mod memory;
 
 #[cfg(feature = "gpu")]
 pub use device::{XpuDevice, XpuManager, XpuType};
 #[cfg(feature = "gpu")]
-pub use memory::{XpuBuffer, XpuMemory};
-#[cfg(feature = "gpu")]
 pub use kernels::{GpuKernel, XpuKernel};
+#[cfg(feature = "gpu")]
+pub use memory::{XpuBuffer, XpuMemory};
 
 /// GPU 功能是否启用
 pub static GPU_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -88,10 +88,10 @@ pub struct GpuThresholdConfig {
 impl Default for GpuThresholdConfig {
     fn default() -> Self {
         Self {
-            min_data_size: 32 * 1024,      // 32KB
-            batch_threshold: 100,          // 100 个操作
+            min_data_size: 32 * 1024,            // 32KB
+            batch_threshold: 100,                // 100 个操作
             memory_pool_size: 256 * 1024 * 1024, // 256MB
-            sync_timeout_ms: 5000,         // 5秒
+            sync_timeout_ms: 5000,               // 5秒
         }
     }
 }
@@ -100,7 +100,7 @@ impl GpuThresholdConfig {
     /// 实时加密场景配置（低延迟优先）
     pub fn realtime() -> Self {
         Self {
-            min_data_size: 64 * 1024,      // 64KB
+            min_data_size: 64 * 1024, // 64KB
             batch_threshold: 10,
             memory_pool_size: 128 * 1024 * 1024,
             sync_timeout_ms: 1000,
@@ -110,7 +110,7 @@ impl GpuThresholdConfig {
     /// 批量处理场景配置（吞吐量优先）
     pub fn batch() -> Self {
         Self {
-            min_data_size: 16 * 1024,      // 16KB
+            min_data_size: 16 * 1024, // 16KB
             batch_threshold: 1000,
             memory_pool_size: 1024 * 1024 * 1024, // 1GB
             sync_timeout_ms: 30000,
@@ -196,6 +196,140 @@ pub fn accelerated_aes_gpu(
     } else {
         device.aes_gcm_decrypt(key, nonce, data)
     }
+}
+
+/// GPU 加速的 ECDSA 签名
+#[cfg(feature = "gpu")]
+pub fn accelerated_ecdsa_sign_gpu(
+    private_key: &[u8],
+    data: &[u8],
+    algorithm: Algorithm,
+) -> Result<Vec<u8>> {
+    if !is_gpu_enabled() {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not enabled".into(),
+        ));
+    }
+
+    let config = get_gpu_config();
+    if !config.should_use_gpu(data.len(), 1) {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "Data size too small for GPU acceleration".into(),
+        ));
+    }
+
+    let manager = XpuManager::get();
+    let device = manager.get_primary_device()?;
+
+    let kernel = device.get_kernel(algorithm)?;
+    kernel.sign_ecdsa(private_key, data, algorithm)
+}
+
+/// GPU 加速的 ECDSA 验证
+#[cfg(feature = "gpu")]
+pub fn accelerated_ecdsa_verify_gpu(
+    public_key: &[u8],
+    data: &[u8],
+    signature: &[u8],
+    algorithm: Algorithm,
+) -> Result<bool> {
+    if !is_gpu_enabled() {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not enabled".into(),
+        ));
+    }
+
+    let config = get_gpu_config();
+    if !config.should_use_gpu(data.len(), 1) {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "Data size too small for GPU acceleration".into(),
+        ));
+    }
+
+    let manager = XpuManager::get();
+    let device = manager.get_primary_device()?;
+
+    let kernel = device.get_kernel(algorithm)?;
+    kernel.verify_ecdsa(public_key, data, signature, algorithm)
+}
+
+/// GPU 加速的 ECDSA 批量验证
+#[cfg(feature = "gpu")]
+pub fn accelerated_ecdsa_verify_batch_gpu(
+    public_keys: &[&[u8]],
+    data: &[&[u8]],
+    signatures: &[&[u8]],
+    algorithm: Algorithm,
+) -> Result<Vec<bool>> {
+    if !is_gpu_enabled() {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not enabled".into(),
+        ));
+    }
+
+    let config = get_gpu_config();
+    let batch_count = public_keys.len();
+    if !config.should_use_gpu(0, batch_count) {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "Batch size too small for GPU acceleration".into(),
+        ));
+    }
+
+    let manager = XpuManager::get();
+    let device = manager.get_primary_device()?;
+
+    let kernel = device.get_kernel(algorithm)?;
+    kernel.verify_ecdsa_batch(public_keys, data, signatures, algorithm)
+}
+
+/// GPU 加速的 Ed25519 签名
+#[cfg(feature = "gpu")]
+pub fn accelerated_ed25519_sign_gpu(private_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    if !is_gpu_enabled() {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not enabled".into(),
+        ));
+    }
+
+    let config = get_gpu_config();
+    if !config.should_use_gpu(data.len(), 1) {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "Data size too small for GPU acceleration".into(),
+        ));
+    }
+
+    let manager = XpuManager::get();
+    let device = manager.get_primary_device()?;
+
+    let kernel = device.get_kernel(Algorithm::ED25519)?;
+    kernel.sign_ed25519(private_key, data)
+}
+
+/// GPU 加速的 Ed25519 验证
+#[cfg(feature = "gpu")]
+pub fn accelerated_ed25519_verify_gpu(
+    public_key: &[u8],
+    data: &[u8],
+    signature: &[u8],
+) -> Result<bool> {
+    if !is_gpu_enabled() {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not enabled".into(),
+        ));
+    }
+
+    let config = get_gpu_config();
+    if !config.should_use_gpu(data.len(), 1) {
+        return Err(CryptoError::HardwareAccelerationUnavailable(
+            "Data size too small for GPU acceleration".into(),
+        ));
+    }
+
+    let manager = XpuManager::get();
+    let device = manager.get_primary_device()?;
+
+    let kernel = device.get_kernel(Algorithm::ED25519)?;
+    kernel.verify_ed25519(public_key, data, signature)
 }
 
 #[cfg(test)]

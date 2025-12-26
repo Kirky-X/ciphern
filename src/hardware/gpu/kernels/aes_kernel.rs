@@ -8,7 +8,7 @@
 //! 支持 AES-GCM 模式的 GPU 加速加密/解密
 //! 基于 CUDA 或 OpenCL 实现
 
-use super::{BatchConfig, KernelMetrics, AesKernelConfig, GpuKernel, KernelType};
+use super::{AesKernelConfig, BatchConfig, GpuKernel, KernelMetrics, KernelType};
 use crate::error::{CryptoError, Result};
 use crate::types::Algorithm;
 use std::sync::Mutex;
@@ -133,8 +133,8 @@ impl GpuKernel for CpuAesKernel {
         data: &[u8],
         _aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        use aes_gcm::{Aes256Gcm, Key, Nonce};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, Key, Nonce};
 
         if key.len() != 32 {
             return Err(CryptoError::InvalidKeyLength(key.len()));
@@ -151,13 +151,15 @@ impl GpuKernel for CpuAesKernel {
         let nonce = Nonce::from_slice(nonce);
         let cipher = Aes256Gcm::new(key);
 
-        let ciphertext = cipher.encrypt(nonce, data)
+        let ciphertext = cipher
+            .encrypt(nonce, data)
             .map_err(|e| CryptoError::EncryptionFailed(e.to_string()))?;
 
         let elapsed = start.elapsed();
         let mut metrics = self.state.metrics.lock().unwrap();
         metrics.execution_time_us = elapsed.as_micros() as u64;
-        metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = data.len() + ciphertext.len();
 
         Ok(ciphertext)
@@ -170,8 +172,8 @@ impl GpuKernel for CpuAesKernel {
         data: &[u8],
         _aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        use aes_gcm::{Aes256Gcm, Key, Nonce};
         use aes_gcm::aead::Aead;
+        use aes_gcm::{Aes256Gcm, Key, Nonce};
 
         if key.len() != 32 {
             return Err(CryptoError::InvalidKeyLength(key.len()));
@@ -188,13 +190,15 @@ impl GpuKernel for CpuAesKernel {
         let nonce = Nonce::from_slice(nonce);
         let cipher = Aes256Gcm::new(key);
 
-        let plaintext = cipher.decrypt(nonce, data)
+        let plaintext = cipher
+            .decrypt(nonce, data)
             .map_err(|e| CryptoError::DecryptionFailed(e.to_string()))?;
 
         let elapsed = start.elapsed();
         let mut metrics = self.state.metrics.lock().unwrap();
         metrics.execution_time_us = elapsed.as_micros() as u64;
-        metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = data.len() + plaintext.len();
 
         Ok(plaintext)
@@ -207,9 +211,7 @@ impl GpuKernel for CpuAesKernel {
         data: &[&[u8]],
     ) -> Result<Vec<Vec<u8>>> {
         if keys.len() != nonces.len() || keys.len() != data.len() {
-            return Err(CryptoError::InvalidInput(
-                "Batch sizes must match".into(),
-            ));
+            return Err(CryptoError::InvalidInput("Batch sizes must match".into()));
         }
 
         let start = std::time::Instant::now();
@@ -235,9 +237,7 @@ impl GpuKernel for CpuAesKernel {
         data: &[&[u8]],
     ) -> Result<Vec<Vec<u8>>> {
         if keys.len() != nonces.len() || keys.len() != data.len() {
-            return Err(CryptoError::InvalidInput(
-                "Batch sizes must match".into(),
-            ));
+            return Err(CryptoError::InvalidInput("Batch sizes must match".into()));
         }
 
         let start = std::time::Instant::now();

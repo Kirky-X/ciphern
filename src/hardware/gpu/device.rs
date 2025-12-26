@@ -128,7 +128,9 @@ pub trait XpuDevice: Send + Sync {
     fn copy_from_device(&self, device_offset: usize, size: usize) -> Result<Vec<u8>>;
 
     fn supports_algorithm(&self, algorithm: Algorithm) -> bool {
-        self.capabilities().supported_algorithms.contains(&algorithm)
+        self.capabilities()
+            .supported_algorithms
+            .contains(&algorithm)
     }
 
     fn get_kernel(&self, algorithm: Algorithm) -> Result<Arc<dyn XpuKernel>>;
@@ -158,8 +160,20 @@ pub trait XpuKernel: Send + Sync {
     fn sm4_decrypt(&self, key: &[u8], data: &[u8], mode: &str) -> Result<Vec<u8>>;
 
     fn ecdsa_sign(&self, private_key: &[u8], data: &[u8], algorithm: Algorithm) -> Result<Vec<u8>>;
-    fn ecdsa_verify(&self, public_key: &[u8], data: &[u8], signature: &[u8], algorithm: Algorithm) -> Result<bool>;
-    fn ecdsa_verify_batch(&self, public_keys: &[&[u8]], data: &[&[u8]], signatures: &[&[u8]], algorithm: Algorithm) -> Result<Vec<bool>>;
+    fn ecdsa_verify(
+        &self,
+        public_key: &[u8],
+        data: &[u8],
+        signature: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<bool>;
+    fn ecdsa_verify_batch(
+        &self,
+        public_keys: &[&[u8]],
+        data: &[&[u8]],
+        signatures: &[&[u8]],
+        algorithm: Algorithm,
+    ) -> Result<Vec<bool>>;
 }
 
 /// XPU 设备管理器
@@ -288,27 +302,27 @@ impl XpuManager {
     }
 
     pub fn get_primary_device(&self) -> Result<Arc<dyn XpuDevice>> {
-        let index = self.primary_device
-            .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable(
-                "No primary device selected".into(),
-            ))?;
+        let index = self.primary_device.ok_or_else(|| {
+            CryptoError::HardwareAccelerationUnavailable("No primary device selected".into())
+        })?;
 
-        let device = self.devices.get(index)
-            .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable(
-                "Primary device not found".into(),
-            ))?;
+        let device = self.devices.get(index).ok_or_else(|| {
+            CryptoError::HardwareAccelerationUnavailable("Primary device not found".into())
+        })?;
 
         if !device.is_available() {
-            return Err(CryptoError::HardwareAccelerationUnavailable(
-                format!("Primary device {} is not available", device.device_name()),
-            ));
+            return Err(CryptoError::HardwareAccelerationUnavailable(format!(
+                "Primary device {} is not available",
+                device.device_name()
+            )));
         }
 
         Ok(Arc::clone(device))
     }
 
     pub fn get_device_by_type(&self, device_type: XpuType) -> Option<Arc<dyn XpuDevice>> {
-        self.devices.iter()
+        self.devices
+            .iter()
             .find(|d| d.device_type() == device_type)
             .map(|d| Arc::clone(d))
     }
@@ -328,12 +342,10 @@ impl XpuManager {
     /// 获取单例实例（延迟初始化）
     pub fn get() -> &'static XpuManager {
         MANAGER.get_or_init(|| {
-            XpuManager::new().unwrap_or_else(|_| {
-                XpuManager {
-                    devices: Vec::new(),
-                    primary_device: None,
-                    default_device_type: XpuType::Unknown,
-                }
+            XpuManager::new().unwrap_or_else(|_| XpuManager {
+                devices: Vec::new(),
+                primary_device: None,
+                default_device_type: XpuType::Unknown,
             })
         })
     }
@@ -354,7 +366,11 @@ fn device_capability_score(device: &dyn XpuDevice) -> i32 {
     score += (caps.compute_units / 10) as i32;
     score += (caps.global_memory / (1024 * 1024 * 1024)) as i32;
     score += if caps.ECC_supported { 10 } else { 0 };
-    score += if caps.max_work_group_size >= 256 { 10 } else { 0 };
+    score += if caps.max_work_group_size >= 256 {
+        10
+    } else {
+        0
+    };
 
     score
 }

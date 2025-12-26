@@ -9,12 +9,6 @@
 //! 特别优化批量签名验证场景，支持 MB/GB 级数据处理
 
 #[cfg(feature = "gpu-cuda")]
-mod cuda_driver;
-
-#[cfg(feature = "gpu-cuda")]
-use cuda_driver::{CudaContext, CudaDevice, CudaKernel, CudaMemory, CudaStream};
-
-#[cfg(feature = "gpu-cuda")]
 const ECDSA256_SIGNATURE_SIZE: usize = 64;
 #[cfg(feature = "gpu-cuda")]
 const ECDSA384_SIGNATURE_SIZE: usize = 96;
@@ -70,7 +64,9 @@ impl CudaSignatureKernelState {
     }
 
     fn allocate_from_pool(&mut self, size: usize) -> Result<CudaMemory> {
-        let index = self.memory_pool.iter()
+        let index = self
+            .memory_pool
+            .iter()
             .position(|m| m.size() >= size && m.is_free());
 
         if let Some(idx) = index {
@@ -105,7 +101,10 @@ impl CudaSignatureKernel {
         let config = super::BatchConfig::default();
         let state = Mutex::new(CudaSignatureKernelState::new(config));
         let is_available = Self::check_cuda_availability();
-        Self { state, is_available }
+        Self {
+            state,
+            is_available,
+        }
     }
 
     fn check_cuda_availability() -> bool {
@@ -120,9 +119,10 @@ impl CudaSignatureKernel {
     }
 
     fn initialize_internal(&mut self) -> Result<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e)))?;
 
         if state.initialized {
             return Ok(());
@@ -147,29 +147,13 @@ impl CudaSignatureKernel {
             CryptoError::InitializationFailed(format!("Failed to create CUDA stream: {}", e))
         })?;
 
-        let ecdsa256_kernel = CudaKernel::new(
-            &context,
-            CUDA_ECDSA_KERNEL,
-            "ecdsa256_verify",
-        ).ok();
+        let ecdsa256_kernel = CudaKernel::new(&context, CUDA_ECDSA_KERNEL, "ecdsa256_verify").ok();
 
-        let ecdsa384_kernel = CudaKernel::new(
-            &context,
-            CUDA_ECDSA_KERNEL,
-            "ecdsa384_verify",
-        ).ok();
+        let ecdsa384_kernel = CudaKernel::new(&context, CUDA_ECDSA_KERNEL, "ecdsa384_verify").ok();
 
-        let ecdsa521_kernel = CudaKernel::new(
-            &context,
-            CUDA_ECDSA_KERNEL,
-            "ecdsa521_verify",
-        ).ok();
+        let ecdsa521_kernel = CudaKernel::new(&context, CUDA_ECDSA_KERNEL, "ecdsa521_verify").ok();
 
-        let ed25519_kernel = CudaKernel::new(
-            &context,
-            CUDA_ED25519_KERNEL,
-            "ed25519_verify",
-        ).ok();
+        let ed25519_kernel = CudaKernel::new(&context, CUDA_ED25519_KERNEL, "ed25519_verify").ok();
 
         state.context = Some(context);
         state.device = Some(device);
@@ -184,9 +168,10 @@ impl CudaSignatureKernel {
     }
 
     fn shutdown_internal(&mut self) -> Result<()> {
-        let mut state = self.state.lock().map_err(|e| {
-            CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::InitializationFailed(format!("Mutex poisoned: {}", e)))?;
 
         if !state.initialized {
             return Ok(());
@@ -211,13 +196,16 @@ impl CudaSignatureKernel {
         signature: &[u8],
         algorithm: Algorithm,
     ) -> Result<bool> {
-        let state = self.state.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         let start = std::time::Instant::now();
 
-        let ctx = state.context.as_ref()
+        let ctx = state
+            .context
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("CUDA context not initialized".into()))?;
 
         let (kernel, key_size, sig_size) = match algorithm {
@@ -243,11 +231,13 @@ impl CudaSignatureKernel {
             }
         };
 
-        let kernel = kernel.ok_or_else(|| CryptoError::NotInitialized(
-            format!("{} kernel not loaded", algorithm).into(),
-        ))?;
+        let kernel = kernel.ok_or_else(|| {
+            CryptoError::NotInitialized(format!("{} kernel not loaded", algorithm).into())
+        })?;
 
-        let stream = state.stream.as_ref()
+        let stream = state
+            .stream
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("CUDA stream not initialized".into()))?;
 
         if public_key.len() != key_size || signature.len() != sig_size {
@@ -259,47 +249,55 @@ impl CudaSignatureKernel {
         let total_size = key_size + data.len() + sig_size;
         let memory = Self::allocate_from_pool(&mut state.clone(), total_size)?;
 
-        let memory_slice = unsafe {
-            std::slice::from_raw_parts_mut(memory.as_ptr() as *mut u8, total_size)
-        };
+        let memory_slice =
+            unsafe { std::slice::from_raw_parts_mut(memory.as_ptr() as *mut u8, total_size) };
         memory_slice[..key_size].copy_from_slice(public_key);
         memory_slice[key_size..key_size + data.len()].copy_from_slice(data);
         memory_slice[key_size + data.len()..].copy_from_slice(signature);
 
         let key_ptr = memory.as_ptr() as *mut std::ffi::c_void;
         let data_ptr = (memory.as_ptr() as *mut u8).wrapping_add(key_size) as *mut std::ffi::c_void;
-        let sig_ptr = (memory.as_ptr() as *mut u8).wrapping_add(key_size + data.len()) as *mut std::ffi::c_void;
-        let result_ptr = (memory.as_ptr() as *mut u8).wrapping_add(total_size - 4) as *mut std::ffi::c_void;
+        let sig_ptr = (memory.as_ptr() as *mut u8).wrapping_add(key_size + data.len())
+            as *mut std::ffi::c_void;
+        let result_ptr =
+            (memory.as_ptr() as *mut u8).wrapping_add(total_size - 4) as *mut std::ffi::c_void;
 
         let grid_dim = (1, 1, 1);
         let block_dim = (1, 1, 1);
 
-        kernel.launch(
-            &stream,
-            grid_dim,
-            block_dim,
-            &[key_ptr, data_ptr, sig_ptr, &(data.len() as u32), result_ptr],
-        ).map_err(|e| {
-            CryptoError::KernelLaunchFailed(format!("Failed to launch {} kernel: {}", algorithm, e))
-        })?;
+        kernel
+            .launch(
+                &stream,
+                grid_dim,
+                block_dim,
+                &[key_ptr, data_ptr, sig_ptr, &(data.len() as u32), result_ptr],
+            )
+            .map_err(|e| {
+                CryptoError::KernelLaunchFailed(format!(
+                    "Failed to launch {} kernel: {}",
+                    algorithm, e
+                ))
+            })?;
 
         stream.synchronize().map_err(|e| {
             CryptoError::SynchronizationFailed(format!("Failed to synchronize stream: {}", e))
         })?;
 
-        let result = unsafe {
-            std::ptr::read(result_ptr as *const u32) != 0
-        };
+        let result = unsafe { std::ptr::read(result_ptr as *const u32) != 0 };
 
         let elapsed = start.elapsed();
-        let mut metrics = state.metrics.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut metrics = state
+            .metrics
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         metrics.execution_time_us = elapsed.as_micros() as u64;
-        metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = key_size + data.len() + sig_size + 4;
-        metrics.compute_units_used = state.device.as_ref()
+        metrics.compute_units_used = state
+            .device
+            .as_ref()
             .map(|d| d.compute_capability().0)
             .unwrap_or(0) as u32;
 
@@ -314,19 +312,20 @@ impl CudaSignatureKernel {
         algorithm: Algorithm,
     ) -> Result<Vec<bool>> {
         if public_keys.len() != data.len() || public_keys.len() != signatures.len() {
-            return Err(CryptoError::InvalidInput(
-                "Batch sizes must match".into(),
-            ));
+            return Err(CryptoError::InvalidInput("Batch sizes must match".into()));
         }
 
         let batch_size = public_keys.len();
         let start = std::time::Instant::now();
 
-        let state = self.state.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
-        let stream = state.stream.as_ref()
+        let stream = state
+            .stream
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("CUDA stream not initialized".into()))?;
 
         let (kernel, key_size, sig_size) = match algorithm {
@@ -352,9 +351,9 @@ impl CudaSignatureKernel {
             }
         };
 
-        let kernel = kernel.ok_or_else(|| CryptoError::NotInitialized(
-            format!("{} kernel not loaded", algorithm).into(),
-        ))?;
+        let kernel = kernel.ok_or_else(|| {
+            CryptoError::NotInitialized(format!("{} kernel not loaded", algorithm).into())
+        })?;
 
         let max_data_len = data.iter().map(|d| d.len()).max().unwrap_or(0);
         let item_size = key_size + max_data_len + sig_size;
@@ -366,12 +365,21 @@ impl CudaSignatureKernel {
 
         let mem_ptr = memory.as_ptr() as *mut u8;
 
-        for (i, (key, d, sig)) in public_keys.iter().zip(data.iter()).zip(signatures.iter()).enumerate() {
+        for (i, (key, d, sig)) in public_keys
+            .iter()
+            .zip(data.iter())
+            .zip(signatures.iter())
+            .enumerate()
+        {
             let offset = i * item_size;
             unsafe {
                 std::ptr::copy(key.as_ptr(), mem_ptr.wrapping_add(offset), key_size);
                 std::ptr::copy(d.as_ptr(), mem_ptr.wrapping_add(offset + key_size), d.len());
-                std::ptr::copy(sig.as_ptr(), mem_ptr.wrapping_add(offset + key_size + d.len()), sig_size);
+                std::ptr::copy(
+                    sig.as_ptr(),
+                    mem_ptr.wrapping_add(offset + key_size + d.len()),
+                    sig_size,
+                );
             }
         }
 
@@ -382,23 +390,30 @@ impl CudaSignatureKernel {
         let block_dim = (1, 1, 1);
 
         let key_base_ptr = memory.as_ptr() as *mut std::ffi::c_void;
-        let data_base_ptr = (memory.as_ptr() as *mut u8).wrapping_add(key_size) as *mut std::ffi::c_void;
-        let sig_base_ptr = (memory.as_ptr() as *mut u8).wrapping_add(key_size + max_data_len) as *mut std::ffi::c_void;
+        let data_base_ptr =
+            (memory.as_ptr() as *mut u8).wrapping_add(key_size) as *mut std::ffi::c_void;
+        let sig_base_ptr = (memory.as_ptr() as *mut u8).wrapping_add(key_size + max_data_len)
+            as *mut std::ffi::c_void;
 
-        kernel.launch(
-            &stream,
-            grid_dim,
-            block_dim,
-            &[
-                key_base_ptr,
-                data_base_ptr,
-                sig_base_ptr,
-                &(max_data_len as u32),
-                result_ptr,
-            ],
-        ).map_err(|e| {
-            CryptoError::KernelLaunchFailed(format!("Failed to launch batch {} kernel: {}", algorithm, e))
-        })?;
+        kernel
+            .launch(
+                &stream,
+                grid_dim,
+                block_dim,
+                &[
+                    key_base_ptr,
+                    data_base_ptr,
+                    sig_base_ptr,
+                    &(max_data_len as u32),
+                    result_ptr,
+                ],
+            )
+            .map_err(|e| {
+                CryptoError::KernelLaunchFailed(format!(
+                    "Failed to launch batch {} kernel: {}",
+                    algorithm, e
+                ))
+            })?;
 
         stream.synchronize().map_err(|e| {
             CryptoError::SynchronizationFailed(format!("Failed to synchronize stream: {}", e))
@@ -413,14 +428,16 @@ impl CudaSignatureKernel {
         }
 
         let elapsed = start.elapsed();
-        let mut metrics = state.metrics.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut metrics = state
+            .metrics
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         metrics.execution_time_us = elapsed.as_micros() as u64;
         metrics.batch_size = batch_size;
         let total_data_size: usize = data.iter().map(|d| d.len()).sum();
-        metrics.throughput_mbps = (total_data_size as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (total_data_size as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = total_size;
 
         Ok(results)
@@ -432,19 +449,25 @@ impl CudaSignatureKernel {
         data: &[u8],
         signature: &[u8],
     ) -> Result<bool> {
-        let state = self.state.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let state = self
+            .state
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         let start = std::time::Instant::now();
 
-        let kernel = state.ed25519_kernel.as_ref()
+        let kernel = state
+            .ed25519_kernel
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("Ed25519 kernel not loaded".into()))?;
 
-        let stream = state.stream.as_ref()
+        let stream = state
+            .stream
+            .as_ref()
             .ok_or_else(|| CryptoError::NotInitialized("CUDA stream not initialized".into()))?;
 
-        if public_key.len() != ED25519_PUBLIC_KEY_SIZE || signature.len() != ED25519_SIGNATURE_SIZE {
+        if public_key.len() != ED25519_PUBLIC_KEY_SIZE || signature.len() != ED25519_SIGNATURE_SIZE
+        {
             return Err(CryptoError::InvalidInput(
                 "Invalid Ed25519 key or signature size".into(),
             ));
@@ -458,42 +481,56 @@ impl CudaSignatureKernel {
         let mem_ptr = memory.as_ptr() as *mut u8;
         unsafe {
             std::ptr::copy(public_key.as_ptr(), mem_ptr, ED25519_PUBLIC_KEY_SIZE);
-            std::ptr::copy(data.as_ptr(), mem_ptr.wrapping_add(ED25519_PUBLIC_KEY_SIZE), data.len());
-            std::ptr::copy(signature.as_ptr(), mem_ptr.wrapping_add(ED25519_PUBLIC_KEY_SIZE + data.len()), ED25519_SIGNATURE_SIZE);
+            std::ptr::copy(
+                data.as_ptr(),
+                mem_ptr.wrapping_add(ED25519_PUBLIC_KEY_SIZE),
+                data.len(),
+            );
+            std::ptr::copy(
+                signature.as_ptr(),
+                mem_ptr.wrapping_add(ED25519_PUBLIC_KEY_SIZE + data.len()),
+                ED25519_SIGNATURE_SIZE,
+            );
         }
 
         let key_ptr = memory.as_ptr() as *mut std::ffi::c_void;
-        let data_ptr = (memory.as_ptr() as *mut u8).wrapping_add(ED25519_PUBLIC_KEY_SIZE) as *mut std::ffi::c_void;
-        let sig_ptr = (memory.as_ptr() as *mut u8).wrapping_add(ED25519_PUBLIC_KEY_SIZE + data.len()) as *mut std::ffi::c_void;
-        let result_ptr = (memory.as_ptr() as *mut u8).wrapping_add(total_size - 4) as *mut std::ffi::c_void;
+        let data_ptr = (memory.as_ptr() as *mut u8).wrapping_add(ED25519_PUBLIC_KEY_SIZE)
+            as *mut std::ffi::c_void;
+        let sig_ptr = (memory.as_ptr() as *mut u8)
+            .wrapping_add(ED25519_PUBLIC_KEY_SIZE + data.len())
+            as *mut std::ffi::c_void;
+        let result_ptr =
+            (memory.as_ptr() as *mut u8).wrapping_add(total_size - 4) as *mut std::ffi::c_void;
 
         let grid_dim = (1, 1, 1);
         let block_dim = (1, 1, 1);
 
-        kernel.launch(
-            &stream,
-            grid_dim,
-            block_dim,
-            &[key_ptr, data_ptr, sig_ptr, &(data.len() as u32), result_ptr],
-        ).map_err(|e| {
-            CryptoError::KernelLaunchFailed(format!("Failed to launch Ed25519 kernel: {}", e))
-        })?;
+        kernel
+            .launch(
+                &stream,
+                grid_dim,
+                block_dim,
+                &[key_ptr, data_ptr, sig_ptr, &(data.len() as u32), result_ptr],
+            )
+            .map_err(|e| {
+                CryptoError::KernelLaunchFailed(format!("Failed to launch Ed25519 kernel: {}", e))
+            })?;
 
         stream.synchronize().map_err(|e| {
             CryptoError::SynchronizationFailed(format!("Failed to synchronize stream: {}", e))
         })?;
 
-        let result = unsafe {
-            std::ptr::read(result_ptr as *const u32) != 0
-        };
+        let result = unsafe { std::ptr::read(result_ptr as *const u32) != 0 };
 
         let elapsed = start.elapsed();
-        let mut metrics = state.metrics.lock().map_err(|e| {
-            CryptoError::OperationFailed(format!("Mutex poisoned: {}", e))
-        })?;
+        let mut metrics = state
+            .metrics
+            .lock()
+            .map_err(|e| CryptoError::OperationFailed(format!("Mutex poisoned: {}", e)))?;
 
         metrics.execution_time_us = elapsed.as_micros() as u64;
-        metrics.throughput_mbps = (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.throughput_mbps =
+            (data.len() as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
         metrics.memory_transferred_bytes = total_size;
 
         Ok(result)
@@ -528,7 +565,10 @@ impl super::GpuKernel for CudaSignatureKernel {
     }
 
     fn get_metrics(&self) -> Option<super::KernelMetrics> {
-        self.state.lock().ok().map(|s| s.metrics.lock().unwrap().clone())
+        self.state
+            .lock()
+            .ok()
+            .map(|s| s.metrics.lock().unwrap().clone())
     }
 
     fn reset_metrics(&mut self) {
@@ -690,7 +730,8 @@ mod cuda_driver {
         }
 
         pub fn set_used(&self, used: bool) {
-            self.is_used.store(used, std::sync::atomic::Ordering::Relaxed);
+            self.is_used
+                .store(used, std::sync::atomic::Ordering::Relaxed);
         }
 
         pub fn as_ptr(&self) -> *mut std::ffi::c_void {
@@ -719,6 +760,8 @@ mod cuda_driver {
             Ok(())
         }
     }
+
+    pub use {CudaContext, CudaDevice, CudaKernel, CudaMemory, CudaStream};
 }
 
 #[cfg(not(feature = "gpu-cuda"))]
