@@ -3,10 +3,10 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use crate::cipher::provider::SymmetricCipher;
 use crate::error::{CryptoError, Result};
 use crate::i18n::translate;
 use crate::plugin::{CipherPlugin, Plugin};
-use crate::provider::SymmetricCipher;
 use crate::types::Algorithm;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};

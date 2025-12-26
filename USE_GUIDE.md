@@ -533,9 +533,35 @@ let data = secret.as_slice();
 - ✅ **缓存攻击防护**: 避免数据依赖的内存访问
 - ✅ **分支预测防护**: 消除基于秘密数据的分支
 
-### 5.5 自定义插件
+### 5.5 插件系统
 
-注意需要启用 `plugin` 特性。
+Ciphern 提供了强大的插件系统，允许您扩展库的功能。自定义插件可以提供新的加密算法、实现特定领域的加密逻辑，或集成第三方加密模块。
+
+#### 启用插件功能
+
+在 `Cargo.toml` 中启用 `plugin` 特性：
+
+```toml
+[dependencies]
+ciphern = { version = "0.1", features = ["plugin"] }
+```
+
+#### 核心 API
+
+插件系统提供以下主要组件：
+
+| 类型 | 描述 |
+|------|------|
+| `PluginManager` | 插件管理器，负责注册、查询和监控插件 |
+| `Plugin` trait | 所有插件必须实现的核心 trait |
+| `CipherPlugin` trait | 提供加密功能的插件 trait |
+| `PluginMetadata` | 插件元数据描述 |
+
+#### 创建自定义插件
+
+##### 实现 Plugin trait
+
+所有插件必须实现 `Plugin` trait，这是插件系统的核心接口：
 
 ```rust
 use ciphern::plugin::{Plugin, CipherPlugin};
@@ -545,34 +571,201 @@ use ciphern::error::Result;
 use std::sync::Arc;
 use std::any::Any;
 
-struct MyCustomPlugin;
+struct MyCustomPlugin {
+    name: String,
+    version: String,
+    initialized: bool,
+}
+
+impl MyCustomPlugin {
+    pub fn new(name: &str, version: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            version: version.to_string(),
+            initialized: false,
+        }
+    }
+}
 
 impl Plugin for MyCustomPlugin {
-    fn name(&self) -> &str { "my-custom-plugin" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
+
+    fn initialize(&mut self) -> Result<()> {
+        self.initialized = true;
+        Ok(())
+    }
+
+    fn shutdown(&mut self) -> Result<()> {
+        self.initialized = false;
+        Ok(())
+    }
+
+    fn health_check(&self) -> Result<bool> {
+        Ok(self.initialized)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+```
+
+##### 实现 CipherPlugin trait
+
+如果您的插件需要提供加密功能，还需要实现 `CipherPlugin` trait：
+
+```rust
+use ciphern::cipher::provider::AesGcmProvider;
+
+impl CipherPlugin for MyCustomPlugin {
+    fn as_symmetric_cipher(&self) -> Arc<dyn SymmetricCipher> {
+        Arc::new(AesGcmProvider::new())
+    }
+
+    fn supported_algorithms(&self) -> Vec<Algorithm> {
+        vec![Algorithm::AES256GCM, Algorithm::AES192GCM, Algorithm::AES128GCM]
+    }
+}
+```
+
+#### 使用 PluginManager
+
+`PluginManager` 提供了完整的插件生命周期管理功能：
+
+```rust
+use ciphern::plugin::{PluginManager, Plugin, CipherPlugin};
+use std::sync::Arc;
+
+// 创建插件管理器
+let manager = PluginManager::new();
+
+// 创建并注册插件
+let my_plugin = Arc::new(MyCustomPlugin::new("my-custom-plugin", "1.0.0"));
+manager.register_plugin(my_plugin.clone())?;
+
+// 注册加密插件
+manager.register_cipher_plugin(my_plugin as Arc<dyn CipherPlugin>)?;
+
+// 列出所有已注册的插件
+let plugins = manager.list_plugins();
+println!("已注册的插件: {:?}", plugins);
+
+// 获取指定插件
+if let Some(plugin) = manager.get_plugin("my-custom-plugin") {
+    println!("插件名称: {}", plugin.name());
+    println!("插件版本: {}", plugin.version());
+}
+
+// 健康检查
+let health_status = manager.health_check_all();
+for (name, is_healthy) in health_status {
+    println!("插件 {} 健康状态: {}", name, if is_healthy { "正常" } else { "异常" });
+}
+```
+
+#### 完整的插件示例
+
+以下是一个完整的自定义加密插件实现示例：
+
+```rust
+use ciphern::plugin::{Plugin, CipherPlugin, PluginManager};
+use ciphern::cipher::provider::SymmetricCipher;
+use ciphern::types::Algorithm;
+use ciphern::error::Result;
+use std::sync::Arc;
+use std::any::Any;
+
+struct CustomAesPlugin {
+    name: String,
+    version: String,
+}
+
+impl CustomAesPlugin {
+    pub fn new() -> Self {
+        Self {
+            name: "custom-aes-plugin".to_string(),
+            version: "1.0.0".to_string(),
+        }
+    }
+}
+
+impl Plugin for CustomAesPlugin {
+    fn name(&self) -> &str { &self.name }
+    fn version(&self) -> &str { &self.version }
     fn initialize(&mut self) -> Result<()> { Ok(()) }
     fn shutdown(&mut self) -> Result<()> { Ok(()) }
     fn health_check(&self) -> Result<bool> { Ok(true) }
     fn as_any(&self) -> &dyn Any { self }
 }
 
-impl CipherPlugin for MyCustomPlugin {
+impl CipherPlugin for CustomAesPlugin {
     fn as_symmetric_cipher(&self) -> Arc<dyn SymmetricCipher> {
-        // 返回您的 SymmetricCipher 实现
-        todo!()
+        // 返回自定义的 SymmetricCipher 实现
+        todo!("实现您的自定义加密器")
     }
+
     fn supported_algorithms(&self) -> Vec<Algorithm> {
         vec![Algorithm::AES256GCM]
     }
 }
 
-// 注册插件
-use ciphern::plugin::manager::PluginManager;
+fn main() -> Result<()> {
+    // 初始化 Ciphern
+    ciphern::init()?;
 
-let manager = PluginManager::new();
-let my_plugin = Arc::new(MyCustomPlugin);
-manager.register_cipher_plugin(my_plugin)?;
+    // 创建插件管理器
+    let manager = PluginManager::new();
+
+    // 创建并注册插件
+    let custom_plugin = Arc::new(CustomAesPlugin::new());
+    manager.register_cipher_plugin(custom_plugin)?;
+
+    // 验证插件已注册
+    let plugins = manager.list_plugins();
+    assert!(plugins.contains(&"custom-aes-plugin".to_string()));
+
+    println!("✅ 插件注册成功！");
+
+    Ok(())
+}
 ```
+
+#### 插件元数据
+
+`PluginMetadata` 结构用于描述插件的元信息，便于插件管理和发现：
+
+```rust
+use ciphern::plugin::PluginMetadata;
+
+let metadata = PluginMetadata {
+    name: "my-plugin".to_string(),
+    version: "1.0.0".to_string(),
+    author: "Plugin Developer".to_string(),
+    description: "Custom cipher plugin for specialized encryption".to_string(),
+    dependencies: vec!["ciphern".to_string()],
+    checksum: "sha256:...".to_string(),
+};
+```
+
+#### 插件最佳实践
+
+1. **线程安全**: 确保您的插件实现是线程安全的，使用 `Send + Sync` bound
+2. **错误处理**: 在 `initialize()` 和 `shutdown()` 中妥善处理错误
+3. **资源管理**: 在 `shutdown()` 中释放所有占用的资源
+4. **健康检查**: 实现可靠的健康检查逻辑，便于监控系统检测插件状态
+5. **版本管理**: 清晰标注插件版本，避免版本冲突
+
+#### 注意事项
+
+- 插件系统目前处于基础框架阶段，动态加载功能正在完善中
+- 建议在生产环境中使用经过充分测试的稳定插件
+- 插件错误可能会影响整体加密操作，请确保插件质量
 
 ---
 

@@ -489,14 +489,14 @@ cargo build --target aarch64-apple-darwin --release
 - [x] 审计日志系统
 - [x] FIPS 140-3 基础支持
 
-### v0.2.0 - 多语言支持 (部分完成) 🚧
+### v0.2.0 - 多语言支持 (已完成) ✅
 
 - [x] C FFI 接口
 - [x] Java JNI 绑定 (核心功能已实现)
 - [x] Python PyO3 绑定 (核心功能已实现)
 - [x] 内存保护增强 (mlock + 完整性校验)
 - [x] 侧信道防护 (constant-time 操作)
-- [ ] 插件系统完善
+- [x] 插件系统完善
 
 ### v0.3.0 - 扩展性 (规划中) 📋
 
