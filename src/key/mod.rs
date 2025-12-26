@@ -9,6 +9,7 @@ pub mod derivation;
 pub mod kdf_counter;
 pub mod lifecycle;
 pub mod manager;
+pub mod openssl_rsa;
 #[cfg(feature = "post_quantum")]
 pub mod post_quantum;
 pub mod rotation;

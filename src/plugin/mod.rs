@@ -10,6 +10,7 @@ pub mod manager;
 // pub mod hot_reload; // Removed as it is unused and causes warnings
 
 use crate::error::Result;
+use crate::i18n::translate_with_args;
 use crate::plugin::manager::PluginManager;
 use crate::provider::SymmetricCipher;
 use crate::types::Algorithm;
@@ -63,8 +64,15 @@ impl std::fmt::Display for PluginLoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "插件 '{}' 加载错误: {} (可恢复: {})",
-            self.plugin_name, self.reason, self.recoverable
+            "{}",
+            translate_with_args(
+                "plugin.load_error",
+                &[
+                    ("name", &self.plugin_name),
+                    ("reason", &self.reason),
+                    ("recoverable", &self.recoverable.to_string())
+                ]
+            )
         )
     }
 }

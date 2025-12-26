@@ -8,6 +8,7 @@
 //! 本模块提供各种掩码技术，用于防护功耗分析和电磁分析攻击。
 
 use crate::error::{CryptoError, Result};
+use crate::i18n::translate;
 use crate::random::SecureRandom;
 
 // === 布尔掩码 ===
@@ -179,7 +180,9 @@ impl HigherOrderMasking {
     /// 使用所有分片的 XOR 掩码数据
     pub fn mask(&mut self, data: &[u8]) -> Result<Vec<Vec<u8>>> {
         if data.len() != self.shares[0].len() {
-            return Err(CryptoError::InvalidParameter("大小不匹配".into()));
+            return Err(CryptoError::InvalidParameter(translate(
+                "error.size_mismatch",
+            )));
         }
 
         // 计算最后一个分片为数据 XOR 所有其他分片
@@ -217,7 +220,9 @@ impl HigherOrderMasking {
     /// 刷新掩码（重新随机化分片而不改变值）
     pub fn refresh(&mut self) -> Result<()> {
         if self.shares.len() != self.order + 1 {
-            return Err(CryptoError::InvalidParameter("无效的分片数量".into()));
+            return Err(CryptoError::InvalidParameter(translate(
+                "error.invalid_share_count",
+            )));
         }
         for i in 0..self.order {
             let mut new_mask = vec![0u8; self.shares[i].len()];

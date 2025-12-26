@@ -4,6 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::{CryptoError, Result};
+use crate::i18n::translate;
 use crate::plugin::{CipherPlugin, Plugin};
 use crate::provider::SymmetricCipher;
 use crate::types::Algorithm;
@@ -33,17 +34,16 @@ impl PluginManager {
         let mut plugins = self
             .plugins
             .write()
-            .map_err(|_| CryptoError::PluginError("获取插件注册表锁失败".into()))?;
+            .map_err(|_| CryptoError::PluginError(translate("plugin.registry_lock_failed")))?;
 
         plugins.insert(plugin.name().to_string(), plugin.clone());
         Ok(())
     }
 
     pub fn register_cipher_plugin(&self, plugin: Arc<dyn CipherPlugin>) -> Result<()> {
-        let mut cipher_plugins = self
-            .cipher_plugins
-            .write()
-            .map_err(|_| CryptoError::PluginError("获取密码插件注册表锁失败".into()))?;
+        let mut cipher_plugins = self.cipher_plugins.write().map_err(|_| {
+            CryptoError::PluginError(translate("plugin.cipher_registry_lock_failed"))
+        })?;
 
         for algo in plugin.supported_algorithms() {
             cipher_plugins.insert(algo, plugin.clone());

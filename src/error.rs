@@ -189,7 +189,7 @@ mod i18n_error_impl {
                 ]
             }
             CryptoError::UnsupportedAlgorithm(alg) => {
-                vec![("algorithm", alg.clone())]
+                vec![("message", alg.clone())]
             }
             CryptoError::MemoryProtectionFailed(msg)
             | CryptoError::FipsError(msg)

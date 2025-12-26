@@ -4,7 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::error::{CryptoError, Result};
-use crate::i18n::translate_with_args;
+use crate::i18n::{translate, translate_with_args};
 use crate::plugin::{Plugin, PluginMetadata};
 use libloading::{Library, Symbol};
 use sha2::{Digest, Sha256};
@@ -116,7 +116,9 @@ impl PluginLoader {
                 .map_err(|e| CryptoError::PluginError(format!("解析元数据失败: {}", e)))?;
             // 验证校验和与实际文件内容匹配
             if metadata.checksum != checksum {
-                return Err(CryptoError::PluginError("插件校验和不匹配".to_string()));
+                return Err(CryptoError::PluginError(
+                    translate("plugin.checksum_mismatch").to_string(),
+                ));
             }
             metadata
         } else {
@@ -160,11 +162,14 @@ impl PluginLoader {
 
             log::info!(
                 "{}",
-                translate_with_args("plugin.unloaded", &[("name", &name)])
+                translate_with_args("plugin.unloaded", &[("name", name)])
             );
             Ok(())
         } else {
-            Err(CryptoError::PluginError(format!("插件 '{}' 不存在", name)))
+            Err(CryptoError::PluginError(translate_with_args(
+                "plugin.not_found",
+                &[("name", name)],
+            )))
         }
     }
 

@@ -8,6 +8,7 @@
 //! 本模块提供针对故障注入攻击的检测和保护，包括时钟毛刺、电压故障和电磁脉冲。
 
 use crate::error::{CryptoError, Result};
+use crate::i18n::translate;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -251,7 +252,9 @@ impl ErrorCorrectionCode {
             ));
         }
 
-        Err(CryptoError::SideChannelError("未知错误条件".into()))
+        Err(CryptoError::SideChannelError(translate(
+            "error.unknown_error_condition",
+        )))
     }
 }
 
@@ -286,7 +289,9 @@ impl ClockGlitchDetector {
                 // 仅在正常操作中检查非常快的毛刺
                 // 停顿检测（delta > threshold * 100）对测试不太敏感
                 if delta < self.threshold || delta > self.threshold * 100 {
-                    return Err(CryptoError::SideChannelError("检测到时钟毛刺".into()));
+                    return Err(CryptoError::SideChannelError(translate(
+                        "error.clock_glitch_detected",
+                    )));
                 }
             }
         }
@@ -440,7 +445,9 @@ impl FaultInjectionShield {
 
         // 检查一般故障检测
         if self.error_detector.detect_fault() {
-            return Err(CryptoError::SideChannelError("检测到故障注入".into()));
+            return Err(CryptoError::SideChannelError(translate(
+                "error.fault_injection_detected",
+            )));
         }
 
         // 更新冗余

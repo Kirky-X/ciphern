@@ -21,6 +21,21 @@ use std::sync::Mutex;
 #[cfg(feature = "encrypt")]
 use crate::key::Key;
 
+/// 计算卡方分布在显著性水平 0.01 下的临界值
+/// 使用 Wilson-Hilferty 近似: χ²_α ≈ df * (1 - 2/(9df) + z_α * sqrt(2/(9df)))³
+/// 其中 z_0.99 = 2.326 (标准正态分布的 0.99 分位数)
+fn chi_squared_critical_value_99(df: f64) -> f64 {
+    const Z_99: f64 = 2.3263478740408408;
+    if df <= 0.0 {
+        return f64::INFINITY;
+    }
+    if df < 1.0 {
+        return f64::INFINITY;
+    }
+    let term = 1.0 - 2.0 / (9.0 * df) + Z_99 * (2.0 / (9.0 * df)).sqrt();
+    df * term.powi(3)
+}
+
 /// FIPS 自检测试结果
 #[derive(Debug, Clone)]
 pub struct SelfTestResult {
@@ -394,18 +409,10 @@ impl FipsSelfTestEngine {
         let algo = Algorithm::RSA2048;
         let signer = REGISTRY.get_signer(algo)?;
 
-        // 为 FIPS 合规性生成测试 RSA 密钥对
-        use rand::rngs::OsRng;
-        use rsa::{pkcs8::EncodePrivateKey, RsaPrivateKey};
-
-        let mut rng = OsRng;
-        let private_key_rsa = RsaPrivateKey::new(&mut rng, 2048)
+        let der_bytes = crate::key::openssl_rsa::generate_openssl_rsa_private_key(2048)
             .map_err(|e| CryptoError::KeyError(format!("生成 RSA 密钥失败: {}", e)))?;
-
-        let pkcs8_bytes = private_key_rsa
-            .to_pkcs8_der()
+        let pkcs8_bytes = crate::key::openssl_rsa::convert_rsa_der_to_pkcs8(&der_bytes)
             .map_err(|e| CryptoError::KeyError(format!("转换为 PKCS#8 失败: {}", e)))?;
-        let pkcs8_bytes = pkcs8_bytes.as_bytes().to_vec();
 
         // 从预生成的 PKCS#8 创建私钥用于 FIPS KAT
         let private_key = Key::new_active(algo, pkcs8_bytes.clone())?;
@@ -884,9 +891,6 @@ impl FipsSelfTestEngine {
             // 为 PKCS#8 兼容性动态生成 RSA 测试密钥
             let key_bytes = match algo {
                 Algorithm::RSA2048 | Algorithm::RSA3072 | Algorithm::RSA4096 => {
-                    use rand::rngs::OsRng;
-                    use rsa::{pkcs8::EncodePrivateKey, RsaPrivateKey};
-
                     let bits = match algo {
                         Algorithm::RSA2048 => 2048,
                         Algorithm::RSA3072 => 3072,
@@ -894,16 +898,16 @@ impl FipsSelfTestEngine {
                         _ => unreachable!(),
                     };
 
-                    let mut rng = OsRng;
-                    let private_key_rsa = RsaPrivateKey::new(&mut rng, bits).map_err(|e| {
-                        CryptoError::KeyError(format!("Failed to generate RSA key: {}", e))
-                    })?;
+                    let der_bytes = crate::key::openssl_rsa::generate_openssl_rsa_private_key(bits)
+                        .map_err(|e| {
+                            CryptoError::KeyError(format!("Failed to generate RSA key: {}", e))
+                        })?;
+                    let pkcs8_bytes = crate::key::openssl_rsa::convert_rsa_der_to_pkcs8(&der_bytes)
+                        .map_err(|e| {
+                            CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e))
+                        })?;
 
-                    let pkcs8_bytes = private_key_rsa.to_pkcs8_der().map_err(|e| {
-                        CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e))
-                    })?;
-
-                    pkcs8_bytes.as_bytes().to_vec()
+                    pkcs8_bytes
                 }
                 _ => {
                     return Err(CryptoError::UnsupportedAlgorithm(format!(
@@ -1251,13 +1255,10 @@ impl FipsSelfTestEngine {
         let chi_squared =
             4.0 * block_size as f64 * proportions.iter().map(|&p| (p - 0.5).powi(2)).sum::<f64>();
 
-        // P-value = igamc(N/2, chi_squared/2)
-        // Pass if P-value >= 0.01
-        // Equivalent to chi_squared <= inverse_cdf(0.99) for df = N
-        use statrs::distribution::{ChiSquared, ContinuousCDF};
-        let df = num_blocks as f64;
-        let dist = ChiSquared::new(df).unwrap();
-        let threshold = dist.inverse_cdf(0.99);
+        // 使用 Wilson-Hilferty 近似计算卡方分布的 0.99 分位数
+        // 对于 df > 30 的情况,χ²_α ≈ df * (1 - 2/(9df) + z_α * sqrt(2/(9df)))³
+        // 其中 z_0.99 ≈ 2.326
+        let threshold = chi_squared_critical_value_99(num_blocks as f64);
 
         chi_squared <= threshold
     }

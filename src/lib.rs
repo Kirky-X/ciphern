@@ -218,7 +218,9 @@ impl Cipher {
             if result.is_ok() {
                 Ok(())
             } else {
-                Err(CryptoError::DecryptionFailed("解密操作失败".into()))
+                Err(CryptoError::DecryptionFailed(translate(
+                    "error.decryption_failed",
+                )))
             },
         );
 

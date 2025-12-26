@@ -5,6 +5,7 @@
 
 use crate::cipher::pkcs7::Pkcs7Padding;
 use crate::error::{CryptoError, Result};
+use crate::i18n::translate;
 use crate::key::Key;
 use crate::provider::SymmetricCipher;
 use crate::random::SecureRandom;
@@ -232,7 +233,9 @@ impl SymmetricCipher for Sm4GcmProvider {
 
         // FIPS 检查：SM4 通常不被 FIPS 140-3 批准
         if crate::fips::FipsContext::is_enabled() {
-            return Err(CryptoError::FipsError("FIPS 模式下不允许使用 SM4".into()));
+            return Err(CryptoError::FipsError(translate(
+                "error.sm4_not_allowed_in_fips_mode",
+            )));
         }
 
         // 生成 Nonce
@@ -270,7 +273,9 @@ impl SymmetricCipher for Sm4GcmProvider {
 
         if ciphertext.len() < 12 + 16 {
             // Nonce(12) + Tag(16)
-            return Err(CryptoError::DecryptionFailed("无效长度".into()));
+            return Err(CryptoError::DecryptionFailed(translate(
+                "error.invalid_length",
+            )));
         }
 
         let (nonce, data) = ciphertext.split_at(12);

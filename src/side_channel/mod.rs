@@ -13,6 +13,8 @@
 //! - Cache-based attacks
 
 use crate::error::{CryptoError, Result};
+#[cfg(feature = "i18n")]
+use crate::i18n::translate;
 use rand::SeedableRng;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -301,7 +303,9 @@ where
 
         if detector.detect_fault() {
             context.increment_error_detection_triggers();
-            return Err(CryptoError::SideChannelError("检测到故障注入".into()));
+            return Err(CryptoError::SideChannelError(translate(
+                "error.fault_injection_detected",
+            )));
         }
 
         result

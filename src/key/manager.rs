@@ -14,9 +14,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 // PKCS#8 key generation for signature algorithms
+use crate::key::openssl_rsa::{convert_rsa_der_to_pkcs8, generate_openssl_rsa_private_key};
 use ring::rand::SystemRandom;
 use ring::signature::{EcdsaKeyPair, Ed25519KeyPair};
-use rsa::{pkcs8::EncodePrivateKey, RsaPrivateKey};
 
 /// 增强的密钥管理器，支持完整的生命周期管理
 pub struct KeyManager {
@@ -80,8 +80,6 @@ impl KeyManager {
                 Ok(pkcs8_bytes.as_ref().to_vec())
             }
             Algorithm::RSA2048 | Algorithm::RSA3072 | Algorithm::RSA4096 => {
-                // 为RSA算法生成PKCS#8密钥
-                let mut rng = rand::rngs::OsRng;
                 let key_size = match algorithm {
                     Algorithm::RSA2048 => 2048,
                     Algorithm::RSA3072 => 3072,
@@ -89,15 +87,10 @@ impl KeyManager {
                     _ => 2048,
                 };
 
-                let private_key = RsaPrivateKey::new(&mut rng, key_size).map_err(|e| {
-                    CryptoError::KeyError(format!("Failed to generate RSA key: {}", e))
-                })?;
+                let der_bytes = generate_openssl_rsa_private_key(key_size)?;
+                let pkcs8_bytes = convert_rsa_der_to_pkcs8(&der_bytes)?;
 
-                let pkcs8_bytes = private_key.to_pkcs8_der().map_err(|e| {
-                    CryptoError::KeyError(format!("Failed to convert to PKCS#8: {}", e))
-                })?;
-
-                Ok(pkcs8_bytes.as_bytes().to_vec())
+                Ok(pkcs8_bytes)
             }
             _ => {
                 // 对于对称算法，生成随机字节
