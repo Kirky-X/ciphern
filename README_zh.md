@@ -35,6 +35,7 @@
 - **多语言支持**: C FFI 接口，基础 Java JNI 和 Python PyO3 绑定
 - **插件化架构**: 支持自定义加密算法插件（基础框架）
 - **丰富测试**: 包含单元测试、集成测试和性能测试
+- **国际化 (i18n)**: 完整的国际化支持，支持英文和中文本地化，支持带参数的字符串插值
 
 ### 🌐 标准兼容
 
@@ -374,6 +375,34 @@ use ciphern::plugin::{Plugin, CipherPlugin};
 // 通过实现 Plugin 和 CipherPlugin trait 来扩展算法
 ```
 
+### 国际化 (i18n)
+
+```toml
+[dependencies]
+ciphern = { version = "0.1", features = ["i18n"] }
+```
+
+```rust
+use ciphern::i18n::{set_locale, tr, tr_with_args};
+
+// 设置语言为英文或中文
+set_locale("en"); // 或 "zh"
+
+// 简单翻译
+let message = tr("common.ok")?;  // 英文返回 "OK"，中文返回 "确定"
+
+// 带参数的翻译
+let error_msg = tr_with_args("error.key_not_found_in_keyring", 
+    &[("key_id", "my-key"), ("keyring", "main"), ("reason", "not found")])?;
+// 返回: "Key my-key not found in keyring main: not found"
+
+// 检查支持的语言
+use ciphern::i18n::{is_locale_supported, get_supported_locales};
+assert!(is_locale_supported("en"));
+assert!(is_locale_supported("zh"));
+let locales = get_supported_locales(); // 返回 vec!["en", "zh"]
+```
+
 ---
 
 ## 📊 性能指标
@@ -497,6 +526,7 @@ cargo build --target aarch64-apple-darwin --release
 - [x] 内存保护增强 (mlock + 完整性校验)
 - [x] 侧信道防护 (constant-time 操作)
 - [x] 插件系统完善
+- [x] 国际化 (i18n) 支持英文和中文本地化
 
 ### v0.3.0 - 扩展性 (规划中) 📋
 

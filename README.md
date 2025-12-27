@@ -35,6 +35,7 @@
 - **Multi-language Support**: C FFI interface, basic Java JNI and Python PyO3 bindings
 - **Pluggable Architecture**: Supports custom cryptographic algorithm plugins (basic framework)
 - **Rich Testing**: Includes unit tests, integration tests, and performance tests
+- **Internationalization (i18n)**: Full i18n support with English and Chinese locales, string interpolation with arguments
 
 ### 🌐 Standard Compatibility
 
@@ -356,6 +357,34 @@ use ciphern::plugin::{Plugin, CipherPlugin};
 // Extend algorithms by implementing Plugin and CipherPlugin traits
 ```
 
+### Internationalization (i18n)
+
+```toml
+[dependencies]
+ciphern = { version = "0.1", features = ["i18n"] }
+```
+
+```rust
+use ciphern::i18n::{set_locale, tr, tr_with_args};
+
+// Set locale to English or Chinese
+set_locale("en"); // or "zh"
+
+// Simple translation
+let message = tr("common.ok")?;  // Returns "OK" in English
+
+// Translation with arguments
+let error_msg = tr_with_args("error.key_not_found_in_keyring", 
+    &[("key_id", "my-key"), ("keyring", "main"), ("reason", "not found")])?;
+// Returns: "Key my-key not found in keyring main: not found"
+
+// Check supported locales
+use ciphern::i18n::{is_locale_supported, get_supported_locales};
+assert!(is_locale_supported("en"));
+assert!(is_locale_supported("zh"));
+let locales = get_supported_locales(); // Returns vec!["en", "zh"]
+```
+
 ---
 
 ## 📊 Performance Metrics
@@ -478,14 +507,15 @@ cargo build --target aarch64-apple-darwin --release
 - [x] Audit logging system
 - [x] FIPS 140-3 basic support
 
-### v0.2.0 - Multi-language Support (Partially Completed) 🚧
+### v0.2.0 - Multi-language Support (Completed) ✅
 
 - [x] C FFI interface
 - [x] Java JNI bindings (core functionality implemented)
 - [x] Python PyO3 bindings (core functionality implemented)
 - [x] Memory protection enhancements (mlock + integrity verification)
 - [x] Side-channel protection (constant-time operations)
-- [ ] Plugin system improvements
+- [x] Plugin system improvements
+- [x] Internationalization (i18n) with English and Chinese locale support
 
 ### v0.3.0 - Extensibility (Planned) 📋
 
