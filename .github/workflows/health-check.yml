@@ -109,6 +109,10 @@ jobs:
           components: rustfmt, clippy
           targets: ${{ matrix.target }}
 
+      - name: Set Python version for PyO3 cross-compile
+        if: matrix.target != 'x86_64-unknown-linux-gnu'
+        run: echo "PYO3_CROSS_PYTHON_VERSION=3.12" >> $GITHUB_ENV
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
