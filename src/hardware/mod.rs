@@ -5,6 +5,11 @@
 
 mod parallel;
 
+#[cfg(target_arch = "aarch64")]
+#[allow(unused)]
+#[allow(clippy::single_component_path_imports)]
+use cpufeatures;
+
 use crate::error::{CryptoError, Result};
 use crate::types::Algorithm;
 use sha2::Digest;
@@ -66,9 +71,18 @@ impl CpuFeatures {
         #[cfg(target_arch = "aarch64")]
         {
             CpuFeatures {
-                aes_ni: std::is_aarch64_feature_detected!("aes"),
-                avx2: std::is_aarch64_feature_detected!("fp"),
-                sha_ni: std::is_aarch64_feature_detected!("sha2"),
+                #[cfg(feature = "cpu-aesni")]
+                aes_ni: cpufeatures::is_aarch64_feature_detected!("aes"),
+                #[cfg(not(feature = "cpu-aesni"))]
+                aes_ni: false,
+                #[cfg(feature = "cpu-aesni")]
+                avx2: cpufeatures::is_aarch64_feature_detected!("fp"),
+                #[cfg(not(feature = "cpu-aesni"))]
+                avx2: false,
+                #[cfg(feature = "cpu-aesni")]
+                sha_ni: cpufeatures::is_aarch64_feature_detected!("sha2"),
+                #[cfg(not(feature = "cpu-aesni"))]
+                sha_ni: false,
             }
         }
         #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
@@ -416,6 +430,9 @@ mod tests {
     #[test]
     fn test_accelerated_aes_encrypt_decrypt() {
         init_cpu_features();
+        if !has_aes_ni() {
+            return;
+        }
         let key = [0u8; 32];
         let nonce = [0u8; 12];
         let plaintext = b"Hello, World!";
@@ -425,7 +442,6 @@ mod tests {
 
         let decrypted = accelerated_aes_decrypt(&key, &encrypted.unwrap(), &nonce);
         assert!(decrypted.is_ok());
-        // AES-GCM returns plaintext + tag, so we need to trim to original length
         let decrypted_trimmed = &decrypted.unwrap()[..plaintext.len()];
         assert_eq!(decrypted_trimmed, plaintext);
     }

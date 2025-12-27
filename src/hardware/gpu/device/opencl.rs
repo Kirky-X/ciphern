@@ -12,14 +12,17 @@ use crate::error::{CryptoError, Result};
 use std::sync::Arc;
 
 #[cfg(feature = "gpu-opencl")]
+use ocl::{Context, Device, DeviceType, Platform};
+
+#[cfg(feature = "gpu-opencl")]
 pub struct OpenclDevice {
     device_id: usize,
     device_name: String,
     capabilities: DeviceCapabilities,
     state: DeviceState,
-    platform: Option<ocl::Platform>,
-    device: Option<ocl::Device>,
-    context: Option<ocl::Context>,
+    platform: Option<Platform>,
+    device: Option<Device>,
+    context: Option<Context>,
 }
 
 #[cfg(feature = "gpu-opencl")]
@@ -27,12 +30,12 @@ impl OpenclDevice {
     pub fn enumerate() -> Result<Vec<Self>> {
         let mut devices = Vec::new();
 
-        let platforms = ocl::Platform::list()
+        let platforms = Platform::list()
             .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
 
         let mut device_count = 0usize;
         for platform in &platforms {
-            let platform_devices = ocl::Device::list_by_type(platform, None)
+            let platform_devices = Device::list_by_type(platform, None)
                 .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
 
             for device in platform_devices {
@@ -46,7 +49,7 @@ impl OpenclDevice {
                 let device_type = device
                     .device_type()
                     .map(|dt| {
-                        if dt.contains(ocl::DeviceType::GPU) {
+                        if dt.contains(DeviceType::GPU) {
                             if name.contains("AMD") || name.contains("Radeon") {
                                 XpuType::AmdGpu
                             } else if name.contains("Intel") {
@@ -54,7 +57,7 @@ impl OpenclDevice {
                             } else {
                                 XpuType::Unknown
                             }
-                        } else if dt.contains(ocl::DeviceType::CPU) {
+                        } else if dt.contains(DeviceType::CPU) {
                             XpuType::IntelCpu
                         } else {
                             XpuType::Unknown
@@ -130,7 +133,7 @@ impl XpuDevice for OpenclDevice {
             CryptoError::HardwareAccelerationUnavailable("OpenCL device not found".into())
         })?;
 
-        let context = ocl::Context::builder()
+        let context = Context::builder()
             .devices(device.clone())
             .build()
             .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;

@@ -181,7 +181,7 @@ impl<T: Copy> GpuBuffer<T> {
 
     #[inline]
     pub fn memory_type(&self) -> MemoryType {
-        self.memory_type
+        self.memory_type.clone()
     }
 
     #[inline]
@@ -354,7 +354,7 @@ impl<T: Copy> Clone for GpuBuffer<T> {
         Self {
             ptr: self.ptr,
             size: self.size,
-            memory_type: self.memory_type,
+            memory_type: self.memory_type.clone(),
             device_id: self.device_id,
             is_owner: false,
         }
