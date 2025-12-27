@@ -335,7 +335,7 @@ pub unsafe fn write_c_string(s: &str, buf: *mut c_char, size: usize) -> Result<(
         return Err(CiphernError::BufferTooSmall);
     }
 
-    ptr::copy_nonoverlapping(bytes.as_ptr(), buf as *mut u8, bytes.len());
+    ptr::copy_nonoverlapping(bytes.as_ptr(), buf, bytes.len());
     Ok(())
 }
 

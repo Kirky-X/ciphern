@@ -272,7 +272,7 @@ pub fn cleanup_context() {
 pub fn is_context_ready() -> bool {
     if let Ok(global) = GLOBAL_CONTEXT.lock() {
         if let Some(ref context) = *global {
-            return context.state() == ContextState::Ready;
+            return (context as &Arc<FfiContext>).state() == ContextState::Ready;
         }
     }
     false
