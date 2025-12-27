@@ -274,7 +274,7 @@ pub type Result<T> = std::result::Result<T, CryptoError>;
 #[cfg(feature = "python_ffi")]
 impl std::convert::From<CryptoError> for pyo3::PyErr {
     fn from(error: CryptoError) -> Self {
-        PyRuntimeError::new_err(error.to_string())
+        pyo3::exceptions::PyRuntimeError::new_err(error.to_string())
     }
 }
 
