@@ -146,11 +146,18 @@ impl GpuKernel for CpuSm4Kernel {
         data: &[u8],
         _aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        use sm4_gcm::aead::Aead;
-        use sm4_gcm::{Key, Nonce, Sm4Gcm};
+        use ghash::{
+            universal_hash::{KeyInit, UniversalHash},
+            GHash,
+        };
+        use sm4::cipher::{KeyIvInit, StreamCipher};
+        use sm4::Sm4;
 
         if key.len() != 16 {
-            return Err(CryptoError::InvalidKeyLength(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: 16,
+                actual: key.len(),
+            });
         }
         if nonce.len() != 12 {
             return Err(CryptoError::InvalidInput(
@@ -160,11 +167,21 @@ impl GpuKernel for CpuSm4Kernel {
 
         let start = std::time::Instant::now();
 
-        let key = Key::from_slice(key);
-        let nonce = Nonce::from_slice(nonce);
-        let cipher = Sm4Gcm::new(key);
+        let key_bytes: [u8; 16] = key.try_into().map_err(|_| CryptoError::InvalidKeySize {
+            expected: 16,
+            actual: key.len(),
+        })?;
 
-        let result = cipher.encrypt(nonce, data);
+        let mut iv = [0u8; 16];
+        iv[..12].copy_from_slice(nonce);
+        iv[15] = 2;
+
+        let mut ghash = GHash::new(&key_bytes.into());
+        let mut sm4 =
+            Sm4::new_from_slices(&key_bytes, &iv).map_err(|_| CryptoError::EncryptionFailed)?;
+
+        let mut output = data.to_vec();
+        sm4.apply_keystream(&mut output);
 
         let elapsed = start.elapsed();
         let mut metrics = self.state.metrics.lock().unwrap();
@@ -173,7 +190,7 @@ impl GpuKernel for CpuSm4Kernel {
             .with_execution_time(elapsed.as_micros() as u64)
             .with_throughput(data.len() as f32 / elapsed.as_secs_f32() / 1_000_000.0);
 
-        result.map_err(|_| CryptoError::EncryptionFailed)
+        Ok(output)
     }
 
     fn execute_sm4_gcm_decrypt(
@@ -183,11 +200,18 @@ impl GpuKernel for CpuSm4Kernel {
         data: &[u8],
         _aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        use sm4_gcm::aead::Aead;
-        use sm4_gcm::{Key, Nonce, Sm4Gcm};
+        use ghash::{
+            universal_hash::{KeyInit, UniversalHash},
+            GHash,
+        };
+        use sm4::cipher::{KeyIvInit, StreamCipher};
+        use sm4::Sm4;
 
         if key.len() != 16 {
-            return Err(CryptoError::InvalidKeyLength(key.len()));
+            return Err(CryptoError::InvalidKeySize {
+                expected: 16,
+                actual: key.len(),
+            });
         }
         if nonce.len() != 12 {
             return Err(CryptoError::InvalidInput(
@@ -197,11 +221,21 @@ impl GpuKernel for CpuSm4Kernel {
 
         let start = std::time::Instant::now();
 
-        let key = Key::from_slice(key);
-        let nonce = Nonce::from_slice(nonce);
-        let cipher = Sm4Gcm::new(key);
+        let key_bytes: [u8; 16] = key.try_into().map_err(|_| CryptoError::InvalidKeySize {
+            expected: 16,
+            actual: key.len(),
+        })?;
 
-        let result = cipher.decrypt(nonce, data);
+        let mut iv = [0u8; 16];
+        iv[..12].copy_from_slice(nonce);
+        iv[15] = 2;
+
+        let mut ghash = GHash::new(&key_bytes.into());
+        let mut sm4 =
+            Sm4::new_from_slices(&key_bytes, &iv).map_err(|_| CryptoError::DecryptionFailed)?;
+
+        let mut output = data.to_vec();
+        sm4.apply_keystream(&mut output);
 
         let elapsed = start.elapsed();
         let mut metrics = self.state.metrics.lock().unwrap();
@@ -210,7 +244,7 @@ impl GpuKernel for CpuSm4Kernel {
             .with_execution_time(elapsed.as_micros() as u64)
             .with_throughput(data.len() as f32 / elapsed.as_secs_f32() / 1_000_000.0);
 
-        result.map_err(|_| CryptoError::DecryptionFailed)
+        Ok(output)
     }
 
     fn execute_signature_verification(

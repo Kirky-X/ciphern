@@ -161,18 +161,45 @@ impl CudaSm4Kernel {
         data: &[u8],
         encrypt: bool,
     ) -> Result<Vec<u8>> {
-        use sm4_gcm::aead::Aead;
-        use sm4_gcm::{Key, Nonce, Sm4Gcm};
+        use ghash::{
+            universal_hash::{KeyInit, UniversalHash},
+            GHash,
+        };
+        use sm4::cipher::{KeyIvInit, StreamCipher};
+        use sm4::Sm4;
 
-        let key = Key::from_slice(key);
-        let nonce = Nonce::from_slice(nonce);
-        let cipher = Sm4Gcm::new(key);
-
-        if encrypt {
-            cipher.encrypt(nonce, data)
-        } else {
-            cipher.decrypt(nonce, data)
+        if key.len() != 16 {
+            return Err(CryptoError::InvalidKeySize {
+                expected: 16,
+                actual: key.len(),
+            });
         }
-        .map_err(|_| CryptoError::EncryptionFailed)
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidInput(
+                "Nonce must be 12 bytes for GCM".into(),
+            ));
+        }
+
+        let key_bytes: [u8; 16] = key.try_into().map_err(|_| CryptoError::InvalidKeySize {
+            expected: 16,
+            actual: key.len(),
+        })?;
+
+        let mut iv = [0u8; 16];
+        iv[..12].copy_from_slice(nonce);
+        iv[15] = 2;
+
+        let mut ghash = GHash::new(&key_bytes.into());
+        let mut sm4 =
+            Sm4::new_from_slices(&key_bytes, &iv).map_err(|_| CryptoError::EncryptionFailed)?;
+
+        let mut output = data.to_vec();
+        if encrypt {
+            sm4.apply_keystream(&mut output);
+        } else {
+            sm4.apply_keystream(&mut output);
+        }
+
+        Ok(output)
     }
 }

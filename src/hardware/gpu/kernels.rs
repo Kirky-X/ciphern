@@ -226,9 +226,7 @@ impl KernelManager {
     pub fn shutdown_all(&self) -> Result<()> {
         for kernel in &self.kernels {
             if kernel.is_available() {
-                let mut kernel_mut = std::sync::Mutex::new(kernel);
-                // 注意：这里需要处理 Mutex poison
-                if let Ok(mut k) = kernel_mut.lock() {
+                if let Ok(mut k) = Arc::clone(kernel).lock() {
                     let _ = k.shutdown();
                 }
             }
