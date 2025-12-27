@@ -22,7 +22,10 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy, cargo-audit
+          components: rustfmt, clippy
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -188,7 +191,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: [build-release, sign-artifacts]
+    needs: [ build-release, sign-artifacts ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
