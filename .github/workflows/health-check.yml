@@ -2,9 +2,9 @@ name: Health Check
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,20 +15,35 @@ concurrency:
 
 jobs:
   check:
-    name: Rust Check
-    runs-on: ubuntu-latest
+    name: Rust ${{ matrix.rust_version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        rust_version: [stable, 1.70.0, beta]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ matrix.rust_version }}
           components: rustfmt, clippy, cargo-audit
+          targets: ${{ matrix.target }}
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "ci-shared"
+          shared-key: "ci-shared-${{ matrix.rust_version }}"
           cache-targets: false
 
       - name: Cargo Audit
@@ -46,7 +61,15 @@ jobs:
       - name: Run Tests
         run: cargo test --all-targets --all-features
 
+      - name: Cache grcov
+        id: cache-grcov
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/grcov
+          key: grcov-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install grcov
+        if: steps.cache-grcov.outputs.cache-hit != 'true'
         run: cargo install grcov
 
       - name: Generate Code Coverage
@@ -59,3 +82,36 @@ jobs:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
+
+  cross-platform-check:
+    name: Cross-platform Check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - x86_64-pc-windows-msvc
+          - aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cross-${{ matrix.target }}"
+          cache-targets: false
+
+      - name: Build for ${{ matrix.target }}
+        run: cargo build --all-features --target ${{ matrix.target }}
+
+      - name: Clippy for ${{ matrix.target }}
+        run: cargo clippy --all-features --target ${{ matrix.target }} -- -D warnings
