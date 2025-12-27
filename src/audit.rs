@@ -106,6 +106,12 @@ fn register_metrics() {
     }
 }
 
+// 全局实例定义
+lazy_static! {
+    static ref LOGGER: AuditLogger = AuditLogger::new();
+    static ref PERFORMANCE_MONITOR: Arc<PerformanceMonitor> = Arc::new(PerformanceMonitor::new());
+}
+
 /// Aggregated performance statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceStats {
@@ -819,11 +825,6 @@ impl AuditLogger {
             }
         });
     }
-}
-
-lazy_static! {
-    static ref LOGGER: AuditLogger = AuditLogger::new();
-    static ref PERFORMANCE_MONITOR: Arc<PerformanceMonitor> = Arc::new(PerformanceMonitor::new());
 }
 
 // 全局性能监控函数
