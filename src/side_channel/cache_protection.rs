@@ -8,10 +8,12 @@
 //! This module provides protection against cache-timing attacks and cache-based
 //! side-channel attacks through cache flushing, prefetching, and access randomization.
 
-use crate::error::Result;
+use crate::error::{CryptoError, Result};
 use rand::{RngCore, SeedableRng};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use std::arch::asm;
+use std::ptr;
+use std::sync::atomic;
 use std::time::Duration;
 
 /// Cache protection configuration
