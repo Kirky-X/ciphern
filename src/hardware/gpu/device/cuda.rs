@@ -7,10 +7,6 @@
 //!
 //! 使用 cudarc 库与 NVIDIA GPU 通信
 
-use super::{DeviceCapabilities, DeviceHealth, DeviceState, XpuDevice, XpuKernel, XpuType};
-use crate::error::{CryptoError, Result};
-use std::sync::Arc;
-
 #[cfg(feature = "gpu-cuda")]
 pub struct CudaDevice {
     device_id: usize,

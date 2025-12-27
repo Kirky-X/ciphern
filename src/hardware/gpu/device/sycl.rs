@@ -7,10 +7,6 @@
 //!
 //! 使用 oneAPI SYCL 与 Intel GPU/CPU 通信
 
-use super::{DeviceCapabilities, DeviceHealth, DeviceState, XpuDevice, XpuKernel, XpuType};
-use crate::error::{CryptoError, Result};
-use std::sync::Arc;
-
 #[cfg(feature = "gpu-sycl")]
 pub struct SyclDevice {
     device_id: usize,

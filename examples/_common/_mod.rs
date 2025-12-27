@@ -49,22 +49,24 @@
 
 mod common;
 
-pub mod symmetric_encryption;
 pub mod digital_signatures;
-pub mod key_management;
-pub mod key_derivation;
+pub mod fips_compliance;
 pub mod hashing;
+pub mod java_api;
+pub mod key_derivation;
+pub mod key_management;
+pub mod python_api;
 pub mod random_generation;
 pub mod streaming_encryption;
-pub mod fips_compliance;
-pub mod python_api;
-pub mod java_api;
+pub mod symmetric_encryption;
 
 #[cfg(test)]
 mod tests {
     use crate::common::setup;
-    use crate::{symmetric_encryption, digital_signatures, key_management, key_derivation, hashing, random_generation, streaming_encryption, fips_compliance};
-    use std::path::Path;
+    use crate::{
+        digital_signatures, fips_compliance, hashing, key_derivation, key_management,
+        random_generation, streaming_encryption, symmetric_encryption,
+    };
 
     #[test]
     fn test_symmetric_encryption_examples() {

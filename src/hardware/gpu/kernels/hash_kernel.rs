@@ -7,8 +7,8 @@
 //!
 //! 支持 SHA256、SHA512、SM3 等哈希算法的 GPU 加速
 
-use super::{BatchConfig, GpuKernel, HashKernelConfig, KernelMetrics, KernelType};
-use crate::error::{CryptoError, Result};
+use super::{GpuKernel, HashKernelConfig, KernelMetrics, KernelType};
+use crate::error::CryptoError;
 use crate::types::Algorithm;
 use std::sync::Mutex;
 
@@ -225,8 +225,6 @@ pub fn create_hash_kernel() -> Box<dyn GpuKernel> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_cpu_hash_kernel_available() {
         let kernel = CpuHashKernel::new();

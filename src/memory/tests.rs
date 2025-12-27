@@ -3,8 +3,8 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use crate::memory::{ProtectedKey, SecretBytes};
 use crate::error::CryptoError;
+use crate::memory::{ProtectedKey, SecretBytes};
 
 #[test]
 fn test_secret_bytes_zeroized() {

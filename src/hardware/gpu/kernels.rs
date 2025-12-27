@@ -8,7 +8,6 @@
 //! 提供加密和哈希操作的 GPU Kernel 抽象
 //! 每个 Algorithm 对应一个或多个 Kernel 实现
 
-use crate::error::{CryptoError, Result};
 use crate::types::Algorithm;
 use std::sync::Arc;
 
@@ -385,8 +384,6 @@ impl BatchConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_kernel_type_display() {
         assert_eq!(KernelType::GpuAes.to_string(), "GPU AES");

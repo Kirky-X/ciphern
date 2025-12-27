@@ -11,7 +11,7 @@
 //! - 统一内存（CUDA UM / SVM）
 //! - 内存池优化
 
-use crate::error::{CryptoError, Result};
+use crate::error::CryptoError;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -504,8 +504,6 @@ pub fn get_memory_stats() -> MemoryStats {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_memory_flags_default() {
         let flags = MemoryFlags::default();

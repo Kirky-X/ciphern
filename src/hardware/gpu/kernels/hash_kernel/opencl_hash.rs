@@ -8,10 +8,9 @@
 //! 使用 OpenCL 加速 SHA256、SHA512、SM3 哈希运算
 //! 支持 AMD GPU (ROCm)、NVIDIA GPU、Intel GPU
 
-use super::{HashKernelConfig, KernelMetrics, KernelType};
-use crate::error::{CryptoError, Result};
+use super::{KernelMetrics, KernelType};
+use crate::error::CryptoError;
 use crate::types::Algorithm;
-use std::sync::Mutex;
 
 #[cfg(feature = "gpu-opencl")]
 const OPENCL_SHA256_SOURCE: &str = r#"
@@ -767,8 +766,6 @@ mod tests {
 
     #[cfg(not(feature = "gpu-opencl"))]
     mod cpu_tests {
-        use super::super::*;
-
         #[test]
         fn test_opencl_hash_kernel_creation() {
             let kernel = OpenclHashKernel;

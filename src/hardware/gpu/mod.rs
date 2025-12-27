@@ -8,8 +8,7 @@
 //! 支持 NVIDIA CUDA、AMD ROCm/OpenCL、Intel SYCL/oneAPI
 //! 采用分层加速策略，CPU 优先，GPU 作为大数据量加速器
 
-use crate::error::{CryptoError, Result};
-use crate::types::Algorithm;
+use crate::error::CryptoError;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "gpu")]
@@ -363,8 +362,6 @@ mod tests {
 
     #[cfg(not(feature = "gpu"))]
     mod cpu_only_tests {
-        use super::super::*;
-
         #[test]
         fn test_gpu_not_enabled() {
             let result = init_gpu();

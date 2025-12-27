@@ -8,10 +8,9 @@
 //! 使用 CUDA 加速 SHA256、SHA512、SM3 哈希运算
 //! 基于 cudarc 库实现 GPU 内存管理和 kernel 启动
 
-use super::{HashKernelConfig, KernelMetrics, KernelType};
-use crate::error::{CryptoError, Result};
+use super::{KernelMetrics, KernelType};
+use crate::error::CryptoError;
 use crate::types::Algorithm;
-use std::sync::Mutex;
 
 #[cfg(feature = "gpu-cuda")]
 const SHA256_BLOCK_SIZE: usize = 64;
@@ -819,8 +818,6 @@ mod tests {
 
     #[cfg(not(feature = "gpu-cuda"))]
     mod cpu_tests {
-        use super::super::*;
-
         #[test]
         fn test_cuda_hash_kernel_creation() {
             let kernel = CudaHashKernel;

@@ -9,8 +9,8 @@
 //! 基于 CUDA 或 OpenCL 实现
 //! 包含 CPU 回退实现
 
-use super::{BatchConfig, GpuKernel, KernelMetrics, KernelType};
-use crate::error::{CryptoError, Result};
+use super::{GpuKernel, KernelMetrics, KernelType};
+use crate::error::CryptoError;
 use crate::types::Algorithm;
 use std::sync::Mutex;
 
@@ -146,10 +146,7 @@ impl GpuKernel for CpuSm4Kernel {
         data: &[u8],
         _aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        use ghash::{
-            universal_hash::{KeyInit, UniversalHash},
-            GHash,
-        };
+        use ghash::{universal_hash::KeyInit, GHash};
         use sm4::cipher::{KeyIvInit, StreamCipher};
         use sm4::Sm4;
 
@@ -200,10 +197,7 @@ impl GpuKernel for CpuSm4Kernel {
         data: &[u8],
         _aad: Option<&[u8]>,
     ) -> Result<Vec<u8>> {
-        use ghash::{
-            universal_hash::{KeyInit, UniversalHash},
-            GHash,
-        };
+        use ghash::{universal_hash::KeyInit, GHash};
         use sm4::cipher::{KeyIvInit, StreamCipher};
         use sm4::Sm4;
 

@@ -9,7 +9,7 @@
 //! 特别优化批量签名验证场景
 
 use super::{BatchConfig, GpuKernel, KernelMetrics, KernelType};
-use crate::error::{CryptoError, Result};
+use crate::error::CryptoError;
 use crate::types::Algorithm;
 use std::sync::Mutex;
 
@@ -340,8 +340,6 @@ impl CpuSignatureKernel {
 
     pub fn ed25519_sign(&self, private_key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         use ed25519_dalek::{SigningKey, VerifyingKey};
-        use rand::rngs::OsRng;
-
         let start = std::time::Instant::now();
 
         if private_key.len() != 32 {
@@ -427,8 +425,6 @@ pub fn create_signature_kernel() -> Box<dyn GpuKernel> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_cpu_signature_kernel_available() {
         let kernel = CpuSignatureKernel::new();

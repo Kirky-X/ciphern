@@ -12,7 +12,7 @@
 //!
 //! 设备检测、初始化、资源管理
 
-use crate::error::{CryptoError, Result};
+use crate::error::CryptoError;
 use crate::types::Algorithm;
 use std::sync::Arc;
 
@@ -377,8 +377,6 @@ fn device_capability_score(device: &dyn XpuDevice) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_xpu_type_display() {
         assert_eq!(XpuType::NvidiaCuda.to_string(), "NVIDIA CUDA");

@@ -4,7 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::cipher::provider::SymmetricCipher;
-use crate::error::{CryptoError, Result};
+use crate::error::CryptoError;
 use crate::i18n::translate;
 use crate::plugin::{CipherPlugin, Plugin};
 use crate::types::Algorithm;

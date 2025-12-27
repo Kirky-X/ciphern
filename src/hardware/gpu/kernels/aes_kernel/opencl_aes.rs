@@ -8,7 +8,7 @@
 //! 基于 OpenCL 的 AES-GCM 加速实现
 
 use super::{AesKernelState, AesMode};
-use crate::error::{CryptoError, Result};
+use crate::error::CryptoError;
 
 pub struct OpenclAesKernel {
     state: AesKernelState,

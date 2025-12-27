@@ -8,8 +8,8 @@
 //! 支持 AES-GCM 模式的 GPU 加速加密/解密
 //! 基于 CUDA 或 OpenCL 实现
 
-use super::{AesKernelConfig, BatchConfig, GpuKernel, KernelMetrics, KernelType};
-use crate::error::{CryptoError, Result};
+use super::{AesKernelConfig, GpuKernel, KernelMetrics, KernelType};
+use crate::error::CryptoError;
 use crate::types::Algorithm;
 use std::sync::Mutex;
 
@@ -284,9 +284,6 @@ pub fn create_aes_kernel() -> Box<dyn GpuKernel> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use aes_gcm::aead::Aead;
-
     #[test]
     fn test_cpu_aes_kernel_available() {
         let kernel = CpuAesKernel::new();

@@ -8,9 +8,8 @@
 //! 使用 CUDA 加速 SM4-GCM 加密/解密操作
 
 use super::{Sm4KernelConfig, Sm4KernelState, Sm4Mode};
-use crate::error::{CryptoError, Result};
+use crate::error::CryptoError;
 use crate::types::Algorithm;
-use std::sync::Mutex;
 
 pub struct CudaSm4Kernel {
     state: Sm4KernelState,
@@ -161,10 +160,7 @@ impl CudaSm4Kernel {
         data: &[u8],
         encrypt: bool,
     ) -> Result<Vec<u8>> {
-        use ghash::{
-            universal_hash::{KeyInit, UniversalHash},
-            GHash,
-        };
+        use ghash::{universal_hash::KeyInit, GHash};
         use sm4::cipher::{KeyIvInit, StreamCipher};
         use sm4::Sm4;
 

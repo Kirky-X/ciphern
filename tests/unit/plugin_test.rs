@@ -6,10 +6,10 @@
 #[cfg(test)]
 #[cfg(feature = "plugin")]
 mod plugin_manager_tests {
-    use ciphern::plugin::{Plugin, PluginManager, CipherPlugin, PluginMetadata};
+    use ciphern::plugin::{CipherPlugin, Plugin, PluginManager, PluginMetadata};
     use ciphern::types::Algorithm;
-    use std::sync::Arc;
     use std::any::Any;
+    use std::sync::Arc;
 
     mod test_plugin {
         use super::*;
@@ -375,10 +375,10 @@ mod plugin_load_error_tests {
 #[cfg(test)]
 #[cfg(feature = "plugin")]
 mod plugin_integration_tests {
-    use ciphern::plugin::{PluginManager, Plugin, CipherPlugin, PluginMetadata};
+    use ciphern::plugin::{CipherPlugin, Plugin, PluginManager, PluginMetadata};
     use ciphern::types::Algorithm;
-    use std::sync::Arc;
     use std::any::Any;
+    use std::sync::Arc;
 
     struct IntegrationTestPlugin {
         name: String,
@@ -479,10 +479,10 @@ mod plugin_integration_tests {
 #[cfg(test)]
 #[cfg(feature = "plugin")]
 mod plugin_edge_case_tests {
-    use ciphern::plugin::{PluginManager, Plugin};
+    use ciphern::plugin::{Plugin, PluginManager};
     use ciphern::types::Algorithm;
-    use std::sync::Arc;
     use std::any::Any;
+    use std::sync::Arc;
 
     struct EdgeCasePlugin {
         name: String,

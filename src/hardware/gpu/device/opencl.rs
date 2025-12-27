@@ -7,10 +7,6 @@
 //!
 //! 使用 ocl 库与 AMD/Intel GPU 通信
 
-use super::{DeviceCapabilities, DeviceHealth, DeviceState, XpuDevice, XpuKernel, XpuType};
-use crate::error::{CryptoError, Result};
-use std::sync::Arc;
-
 #[cfg(feature = "gpu-opencl")]
 use ocl::{Context, Device, DeviceType, Platform};
 

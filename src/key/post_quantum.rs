@@ -3,7 +3,7 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use crate::error::{CryptoError, Result};
+use crate::error::CryptoError;
 use crate::i18n::translate;
 use chrono::{DateTime, Utc};
 use sha2::Digest;
