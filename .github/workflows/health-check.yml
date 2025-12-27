@@ -2,9 +2,9 @@ name: Health Check
 
 on:
   push:
-    branches: [main, master]
+    branches: [ main, master ]
   pull_request:
-    branches: [main, master]
+    branches: [ main, master ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        rust_version: [stable, 1.70.0, beta]
+        os: [ ubuntu-latest ]
+        rust_version: [ stable, 1.70.0, beta ]
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
@@ -37,8 +37,12 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust_version }}
-          components: rustfmt, clippy, cargo-audit
+          components: rustfmt, clippy
           targets: ${{ matrix.target }}
+
+      - name: Install cargo-audit
+        if: matrix.rust_version == 'stable'
+        run: cargo install cargo-audit --locked
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -47,6 +51,7 @@ jobs:
           cache-targets: false
 
       - name: Cargo Audit
+        if: matrix.rust_version == 'stable'
         run: cargo audit --deny warnings
 
       - name: Format Check
