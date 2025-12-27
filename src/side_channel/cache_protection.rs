@@ -8,12 +8,10 @@
 //! This module provides protection against cache-timing attacks and cache-based
 //! side-channel attacks through cache flushing, prefetching, and access randomization.
 
-use crate::error::{CryptoError, Result};
+use crate::error::Result;
 use rand::{RngCore, SeedableRng};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use std::arch::asm;
-use std::ptr;
-use std::sync::atomic;
 use std::time::Duration;
 
 /// Cache protection configuration
@@ -165,6 +163,18 @@ pub fn prefetch_cache_line(ptr: *const u8) {
             options(nostack, preserves_flags)
         );
     }
+}
+
+/// Empty implementation for non-x86 architectures
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+pub fn flush_cache_line(_ptr: *const u8) {
+    // No cache flushing on non-x86 architectures
+}
+
+/// Empty implementation for non-x86 architectures
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+pub fn prefetch_cache_line(_ptr: *const u8) {
+    // No cache prefetching on non-x86 architectures
 }
 
 /// Memory access pattern randomization
@@ -372,6 +382,7 @@ pub fn non_temporal_store(data: &[u8], dest: &mut [u8]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::CryptoError;
 
     #[test]
     fn test_access_pattern_randomizer() {
