@@ -4,7 +4,8 @@
 // See LICENSE file in the project root for full license information.
 
 use ciphern::{Algorithm, Cipher, KeyManager};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 fn bench_aes256_encrypt(c: &mut Criterion) {
     let mut group = c.benchmark_group("aes256_encrypt");
