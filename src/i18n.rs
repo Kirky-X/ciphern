@@ -1,7 +1,6 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
 use std::sync::{Mutex, RwLock};
 use thiserror::Error;
 
@@ -48,10 +47,34 @@ where
     f()
 }
 
-static LOCALE_DIR: &str = "locales";
+fn find_locale_path() -> Option<std::path::PathBuf> {
+    let possible_paths = vec![
+        std::path::PathBuf::from("locales"),
+        std::path::PathBuf::from("../locales"),
+    ];
+
+    if let Ok(cwd) = std::env::current_dir() {
+        possible_paths
+            .iter()
+            .chain(std::iter::once(&cwd.join("locales")))
+            .find(|path| path.exists() && path.is_dir())
+            .cloned()
+    } else {
+        possible_paths
+            .into_iter()
+            .find(|path| path.exists() && path.is_dir())
+    }
+}
 
 fn load_locale_file(locale: &str) -> Result<(), I18nError> {
-    let path = Path::new(LOCALE_DIR).join(format!("{}.toml", locale));
+    let locale_path = find_locale_path().ok_or_else(|| I18nError::LoadError {
+        source: std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Locales directory not found".to_string(),
+        ),
+    })?;
+
+    let path = locale_path.join(format!("{}.toml", locale));
     if !path.exists() {
         return Err(I18nError::LoadError {
             source: std::io::Error::new(

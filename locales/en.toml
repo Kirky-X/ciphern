@@ -29,6 +29,7 @@ invalid_iv_marker = "Invalid IV marker"
 invalid_ciphertext_marker = "Invalid ciphertext marker"
 invalid_tag_marker = "Invalid tag marker"
 not_found = "Not Found"
+key_not_found_in_keyring = "Key {key_id} not found in keyring {keyring}: {reason}"
 
 [greeting]
 hello = "Hello, World!"
