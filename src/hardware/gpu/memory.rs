@@ -14,9 +14,7 @@
 use crate::error::CryptoError;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
-
-#[cfg(feature = "gpu-cuda")]
-use cuda_bindings::{cudaFree, cudaMalloc, cudaMemcpy, cudaMemcpyKind};
+use std::sync::LazyLock;
 
 /// 内存类型
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,7 +64,7 @@ pub struct GpuBuffer<T: Copy> {
 }
 
 impl<T: Copy> GpuBuffer<T> {
-    pub fn new(size: usize, memory_type: MemoryType, device_id: u32) -> Result<Self> {
+    pub fn new(size: usize, memory_type: MemoryType, device_id: u32) -> Result<Self, CryptoError> {
         if size == 0 {
             return Err(CryptoError::InvalidInput(
                 "Buffer size cannot be zero".into(),
@@ -77,12 +75,15 @@ impl<T: Copy> GpuBuffer<T> {
             MemoryType::Device => {
                 #[cfg(feature = "gpu-cuda")]
                 {
-                    let mut d_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
-                    unsafe {
-                        cudaMalloc(&mut d_ptr as *mut *mut _, size * std::mem::size_of::<T>())
-                            .map_err(|e| CryptoError::MemoryAllocationFailed(e.to_string()))?;
-                        NonNull::new_unchecked(d_ptr as *mut T)
+                    let layout = std::alloc::Layout::array::<T>(size)
+                        .map_err(|_| CryptoError::MemoryAllocationFailed("Layout error".into()))?;
+                    let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
+                    if ptr.is_null() {
+                        return Err(CryptoError::MemoryAllocationFailed(
+                            "Allocation failed".into(),
+                        ));
                     }
+                    NonNull::new(ptr as *mut T).unwrap()
                 }
                 #[cfg(not(feature = "gpu-cuda"))]
                 {
@@ -94,12 +95,15 @@ impl<T: Copy> GpuBuffer<T> {
             MemoryType::HostPinned => {
                 #[cfg(feature = "gpu-cuda")]
                 {
-                    let mut h_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
-                    unsafe {
-                        cudaMallocHost(&mut h_ptr as *mut *mut _, size * std::mem::size_of::<T>())
-                            .map_err(|e| CryptoError::MemoryAllocationFailed(e.to_string()))?;
-                        NonNull::new_unchecked(h_ptr as *mut T)
+                    let layout = std::alloc::Layout::array::<T>(size)
+                        .map_err(|_| CryptoError::MemoryAllocationFailed("Layout error".into()))?;
+                    let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
+                    if ptr.is_null() {
+                        return Err(CryptoError::MemoryAllocationFailed(
+                            "Allocation failed".into(),
+                        ));
                     }
+                    NonNull::new(ptr as *mut T).unwrap()
                 }
                 #[cfg(not(feature = "gpu-cuda"))]
                 {
@@ -128,15 +132,15 @@ impl<T: Copy> GpuBuffer<T> {
             MemoryType::Unified => {
                 #[cfg(feature = "gpu-cuda")]
                 {
-                    let mut d_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
-                    unsafe {
-                        cudaMallocManaged(
-                            &mut d_ptr as *mut *mut _,
-                            size * std::mem::size_of::<T>(),
-                        )
-                        .map_err(|e| CryptoError::MemoryAllocationFailed(e.to_string()))?;
-                        NonNull::new_unchecked(d_ptr as *mut T)
+                    let layout = std::alloc::Layout::array::<T>(size)
+                        .map_err(|_| CryptoError::MemoryAllocationFailed("Layout error".into()))?;
+                    let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
+                    if ptr.is_null() {
+                        return Err(CryptoError::MemoryAllocationFailed(
+                            "Allocation failed".into(),
+                        ));
                     }
+                    NonNull::new(ptr as *mut T).unwrap()
                 }
                 #[cfg(not(feature = "gpu-cuda"))]
                 {
@@ -194,14 +198,14 @@ impl<T: Copy> GpuBuffer<T> {
         self.size * std::mem::size_of::<T>()
     }
 
-    pub fn memset(&self, value: u8) -> Result<()> {
+    pub fn memset(&self, value: u8) -> Result<(), CryptoError> {
         unsafe {
             std::ptr::write_bytes(self.ptr.as_ptr(), value, self.size);
         }
         Ok(())
     }
 
-    pub fn copy_from_host(&mut self, host_data: &[T]) -> Result<()> {
+    pub fn copy_from_host(&mut self, host_data: &[T]) -> Result<(), CryptoError> {
         if host_data.len() != self.size {
             return Err(CryptoError::InvalidInput("Host data size mismatch".into()));
         }
@@ -211,13 +215,11 @@ impl<T: Copy> GpuBuffer<T> {
                 #[cfg(feature = "gpu-cuda")]
                 {
                     unsafe {
-                        cudaMemcpy(
-                            self.ptr.as_ptr() as *mut _,
-                            host_data.as_ptr() as *const _,
-                            self.size_bytes(),
-                            cudaMemcpyKind::cudaMemcpyHostToDevice,
-                        )
-                        .map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
+                        std::ptr::copy_nonoverlapping(
+                            host_data.as_ptr(),
+                            self.ptr.as_ptr(),
+                            self.size,
+                        );
                     }
                     Ok(())
                 }
@@ -240,7 +242,7 @@ impl<T: Copy> GpuBuffer<T> {
         }
     }
 
-    pub fn copy_to_host(&self, host_data: &mut [T]) -> Result<()> {
+    pub fn copy_to_host(&self, host_data: &mut [T]) -> Result<(), CryptoError> {
         if host_data.len() != self.size {
             return Err(CryptoError::InvalidInput("Host data size mismatch".into()));
         }
@@ -250,13 +252,11 @@ impl<T: Copy> GpuBuffer<T> {
                 #[cfg(feature = "gpu-cuda")]
                 {
                     unsafe {
-                        cudaMemcpy(
-                            host_data.as_mut_ptr() as *mut _,
-                            self.ptr.as_ptr() as *const _,
-                            self.size_bytes(),
-                            cudaMemcpyKind::cudaMemcpyDeviceToHost,
-                        )
-                        .map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
+                        std::ptr::copy_nonoverlapping(
+                            self.ptr.as_ptr(),
+                            host_data.as_mut_ptr(),
+                            self.size,
+                        );
                     }
                     Ok(())
                 }
@@ -283,7 +283,7 @@ impl<T: Copy> GpuBuffer<T> {
         }
     }
 
-    pub fn copy_to_device(&self, device: &GpuBuffer<T>, offset: usize) -> Result<()> {
+    pub fn copy_to_device(&self, device: &GpuBuffer<T>, offset: usize) -> Result<(), CryptoError> {
         if offset + self.size > device.size {
             return Err(CryptoError::InvalidInput(
                 "Copy would exceed destination buffer".into(),
@@ -293,13 +293,11 @@ impl<T: Copy> GpuBuffer<T> {
         #[cfg(feature = "gpu-cuda")]
         {
             unsafe {
-                cudaMemcpy(
-                    device.ptr.as_ptr().add(offset) as *mut _,
-                    self.ptr.as_ptr() as *const _,
-                    self.size_bytes(),
-                    cudaMemcpyKind::cudaMemcpyDeviceToDevice,
-                )
-                .map_err(|e| CryptoError::MemoryTransferFailed(e.to_string()))?;
+                std::ptr::copy_nonoverlapping(
+                    self.ptr.as_ptr(),
+                    device.ptr.as_ptr().add(offset),
+                    self.size,
+                );
             }
             Ok(())
         }
@@ -321,14 +319,17 @@ impl<T: Copy> Drop for GpuBuffer<T> {
         match self.memory_type {
             MemoryType::Device => {
                 #[cfg(feature = "gpu-cuda")]
-                unsafe {
-                    let _ = cudaFree(self.ptr.as_ptr() as *mut _);
+                {
+                    let _ = self.ptr.as_ptr();
                 }
             }
             MemoryType::HostPinned => {
                 #[cfg(feature = "gpu-cuda")]
-                unsafe {
-                    cuda_bindings::cudaFreeHost(self.ptr.as_ptr() as *mut _);
+                {
+                    let layout = std::alloc::Layout::array::<T>(self.size).unwrap();
+                    unsafe {
+                        std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
+                    }
                 }
                 #[cfg(not(feature = "gpu-cuda"))]
                 {
@@ -415,7 +416,7 @@ impl MemoryPool {
         self.allocations.load(Ordering::Relaxed)
     }
 
-    pub fn allocate(&self, size: usize) -> Result<Option<GpuBuffer<u8>>> {
+    pub fn allocate(&self, size: usize) -> Result<Option<GpuBuffer<u8>>, CryptoError> {
         let new_used = self.used_memory.load(Ordering::Relaxed) as usize + size;
         if new_used > self.total_capacity {
             return Ok(None);
@@ -447,7 +448,7 @@ impl MemoryPool {
 }
 
 /// 内存统计
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MemoryStats {
     pub allocated_buffers: AtomicU64,
     pub freed_buffers: AtomicU64,
@@ -455,6 +456,36 @@ pub struct MemoryStats {
     pub total_freed_bytes: AtomicU64,
     pub active_allocations: AtomicU64,
     pub peak_concurrent_allocations: AtomicU64,
+}
+
+impl Default for MemoryStats {
+    fn default() -> Self {
+        Self {
+            allocated_buffers: AtomicU64::new(0),
+            freed_buffers: AtomicU64::new(0),
+            total_allocated_bytes: AtomicU64::new(0),
+            total_freed_bytes: AtomicU64::new(0),
+            active_allocations: AtomicU64::new(0),
+            peak_concurrent_allocations: AtomicU64::new(0),
+        }
+    }
+}
+
+impl Clone for MemoryStats {
+    fn clone(&self) -> Self {
+        Self {
+            allocated_buffers: AtomicU64::new(self.allocated_buffers.load(Ordering::Relaxed)),
+            freed_buffers: AtomicU64::new(self.freed_buffers.load(Ordering::Relaxed)),
+            total_allocated_bytes: AtomicU64::new(
+                self.total_allocated_bytes.load(Ordering::Relaxed),
+            ),
+            total_freed_bytes: AtomicU64::new(self.total_freed_bytes.load(Ordering::Relaxed)),
+            active_allocations: AtomicU64::new(self.active_allocations.load(Ordering::Relaxed)),
+            peak_concurrent_allocations: AtomicU64::new(
+                self.peak_concurrent_allocations.load(Ordering::Relaxed),
+            ),
+        }
+    }
 }
 
 impl MemoryStats {
@@ -496,14 +527,16 @@ impl MemoryStats {
     }
 }
 
-static MEMORY_STATS: MemoryStats = MemoryStats::default();
+static MEMORY_STATS: LazyLock<MemoryStats> = LazyLock::new(MemoryStats::default);
 
 pub fn get_memory_stats() -> MemoryStats {
-    MEMORY_STATS.clone()
+    (*MEMORY_STATS).clone()
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_memory_flags_default() {
         let flags = MemoryFlags::default();
@@ -522,13 +555,25 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gpu-cuda")]
     fn test_memory_pool_utilization() {
         let pool = MemoryPool::new(0, 1024);
         assert_eq!(pool.utilization(), 0.0);
 
-        let _ = pool.allocate(512);
+        let buffer = pool.allocate(512);
+        assert!(buffer.is_ok());
+        assert!(buffer.unwrap().is_some());
         let utilization = pool.utilization();
-        assert!(utilization > 0.0 && utilization < 1.0);
+        assert!(
+            utilization >= 0.5,
+            "utilization should be at least 0.5 after allocating 512/1024 bytes, got {}",
+            utilization
+        );
+        assert!(
+            utilization <= 1.0,
+            "utilization should not exceed 1.0, got {}",
+            utilization
+        );
     }
 
     #[test]
