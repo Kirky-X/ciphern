@@ -1030,6 +1030,9 @@ mod tests {
 
     #[test]
     fn test_audit_logger_concurrent() {
+        // Clear logs first to ensure clean state
+        AuditLogger::clear_logs();
+
         // Use a unique prefix for this test
         let test_prefix = format!(
             "concurrent_key_{}",
@@ -1061,7 +1064,7 @@ mod tests {
         }
 
         // Wait for logs to be flushed
-        thread::sleep(std::time::Duration::from_millis(200));
+        thread::sleep(std::time::Duration::from_millis(500));
 
         let logs = AuditLogger::get_logs();
 

@@ -1526,7 +1526,8 @@ impl FipsSelfTestEngine {
         // 对于 df > 30 的情况,卡方分布接近正态分布
         // 我们使用 95% 置信区间而不是 99%
         let df = num_blocks as f64;
-        let threshold = df * (1.0 - 2.0 / (9.0 * df) + 1.6448536269514722 * (2.0 / (9.0 * df)).sqrt()).powi(3);
+        let threshold =
+            df * (1.0 - 2.0 / (9.0 * df) + 1.6448536269514722 * (2.0 / (9.0 * df)).sqrt()).powi(3);
 
         chi_squared <= threshold
     }
@@ -2027,8 +2028,10 @@ impl FipsSelfTestEngine {
 
         // 使用更宽松的阈值 (α = 0.05 而不是 0.01)
         let z_95 = 1.6448536269514722;
-        let threshold1 = df1 * (1.0 - 2.0 / (9.0 * df1) + z_95 * (2.0 / (9.0 * df1)).sqrt()).powi(3);
-        let threshold2 = df2 * (1.0 - 2.0 / (9.0 * df2) + z_95 * (2.0 / (9.0 * df2)).sqrt()).powi(3);
+        let threshold1 =
+            df1 * (1.0 - 2.0 / (9.0 * df1) + z_95 * (2.0 / (9.0 * df1)).sqrt()).powi(3);
+        let threshold2 =
+            df2 * (1.0 - 2.0 / (9.0 * df2) + z_95 * (2.0 / (9.0 * df2)).sqrt()).powi(3);
 
         delta1 < threshold1 && delta2 < threshold2
     }

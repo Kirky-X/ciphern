@@ -3,8 +3,8 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
-use crate::error::{CryptoError, Result};
 use crate::audit::AuditLogger;
+use crate::error::{CryptoError, Result};
 use rand::{CryptoRng, RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -97,17 +97,11 @@ impl SecureRandom {
 
 impl RngCore for SecureRandom {
     fn next_u32(&mut self) -> u32 {
-        self.csprng
-            .lock()
-            .expect("RNG lock poisoned")
-            .next_u32()
+        self.csprng.lock().expect("RNG lock poisoned").next_u32()
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.csprng
-            .lock()
-            .expect("RNG lock poisoned")
-            .next_u64()
+        self.csprng.lock().expect("RNG lock poisoned").next_u64()
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
