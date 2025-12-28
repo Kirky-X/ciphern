@@ -435,9 +435,9 @@ impl FipsSelfTestEngine {
             let gpu_status_ok = true;
 
             let gpu_functional_test = if gpu_enabled && gpu_initialized {
-                let test_data = b"FIPS GPU acceleration test data";
+                let test_data = vec![0u8; 64 * 1024];
                 let hash_result = crate::hardware::accelerated_hash_gpu(
-                    test_data,
+                    &test_data,
                     crate::types::Algorithm::SHA256,
                 );
                 hash_result.is_ok()
