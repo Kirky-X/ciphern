@@ -11,7 +11,9 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 #[cfg(unix)]
 use libc::{c_void, mlock};
 
-/// Secure container for sensitive data with auto-zeroize and mlock
+#[cfg(test)]
+mod tests;
+
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct SecretBytes {
     inner: Vec<u8>,
@@ -62,7 +64,6 @@ impl SecretBytes {
         let ptr = self.inner.as_mut_ptr() as *mut c_void;
         let len = self.inner.len();
 
-        // Safety: ptr is valid (from vec), len is correct. mlock expects valid pointer and length.
         let ret = unsafe { mlock(ptr, len) };
         if ret != 0 {
             return Err(CryptoError::MemoryProtectionFailed("mlock failed".into()));
@@ -73,7 +74,6 @@ impl SecretBytes {
 
     #[cfg(not(unix))]
     fn lock_memory(&mut self) -> Result<()> {
-        // Windows/Other implementation omitted for brevity, fallback to just zeroize
         Ok(())
     }
 
@@ -86,9 +86,6 @@ impl SecretBytes {
     }
 }
 
-// ZeroizeOnDrop handles automatic cleanup, so we don't need manual Drop
-
-/// Wrapper that adds integrity checks (canary + checksum)
 #[derive(Clone)]
 pub struct ProtectedKey {
     key: SecretBytes,
