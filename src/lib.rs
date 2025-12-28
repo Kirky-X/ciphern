@@ -447,3 +447,81 @@ pub fn has_avx2() -> bool {
 pub fn has_sha_ni() -> bool {
     hardware::has_sha_ni()
 }
+
+#[cfg(feature = "encrypt")]
+pub fn is_hardware_acceleration_available() -> bool {
+    hardware::is_hardware_acceleration_available()
+}
+
+#[cfg(feature = "encrypt")]
+pub fn get_cpu_capabilities() -> hardware::cpu::CpuCapabilities {
+    hardware::get_cpu_capabilities()
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_hash_cpu(data: &[u8], algorithm: types::Algorithm) -> error::Result<Vec<u8>> {
+    hardware::accelerated_hash_cpu(data, algorithm)
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_batch_hash_cpu(
+    data_chunks: Vec<&[u8]>,
+    algorithm: types::Algorithm,
+) -> error::Result<Vec<Vec<u8>>> {
+    hardware::accelerated_batch_hash_cpu(data_chunks, algorithm)
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_aes_encrypt_cpu(
+    key: &[u8],
+    plaintext: &[u8],
+    nonce: &[u8],
+) -> error::Result<Vec<u8>> {
+    hardware::accelerated_aes_encrypt_cpu(key, plaintext, nonce)
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_aes_decrypt_cpu(
+    key: &[u8],
+    ciphertext: &[u8],
+    nonce: &[u8],
+) -> error::Result<Vec<u8>> {
+    hardware::accelerated_aes_decrypt_cpu(key, ciphertext, nonce)
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_batch_aes_encrypt_cpu(
+    key: &[u8],
+    plaintexts: Vec<&[u8]>,
+    nonces: Vec<&[u8]>,
+) -> error::Result<Vec<Vec<u8>>> {
+    hardware::accelerated_batch_aes_encrypt_cpu(key, plaintexts, nonces)
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_batch_aes_decrypt_cpu(
+    key: &[u8],
+    ciphertexts: Vec<Vec<u8>>,
+    nonces: Vec<&[u8]>,
+) -> error::Result<Vec<Vec<u8>>> {
+    hardware::accelerated_batch_aes_decrypt_cpu(key, ciphertexts, nonces)
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_sm4_encrypt_cpu(key: &[u8], plaintext: &[u8]) -> error::Result<Vec<u8>> {
+    hardware::accelerated_sm4_encrypt_cpu(key, plaintext)
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_sm4_decrypt_cpu(key: &[u8], ciphertext: &[u8]) -> error::Result<Vec<u8>> {
+    hardware::accelerated_sm4_decrypt_cpu(key, ciphertext)
+}
+
+#[cfg(feature = "encrypt")]
+pub fn accelerated_batch_sm4_cpu(
+    key: &[u8],
+    data_chunks: Vec<Vec<u8>>,
+    encrypt: bool,
+) -> error::Result<Vec<Vec<u8>>> {
+    hardware::accelerated_batch_sm4_cpu(key, data_chunks, encrypt)
+}

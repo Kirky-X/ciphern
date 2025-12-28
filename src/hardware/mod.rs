@@ -10,6 +10,8 @@ mod parallel;
 #[allow(clippy::single_component_path_imports)]
 use cpufeatures;
 
+pub mod cpu;
+
 use crate::error::{CryptoError, Result};
 use crate::types::Algorithm;
 use sha2::Digest;
@@ -46,6 +48,13 @@ pub fn is_gpu_enabled() -> bool {
 pub fn is_gpu_initialized() -> bool {
     false
 }
+
+pub use cpu::{
+    accelerated_aes_decrypt_cpu, accelerated_aes_encrypt_cpu, accelerated_batch_aes_decrypt_cpu,
+    accelerated_batch_aes_encrypt_cpu, accelerated_batch_hash_cpu, accelerated_batch_sm4_cpu,
+    accelerated_hash_cpu, accelerated_sm4_decrypt_cpu, accelerated_sm4_encrypt_cpu,
+    get_cpu_capabilities, is_hardware_acceleration_available,
+};
 
 pub static AES_NI_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static AVX2_SUPPORTED: AtomicBool = AtomicBool::new(false);
