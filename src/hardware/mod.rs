@@ -16,9 +16,10 @@ use sha2::Digest;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "gpu")]
-mod gpu;
+pub mod gpu;
 
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub use gpu::{
     accelerated_aes_gpu, accelerated_ecdsa_sign_gpu, accelerated_ecdsa_verify_batch_gpu,
     accelerated_ecdsa_verify_gpu, accelerated_ed25519_sign_gpu, accelerated_ed25519_verify_gpu,
