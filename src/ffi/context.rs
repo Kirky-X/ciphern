@@ -308,12 +308,20 @@ mod tests {
                     return;
                 }
             }
-            assert!(init_result.is_ok(), "Context initialization failed: {:?}", init_result);
+            assert!(
+                init_result.is_ok(),
+                "Context initialization failed: {:?}",
+                init_result
+            );
         }
 
         #[cfg(not(feature = "gpu"))]
         {
-            assert!(init_result.is_ok(), "Context initialization failed: {:?}", init_result);
+            assert!(
+                init_result.is_ok(),
+                "Context initialization failed: {:?}",
+                init_result
+            );
         }
 
         assert_eq!(context.state(), ContextState::Ready);

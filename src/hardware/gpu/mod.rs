@@ -77,9 +77,10 @@ pub fn init_gpu() -> Result<(), CryptoError> {
         Err(e) => {
             GPU_ENABLED.store(false, Ordering::Relaxed);
             GPU_INITIALIZED.store(false, Ordering::Relaxed);
-            Err(CryptoError::HardwareAccelerationUnavailable(
-                format!("GPU initialization failed: {}", e),
-            ))
+            Err(CryptoError::HardwareAccelerationUnavailable(format!(
+                "GPU initialization failed: {}",
+                e
+            )))
         }
     }
 }

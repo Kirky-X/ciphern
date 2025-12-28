@@ -455,7 +455,9 @@ impl FipsSelfTestEngine {
 
                     kernel_manager
                         .get_kernel(Algorithm::AES256GCM)
-                        .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable("Kernel not found".into()))
+                        .ok_or_else(|| {
+                            CryptoError::HardwareAccelerationUnavailable("Kernel not found".into())
+                        })
                         .and_then(|kernel| {
                             kernel
                                 .write()
@@ -465,7 +467,11 @@ impl FipsSelfTestEngine {
                         .and_then(|ciphertext| {
                             kernel_manager
                                 .get_kernel(Algorithm::AES256GCM)
-                                .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable("Kernel not found".into()))
+                                .ok_or_else(|| {
+                                    CryptoError::HardwareAccelerationUnavailable(
+                                        "Kernel not found".into(),
+                                    )
+                                })
                                 .and_then(|kernel| {
                                     kernel.write().unwrap().execute_aes_gcm_decrypt(
                                         &key,
@@ -492,7 +498,9 @@ impl FipsSelfTestEngine {
                     let test_data = b"FIPS GPU hash test data for acceleration verification";
                     kernel_manager
                         .get_kernel(Algorithm::SHA256)
-                        .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable("Kernel not found".into()))
+                        .ok_or_else(|| {
+                            CryptoError::HardwareAccelerationUnavailable("Kernel not found".into())
+                        })
                         .and_then(|kernel| {
                             kernel
                                 .write()
@@ -519,7 +527,9 @@ impl FipsSelfTestEngine {
 
                     kernel_manager
                         .get_kernel(Algorithm::SHA256)
-                        .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable("Kernel not found".into()))
+                        .ok_or_else(|| {
+                            CryptoError::HardwareAccelerationUnavailable("Kernel not found".into())
+                        })
                         .and_then(|kernel| {
                             kernel
                                 .write()

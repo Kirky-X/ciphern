@@ -382,10 +382,7 @@ impl XpuManager {
     }
 
     pub fn has_instance() -> bool {
-        MANAGER
-            .lock()
-            .map(|m| m.is_some())
-            .unwrap_or(false)
+        MANAGER.lock().map(|m| m.is_some()).unwrap_or(false)
     }
 }
 

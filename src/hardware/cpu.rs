@@ -266,7 +266,10 @@ mod tests {
     #[test]
     fn test_cpu_capabilities() {
         let caps = get_cpu_capabilities();
-        println!("AES-NI: {}, SHA-NI: {}, AVX2: {}", caps.aes_ni, caps.sha_ni, caps.avx2);
+        println!(
+            "AES-NI: {}, SHA-NI: {}, AVX2: {}",
+            caps.aes_ni, caps.sha_ni, caps.avx2
+        );
     }
 
     #[test]
@@ -295,11 +298,7 @@ mod tests {
 
     #[test]
     fn test_accelerated_batch_hash_cpu() {
-        let data = vec![
-            b"Hello".as_slice(),
-            b"World".as_slice(),
-            b"Test".as_slice(),
-        ];
+        let data = vec![b"Hello".as_slice(), b"World".as_slice(), b"Test".as_slice()];
         let results = accelerated_batch_hash_cpu(data, Algorithm::SHA256);
         assert!(results.is_ok());
         let hashes = results.unwrap();
@@ -328,12 +327,7 @@ mod tests {
         let key = [0u8; 32];
         let nonce = [0u8; 12];
 
-        let plaintexts: Vec<&[u8]> = vec![
-            b"Hello",
-            b"World",
-            b"Test",
-            b"Data",
-        ];
+        let plaintexts: Vec<&[u8]> = vec![b"Hello", b"World", b"Test", b"Data"];
         let nonces: Vec<&[u8]> = vec![&nonce; 4];
 
         let encrypted = accelerated_batch_aes_encrypt_cpu(&key, plaintexts.clone(), nonces.clone());
@@ -364,7 +358,7 @@ mod tests {
     #[test]
     fn test_accelerated_batch_sm4_cpu() {
         let _ = crate::fips::FipsContext::disable();
-        
+
         let key = [0u8; 16];
 
         let plaintexts: Vec<Vec<u8>> = vec![

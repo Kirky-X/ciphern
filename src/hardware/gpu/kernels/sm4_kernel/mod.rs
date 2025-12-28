@@ -87,7 +87,9 @@ impl Sm4KernelImpl {
 
         use sm4::cipher::{KeyIvInit, StreamCipher};
 
-        let key_bytes: [u8; 16] = key.try_into().map_err(|_| CryptoError::InvalidKeyLength(key.len()))?;
+        let key_bytes: [u8; 16] = key
+            .try_into()
+            .map_err(|_| CryptoError::InvalidKeyLength(key.len()))?;
 
         let mut iv = [0u8; 16];
         iv[..12].copy_from_slice(nonce);
@@ -114,7 +116,9 @@ impl Sm4KernelImpl {
 
         use sm4::cipher::{KeyIvInit, StreamCipher};
 
-        let key_bytes: [u8; 16] = key.try_into().map_err(|_| CryptoError::InvalidKeyLength(key.len()))?;
+        let key_bytes: [u8; 16] = key
+            .try_into()
+            .map_err(|_| CryptoError::InvalidKeyLength(key.len()))?;
 
         let mut iv = [0u8; 16];
         iv[..12].copy_from_slice(nonce);
@@ -355,33 +359,32 @@ impl Sm4KernelImpl {
 
         let use_parallel = self.should_use_gpu(total_size, batch_size);
 
-        let encrypt_single =
-            |item: (&&[u8], &&[u8], &&[u8])| -> Result<Vec<u8>, CryptoError> {
-                let (&k, &n, &d) = item;
-                {
-                    if k.len() != 16 {
-                        return Err(CryptoError::InvalidKeyLength(k.len()));
-                    }
-
-                    use sm4::cipher::{KeyIvInit, StreamCipher};
-
-                    let key_bytes: [u8; 16] = k
-                        .try_into()
-                        .map_err(|_| CryptoError::InvalidKeyLength(k.len()))?;
-
-                    let mut iv = [0u8; 16];
-                    iv[..12].copy_from_slice(n);
-                    iv[15] = 2;
-
-                    type Sm4Ctr = ctr::Ctr128BE<sm4::Sm4>;
-                    let mut cipher = Sm4Ctr::new(&key_bytes.into(), &iv.into());
-
-                    let mut output = d.to_vec();
-                    cipher.apply_keystream(&mut output);
-
-                    Ok(output)
+        let encrypt_single = |item: (&&[u8], &&[u8], &&[u8])| -> Result<Vec<u8>, CryptoError> {
+            let (&k, &n, &d) = item;
+            {
+                if k.len() != 16 {
+                    return Err(CryptoError::InvalidKeyLength(k.len()));
                 }
-            };
+
+                use sm4::cipher::{KeyIvInit, StreamCipher};
+
+                let key_bytes: [u8; 16] = k
+                    .try_into()
+                    .map_err(|_| CryptoError::InvalidKeyLength(k.len()))?;
+
+                let mut iv = [0u8; 16];
+                iv[..12].copy_from_slice(n);
+                iv[15] = 2;
+
+                type Sm4Ctr = ctr::Ctr128BE<sm4::Sm4>;
+                let mut cipher = Sm4Ctr::new(&key_bytes.into(), &iv.into());
+
+                let mut output = d.to_vec();
+                cipher.apply_keystream(&mut output);
+
+                Ok(output)
+            }
+        };
 
         let results: Result<Vec<Vec<u8>>, CryptoError> =
             if use_parallel && self.state.config.use_async {
@@ -436,33 +439,32 @@ impl Sm4KernelImpl {
 
         let use_parallel = self.should_use_gpu(total_size, batch_size);
 
-        let decrypt_single =
-            |item: (&&[u8], &&[u8], &&[u8])| -> Result<Vec<u8>, CryptoError> {
-                let (&k, &n, &d) = item;
-                {
-                    if k.len() != 16 {
-                        return Err(CryptoError::InvalidKeyLength(k.len()));
-                    }
-
-                    use sm4::cipher::{KeyIvInit, StreamCipher};
-
-                    let key_bytes: [u8; 16] = k
-                        .try_into()
-                        .map_err(|_| CryptoError::InvalidKeyLength(k.len()))?;
-
-                    let mut iv = [0u8; 16];
-                    iv[..12].copy_from_slice(n);
-                    iv[15] = 2;
-
-                    type Sm4Ctr = ctr::Ctr128BE<sm4::Sm4>;
-                    let mut cipher = Sm4Ctr::new(&key_bytes.into(), &iv.into());
-
-                    let mut output = d.to_vec();
-                    cipher.apply_keystream(&mut output);
-
-                    Ok(output)
+        let decrypt_single = |item: (&&[u8], &&[u8], &&[u8])| -> Result<Vec<u8>, CryptoError> {
+            let (&k, &n, &d) = item;
+            {
+                if k.len() != 16 {
+                    return Err(CryptoError::InvalidKeyLength(k.len()));
                 }
-            };
+
+                use sm4::cipher::{KeyIvInit, StreamCipher};
+
+                let key_bytes: [u8; 16] = k
+                    .try_into()
+                    .map_err(|_| CryptoError::InvalidKeyLength(k.len()))?;
+
+                let mut iv = [0u8; 16];
+                iv[..12].copy_from_slice(n);
+                iv[15] = 2;
+
+                type Sm4Ctr = ctr::Ctr128BE<sm4::Sm4>;
+                let mut cipher = Sm4Ctr::new(&key_bytes.into(), &iv.into());
+
+                let mut output = d.to_vec();
+                cipher.apply_keystream(&mut output);
+
+                Ok(output)
+            }
+        };
 
         let results: Result<Vec<Vec<u8>>, CryptoError> =
             if use_parallel && self.state.config.use_async {
