@@ -7,7 +7,6 @@ use crate::error::Result;
 #[cfg(feature = "encrypt")]
 use crate::fips::self_test::{Alert, AlertCategory, AlertHandler, AlertSeverity};
 use crate::i18n::translate_with_args;
-use chrono;
 use chrono::Utc;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, RwLock};
