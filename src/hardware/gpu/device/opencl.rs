@@ -36,7 +36,7 @@ impl OpenclDevice {
     pub fn enumerate() -> Result<Vec<Self>, CryptoError> {
         let mut devices = Vec::new();
 
-        let platforms = match std::panic::catch_unwind(|| Platform::list()) {
+        let platforms = match std::panic::catch_unwind(Platform::list) {
             Ok(p) => p,
             Err(_) => {
                 return Ok(devices);
