@@ -173,6 +173,8 @@ macro_rules! jni_get_bytes {
 
 #[cfg(test)]
 mod tests {
+    use super::JniBuffer;
+
     #[test]
     fn test_buffer_creation() {
         let encrypt_buffer = JniBuffer::create_encrypt_buffer(100);

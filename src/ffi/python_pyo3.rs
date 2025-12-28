@@ -11,6 +11,8 @@ use crate::key::Key;
 use crate::Algorithm;
 #[cfg(feature = "encrypt")]
 use crate::Cipher;
+#[cfg(feature = "hash")]
+use crate::Hasher;
 #[cfg(feature = "encrypt")]
 use crate::KeyManager;
 #[cfg(feature = "encrypt")]
@@ -18,6 +20,7 @@ use crate::Signer;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use pyo3::Bound;
+use pyo3::PyErr;
 use std::sync::Arc;
 
 #[pymodule]
@@ -37,17 +40,20 @@ fn ciphern_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[pyfunction]
 fn py_hash_sha256(data: &[u8]) -> PyResult<Vec<u8>> {
-    Ok(crate::Hash::sha256(data)?)
+    let hasher = Hasher::new(crate::types::Algorithm::SHA256).map_err(pyo3::PyErr::from)?;
+    Ok(hasher.hash(data))
 }
 
 #[pyfunction]
 fn py_hash_sha512(data: &[u8]) -> PyResult<Vec<u8>> {
-    Ok(crate::Hash::sha512(data)?)
+    let hasher = Hasher::new(crate::types::Algorithm::SHA512).map_err(pyo3::PyErr::from)?;
+    Ok(hasher.hash(data))
 }
 
 #[pyfunction]
 fn py_hash_sm3(data: &[u8]) -> PyResult<Vec<u8>> {
-    Ok(crate::Hash::sm3(data)?)
+    let hasher = Hasher::new(crate::types::Algorithm::SM3).map_err(pyo3::PyErr::from)?;
+    Ok(hasher.hash(data))
 }
 
 #[cfg(feature = "encrypt")]
