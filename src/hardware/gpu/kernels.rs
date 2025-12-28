@@ -83,6 +83,8 @@ pub struct KernelMetrics {
     pub memory_transferred_bytes: usize,
     pub compute_units_used: u32,
     pub batch_size: usize,
+    pub success_count: Option<u64>,
+    pub error_count: Option<u64>,
 }
 
 impl KernelMetrics {
@@ -94,6 +96,8 @@ impl KernelMetrics {
             memory_transferred_bytes: 0,
             compute_units_used: 0,
             batch_size: 0,
+            success_count: None,
+            error_count: None,
         }
     }
 
@@ -458,6 +462,7 @@ pub struct BatchConfig {
     pub stream_count: usize,
     pub split_large_items: bool,
     pub split_threshold: usize,
+    pub use_async: bool,
 }
 
 impl Default for BatchConfig {
@@ -468,6 +473,7 @@ impl Default for BatchConfig {
             stream_count: 4,
             split_large_items: true,
             split_threshold: 1024 * 1024, // 1MB
+            use_async: true,
         }
     }
 }
@@ -481,6 +487,7 @@ impl BatchConfig {
             stream_count: 2,
             split_large_items: true,
             split_threshold: 512 * 1024,
+            use_async: true,
         }
     }
 
@@ -492,6 +499,7 @@ impl BatchConfig {
             stream_count: 8,
             split_large_items: true,
             split_threshold: 2 * 1024 * 1024,
+            use_async: true,
         }
     }
 }

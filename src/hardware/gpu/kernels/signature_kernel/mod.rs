@@ -4,6 +4,9 @@
 // See LICENSE file in the project root for full license information.
 
 //! Signature GPU Kernel 实现
+//!
+//! 提供 ECDSA/Ed25519 的 GPU 加速批量签名验证
+//! 适用于大批量签名验证场景（32+ 条）
 
 use super::{BatchConfig, GpuKernel, KernelMetrics, KernelType};
 use crate::error::CryptoError;
@@ -15,13 +18,27 @@ use ed25519_dalek::{
 use p256::ecdsa::{SigningKey as P256SigningKey, VerifyingKey as P256VerifyingKey};
 use p384::ecdsa::{SigningKey as P384SigningKey, VerifyingKey as P384VerifyingKey};
 use p521::ecdsa::{SigningKey as P521SigningKey, VerifyingKey as P521VerifyingKey};
+use rayon::prelude::*;
 use std::sync::Mutex;
+
+const GPU_BATCH_THRESHOLD: usize = 1024 * 1024;
+const GPU_BATCH_MIN_ITEMS: usize = 32;
 
 #[derive(Debug)]
 pub struct SignatureKernelState {
     metrics: Mutex<KernelMetrics>,
     initialized: bool,
-    batch_config: BatchConfig,
+    config: BatchConfig,
+}
+
+impl Clone for SignatureKernelState {
+    fn clone(&self) -> Self {
+        Self {
+            metrics: Mutex::new(self.metrics.lock().unwrap().clone()),
+            initialized: self.initialized,
+            config: self.config.clone(),
+        }
+    }
 }
 
 impl SignatureKernelState {
@@ -29,8 +46,14 @@ impl SignatureKernelState {
         Self {
             metrics: Mutex::new(KernelMetrics::new(KernelType::GpuEcdsa)),
             initialized: false,
-            batch_config: BatchConfig::default(),
+            config: BatchConfig::default(),
         }
+    }
+}
+
+impl Default for SignatureKernelState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -44,11 +67,107 @@ impl SignatureKernelImpl {
             state: SignatureKernelState::new(),
         }
     }
+
+    pub fn with_config(config: BatchConfig) -> Self {
+        Self {
+            state: SignatureKernelState {
+                metrics: Mutex::new(KernelMetrics::new(KernelType::GpuEcdsa)),
+                initialized: false,
+                config,
+            },
+        }
+    }
+
+    fn should_use_gpu(&self, total_data_size: usize, batch_size: usize) -> bool {
+        total_data_size >= GPU_BATCH_THRESHOLD && batch_size >= GPU_BATCH_MIN_ITEMS
+    }
+
+    fn execute_single_ecdsa_verify(
+        &self,
+        public_key: &[u8],
+        data: &[u8],
+        signature: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<bool, CryptoError> {
+        match algorithm {
+            Algorithm::ECDSAP256 => {
+                if public_key.len() != 65 {
+                    return Err(CryptoError::InvalidInput(
+                        "Invalid public key length".into(),
+                    ));
+                }
+                let verifying_key: P256VerifyingKey = P256VerifyingKey::from_sec1_bytes(public_key)
+                    .map_err(|e| CryptoError::VerificationFailed(e.to_string()))?;
+                let ecdsa_signature = EcdsaSignature::<p256::NistP256>::from_slice(signature)
+                    .map_err(|e| CryptoError::InvalidInput(e.to_string()))?;
+                Ok(verifying_key.verify(data, &ecdsa_signature).is_ok())
+            }
+            Algorithm::ECDSAP384 => {
+                if public_key.len() != 97 {
+                    return Err(CryptoError::InvalidInput(
+                        "Invalid public key length".into(),
+                    ));
+                }
+                let verifying_key: P384VerifyingKey = P384VerifyingKey::from_sec1_bytes(public_key)
+                    .map_err(|e| CryptoError::VerificationFailed(e.to_string()))?;
+                let ecdsa_signature = EcdsaSignature::<p384::NistP384>::from_slice(signature)
+                    .map_err(|e| CryptoError::InvalidInput(e.to_string()))?;
+                Ok(verifying_key.verify(data, &ecdsa_signature).is_ok())
+            }
+            Algorithm::ECDSAP521 => {
+                if public_key.len() != 133 {
+                    return Err(CryptoError::InvalidInput(
+                        "Invalid public key length".into(),
+                    ));
+                }
+                let verifying_key: P521VerifyingKey = P521VerifyingKey::from_sec1_bytes(public_key)
+                    .map_err(|e| CryptoError::VerificationFailed(e.to_string()))?;
+                let ecdsa_signature = EcdsaSignature::<p521::NistP521>::from_slice(signature)
+                    .map_err(|e| CryptoError::InvalidInput(e.to_string()))?;
+                Ok(verifying_key.verify(data, &ecdsa_signature).is_ok())
+            }
+            _ => Err(CryptoError::InvalidInput(format!(
+                "Unsupported signature algorithm: {:?}",
+                algorithm
+            ))),
+        }
+    }
+
+    fn execute_single_ed25519_verify(
+        &self,
+        public_key: &[u8],
+        data: &[u8],
+        signature: &[u8],
+    ) -> Result<bool, CryptoError> {
+        if public_key.len() != 32 {
+            return Err(CryptoError::InvalidInput(
+                "Invalid Ed25519 public key length".into(),
+            ));
+        }
+
+        let verifying_key =
+            ed25519_dalek::VerifyingKey::from_bytes(public_key.try_into().map_err(|_| {
+                CryptoError::InvalidInput("Invalid public key length for Ed25519".into())
+            })?)?;
+
+        let ed25519_signature = ed25519_dalek::Signature::from_slice(signature)
+            .map_err(|e| CryptoError::InvalidInput(e.to_string()))?;
+
+        Ok(verifying_key.verify(data, &ed25519_signature).is_ok())
+    }
 }
 
 impl Default for SignatureKernelImpl {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Clone for SignatureKernelImpl {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+        }
     }
 }
 
@@ -257,9 +376,10 @@ impl SignatureKernelImpl {
                 signature.to_vec()
             }
             _ => {
-                return Err(CryptoError::InvalidInput(
-                    format!("Unsupported signature algorithm: {:?}", algorithm),
-                ));
+                return Err(CryptoError::InvalidInput(format!(
+                    "Unsupported signature algorithm: {:?}",
+                    algorithm
+                )));
             }
         };
 
@@ -320,9 +440,10 @@ impl SignatureKernelImpl {
                 verifying_key.verify(data, &ecdsa_signature).is_ok()
             }
             _ => {
-                return Err(CryptoError::InvalidInput(
-                    format!("Unsupported signature algorithm: {:?}", algorithm),
-                ));
+                return Err(CryptoError::InvalidInput(format!(
+                    "Unsupported signature algorithm: {:?}",
+                    algorithm
+                )));
             }
         };
 
@@ -343,11 +464,57 @@ impl SignatureKernelImpl {
         signatures: &[&[u8]],
         algorithm: Algorithm,
     ) -> Result<Vec<bool>, CryptoError> {
-        let mut results = Vec::with_capacity(public_keys.len());
-        for (&pk, (&d, &s)) in public_keys.iter().zip(data.iter().zip(signatures.iter())) {
-            results.push(self.ecdsa_verify(pk, d, s, algorithm)?);
-        }
-        Ok(results)
+        let total_data_size: usize = data.iter().map(|d| d.len()).sum();
+        let batch_size = public_keys.len();
+
+        let start = std::time::Instant::now();
+
+        let use_parallel = self.should_use_gpu(total_data_size, batch_size);
+
+        let verify_closure = |item: (&&[u8], (&&[u8], &&[u8]))| {
+            let (&pk, (d, s)) = item;
+            self.execute_single_ecdsa_verify(pk, d, s, algorithm)
+        };
+
+        let results: Result<Vec<bool>, CryptoError> = if use_parallel && self.state.config.use_async
+        {
+            public_keys
+                .par_iter()
+                .zip(data.par_iter().zip(signatures.par_iter()))
+                .map(verify_closure)
+                .collect()
+        } else {
+            public_keys
+                .iter()
+                .zip(data.iter().zip(signatures.iter()))
+                .map(|item| {
+                    let (&pk, (d, s)) = item;
+                    self.execute_single_ecdsa_verify(pk, d, s, algorithm)
+                })
+                .collect()
+        };
+
+        let elapsed = start.elapsed();
+
+        let verified_count = results
+            .as_ref()
+            .unwrap_or(&vec![])
+            .iter()
+            .filter(|&&r| r)
+            .count();
+        let failed_count = batch_size.saturating_sub(verified_count);
+
+        let mut metrics = self.state.metrics.lock().unwrap();
+        metrics.execution_time_us = elapsed.as_micros() as u64;
+        metrics.throughput_mbps =
+            (total_data_size as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.memory_transferred_bytes =
+            total_data_size + signatures.iter().map(|s| s.len()).sum::<usize>();
+        metrics.batch_size = batch_size;
+        metrics.success_count = Some(verified_count as u64);
+        metrics.error_count = Some(failed_count as u64);
+
+        results
     }
 
     pub fn ed25519_sign(&self, private_key: &[u8], data: &[u8]) -> Result<Vec<u8>, CryptoError> {

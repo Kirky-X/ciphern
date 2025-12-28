@@ -4,13 +4,21 @@
 // See LICENSE file in the project root for full license information.
 
 //! Hash GPU Kernel 实现
+//!
+//! 提供 SHA256/SHA512/SM3 的 GPU 加速哈希运算
+//! 适用于大批量数据哈希场景（100+ 条，> 1MB 总数据量）
 
 use super::{GpuKernel, HashKernelConfig, KernelMetrics, KernelType};
 use crate::error::CryptoError;
 use crate::types::Algorithm;
 use libsm::sm3::hash::Sm3Hash;
+use rayon::prelude::*;
 use sha2::Digest as Sha2Digest;
 use std::sync::Mutex;
+
+const GPU_BATCH_THRESHOLD: usize = 1024 * 1024;
+const GPU_BATCH_MIN_ITEMS: usize = 32;
+const GPU_LARGE_FILE_THRESHOLD: usize = 4 * 1024 * 1024;
 
 #[derive(Debug)]
 pub struct HashKernelState {
@@ -53,6 +61,43 @@ impl HashKernelImpl {
     pub fn with_config(config: HashKernelConfig) -> Self {
         Self {
             state: HashKernelState::new(config),
+        }
+    }
+
+    fn should_use_gpu(&self, total_data_size: usize, batch_size: usize) -> bool {
+        total_data_size >= GPU_BATCH_THRESHOLD && batch_size >= GPU_BATCH_MIN_ITEMS
+    }
+
+    fn is_large_file(&self, data_size: usize) -> bool {
+        data_size >= GPU_LARGE_FILE_THRESHOLD
+    }
+
+    fn execute_single_hash(
+        &self,
+        data: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<Vec<u8>, CryptoError> {
+        match algorithm {
+            Algorithm::SHA256 => {
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(data);
+                Ok(hasher.finalize().to_vec())
+            }
+            Algorithm::SHA384 => {
+                let mut hasher = sha2::Sha384::new();
+                hasher.update(data);
+                Ok(hasher.finalize().to_vec())
+            }
+            Algorithm::SHA512 => {
+                let mut hasher = sha2::Sha512::new();
+                hasher.update(data);
+                Ok(hasher.finalize().to_vec())
+            }
+            Algorithm::SM3 => {
+                let mut hasher = Sm3Hash::new(data);
+                Ok(hasher.get_hash().to_vec())
+            }
+            _ => Err(CryptoError::UnsupportedAlgorithm(algorithm.to_string())),
         }
     }
 }
@@ -152,11 +197,42 @@ impl GpuKernel for HashKernelImpl {
         if !self.state.initialized {
             return Err(CryptoError::NotInitialized);
         }
-        let mut results = Vec::with_capacity(data.len());
-        for chunk in data {
-            results.push(self.execute_hash(chunk, algorithm)?);
-        }
-        Ok(results)
+
+        let total_size: usize = data.iter().map(|d| d.len()).sum();
+        let batch_size = data.len();
+
+        let start = std::time::Instant::now();
+
+        let use_parallel = self.should_use_gpu(total_size, batch_size);
+
+        let results: Result<Vec<Vec<u8>>, CryptoError> =
+            if use_parallel && self.state.config.use_async {
+                data.par_iter()
+                    .map(|d| self.execute_single_hash(d, algorithm))
+                    .collect()
+            } else {
+                data.iter()
+                    .map(|d| self.execute_single_hash(d, algorithm))
+                    .collect()
+            };
+
+        let elapsed = start.elapsed();
+
+        let total_output_size: usize = results
+            .as_ref()
+            .unwrap_or(&vec![])
+            .iter()
+            .map(|v| v.len())
+            .sum();
+
+        let mut metrics = self.state.metrics.lock().unwrap();
+        metrics.execution_time_us = elapsed.as_micros() as u64;
+        metrics.throughput_mbps =
+            (total_size as f32 / 1024.0 / 1024.0) / (elapsed.as_secs_f32() + 0.000001);
+        metrics.memory_transferred_bytes = total_size + total_output_size;
+        metrics.batch_size = batch_size;
+
+        results
     }
 
     fn execute_aes_gcm_encrypt(
