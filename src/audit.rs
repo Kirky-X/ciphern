@@ -65,6 +65,12 @@ fn sanitize_error_for_log(error: &CryptoError) -> String {
         CryptoError::MemoryProtectionFailed(_) => {
             "Memory protection failure - security violation detected".to_string()
         }
+        CryptoError::MemoryAllocationFailed(_) => {
+            "Memory allocation failed - operation aborted".to_string()
+        }
+        CryptoError::MemoryTransferFailed(_) => {
+            "Memory transfer failed - data corruption possible".to_string()
+        }
         CryptoError::MemoryTampered => "Memory tampering detected - security alert".to_string(),
         CryptoError::FipsError(_) => "FIPS compliance violation detected".to_string(),
         CryptoError::SideChannelError(_) => "Side-channel attack detected or prevented".to_string(),
@@ -88,6 +94,11 @@ fn sanitize_error_for_log(error: &CryptoError) -> String {
             "Hardware acceleration unavailable - using software fallback".to_string()
         }
         CryptoError::AsyncOperationFailed(_) => "Async operation failed".to_string(),
+        CryptoError::InvalidInput(_) => "Invalid input - operation rejected".to_string(),
+        CryptoError::NotInitialized => "System not initialized - operation rejected".to_string(),
+        CryptoError::HardwareInitializationFailed(_) => {
+            "Hardware initialization failed - operation rejected".to_string()
+        }
     }
 }
 

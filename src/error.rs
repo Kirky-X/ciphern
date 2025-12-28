@@ -6,6 +6,7 @@
 use thiserror::Error;
 
 #[cfg(feature = "python_ffi")]
+#[allow(unused_imports)]
 use pyo3::exceptions::PyRuntimeError;
 
 #[derive(Debug, Error)]
@@ -15,6 +16,12 @@ pub enum CryptoError {
 
     #[error("Invalid parameter: {0}")]
     InvalidParameter(String),
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
+    #[error("Not initialized")]
+    NotInitialized,
 
     #[error("Invalid state: {0}")]
     InvalidState(String),
@@ -47,6 +54,12 @@ pub enum CryptoError {
 
     #[error("Memory protection failed: {0}")]
     MemoryProtectionFailed(String),
+
+    #[error("Memory allocation failed: {0}")]
+    MemoryAllocationFailed(String),
+
+    #[error("Memory transfer failed: {0}")]
+    MemoryTransferFailed(String),
 
     #[error("Memory tampering detected")]
     MemoryTampered,
@@ -92,6 +105,16 @@ pub enum CryptoError {
 
     #[error("Async operation failed: {0}")]
     AsyncOperationFailed(String),
+
+    #[error("Hardware initialization failed: {0}")]
+    HardwareInitializationFailed(String),
+}
+
+#[cfg(feature = "gpu")]
+impl From<ecdsa::Error> for CryptoError {
+    fn from(error: ecdsa::Error) -> Self {
+        CryptoError::SigningFailed(error.to_string())
+    }
 }
 
 #[cfg(feature = "i18n")]
@@ -108,6 +131,8 @@ mod i18n_error_impl {
             match self {
                 CryptoError::InvalidKeySize { .. } => "crypto_error.invalid_key_size",
                 CryptoError::InvalidParameter(_) => "crypto_error.invalid_parameter",
+                CryptoError::InvalidInput(_) => "crypto_error.invalid_input",
+                CryptoError::NotInitialized => "crypto_error.not_initialized",
                 CryptoError::InvalidState(_) => "crypto_error.invalid_state",
                 CryptoError::DecryptionFailed(_) => "crypto_error.decryption_failed",
                 CryptoError::EncryptionFailed(_) => "crypto_error.encryption_failed",
@@ -119,7 +144,9 @@ mod i18n_error_impl {
                 CryptoError::UnsupportedAlgorithm(_) => "crypto_error.unsupported_algorithm",
                 CryptoError::InsufficientEntropy => "crypto_error.insufficient_entropy",
                 CryptoError::MemoryProtectionFailed(_) => "crypto_error.memory_protection_failed",
-                CryptoError::MemoryTampered => "crypto_error.memory_tampered",
+                CryptoError::MemoryAllocationFailed(_) => "crypto_error.memory_allocation_failed",
+                CryptoError::MemoryTransferFailed(_) => "crypto_error.memory_transfer_failed",
+                CryptoError::MemoryTampered => "crypto_error.memory_tampered_message",
                 CryptoError::FipsError(_) => "crypto_error.fips_error",
                 CryptoError::SideChannelError(_) => "crypto_error.side_channel_error",
                 CryptoError::SecurityError(_) => "crypto_error.security_error",
@@ -136,6 +163,9 @@ mod i18n_error_impl {
                     "crypto_error.hardware_acceleration_unavailable"
                 }
                 CryptoError::AsyncOperationFailed(_) => "crypto_error.async_operation_failed",
+                CryptoError::HardwareInitializationFailed(_) => {
+                    "crypto_error.hardware_initialization_failed"
+                }
             }
         }
 
@@ -143,6 +173,8 @@ mod i18n_error_impl {
             match self {
                 CryptoError::InvalidKeySize { .. } => "crypto_error.invalid_key_size_message",
                 CryptoError::InvalidParameter(_) => "crypto_error.invalid_parameter_message",
+                CryptoError::InvalidInput(_) => "crypto_error.invalid_input_message",
+                CryptoError::NotInitialized => "crypto_error.not_initialized_message",
                 CryptoError::InvalidState(_) => "crypto_error.invalid_state_message",
                 CryptoError::DecryptionFailed(_) => "crypto_error.decryption_failed_message",
                 CryptoError::EncryptionFailed(_) => "crypto_error.encryption_failed_message",
@@ -155,10 +187,10 @@ mod i18n_error_impl {
                     "crypto_error.unsupported_algorithm_message"
                 }
                 CryptoError::InsufficientEntropy => "crypto_error.insufficient_entropy_message",
-                CryptoError::MemoryProtectionFailed(_) => {
-                    "crypto_error.memory_protection_failed_message"
-                }
-                CryptoError::MemoryTampered => "crypto_error.memory_tampered_message",
+                CryptoError::MemoryProtectionFailed(_) => "crypto_error.memory_protection_failed",
+                CryptoError::MemoryAllocationFailed(_) => "crypto_error.memory_allocation_failed",
+                CryptoError::MemoryTransferFailed(_) => "crypto_error.memory_transfer_failed",
+                CryptoError::MemoryTampered => "crypto_error.memory_tampered",
                 CryptoError::FipsError(_) => "crypto_error.fips_error_message",
                 CryptoError::SideChannelError(_) => "crypto_error.side_channel_error_message",
                 CryptoError::SecurityError(_) => "crypto_error.security_error_message",
@@ -177,6 +209,9 @@ mod i18n_error_impl {
                 CryptoError::AsyncOperationFailed(_) => {
                     "crypto_error.async_operation_failed_message"
                 }
+                CryptoError::HardwareInitializationFailed(_) => {
+                    "crypto_error.hardware_initialization_failed_message"
+                }
             }
         }
     }
@@ -194,6 +229,7 @@ mod i18n_error_impl {
                 ]
             }
             CryptoError::InvalidParameter(msg)
+            | CryptoError::InvalidInput(msg)
             | CryptoError::InvalidState(msg)
             | CryptoError::DecryptionFailed(msg)
             | CryptoError::EncryptionFailed(msg)
@@ -218,6 +254,8 @@ mod i18n_error_impl {
                 vec![("message", alg.clone())]
             }
             CryptoError::MemoryProtectionFailed(msg)
+            | CryptoError::MemoryAllocationFailed(msg)
+            | CryptoError::MemoryTransferFailed(msg)
             | CryptoError::FipsError(msg)
             | CryptoError::SideChannelError(msg)
             | CryptoError::SecurityError(msg)
@@ -241,7 +279,9 @@ mod i18n_error_impl {
             }
             CryptoError::InvalidKeyLength(_)
             | CryptoError::HardwareAccelerationUnavailable(_)
-            | CryptoError::AsyncOperationFailed(_) => {
+            | CryptoError::AsyncOperationFailed(_)
+            | CryptoError::NotInitialized
+            | CryptoError::HardwareInitializationFailed(_) => {
                 vec![]
             }
         };
@@ -301,5 +341,12 @@ impl From<crate::ffi::interface::CiphernError> for CryptoError {
             NullPointer => CryptoError::InvalidParameter("Null pointer".into()),
             UnknownError => CryptoError::UnknownError,
         }
+    }
+}
+
+#[cfg(feature = "gpu-cuda")]
+impl From<cudarc::driver::result::DriverError> for CryptoError {
+    fn from(error: cudarc::driver::result::DriverError) -> Self {
+        CryptoError::HardwareInitializationFailed(format!("CUDA error code: {:?}", error.0))
     }
 }

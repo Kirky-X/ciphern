@@ -16,7 +16,7 @@ pub(crate) mod cipher;
 pub(crate) mod error;
 pub(crate) mod fips;
 #[cfg(feature = "encrypt")]
-pub(crate) mod hardware;
+pub mod hardware;
 #[cfg(feature = "encrypt")]
 pub(crate) mod hash;
 #[cfg(feature = "encrypt")]
