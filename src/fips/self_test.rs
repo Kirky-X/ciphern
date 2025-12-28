@@ -428,7 +428,7 @@ impl FipsSelfTestEngine {
 
         #[cfg(feature = "gpu")]
         {
-            let gpu_init_result = crate::hardware::init_gpu();
+            let _gpu_init_result = crate::hardware::init_gpu();
             let gpu_enabled = crate::hardware::is_gpu_enabled();
             let gpu_initialized = crate::hardware::is_gpu_initialized();
 

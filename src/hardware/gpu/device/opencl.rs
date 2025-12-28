@@ -101,7 +101,7 @@ impl OpenclDevice {
                         crate::types::Algorithm::Ed25519,
                     ],
                     has_local_memory: true,
-                    ECC_supported: false,
+                    ecc_supported: false,
                 };
 
                 devices.push(Self {
@@ -143,8 +143,8 @@ impl XpuDevice for OpenclDevice {
         &self.capabilities
     }
 
-    fn state(&self) -> &DeviceState {
-        &self.state
+    fn state(&self) -> DeviceState {
+        self.state.clone()
     }
 
     fn is_available(&self) -> bool {
@@ -177,7 +177,7 @@ impl XpuDevice for OpenclDevice {
         Ok(())
     }
 
-    fn check_health(&mut self) -> Result<DeviceHealth, CryptoError> {
+    fn check_health(&self) -> Result<DeviceHealth, CryptoError> {
         let health = DeviceHealth {
             is_healthy: self.state == DeviceState::Ready,
             temperature: None,

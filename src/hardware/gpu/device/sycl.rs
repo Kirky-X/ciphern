@@ -105,8 +105,8 @@ impl XpuDevice for SyclDevice {
         &self.capabilities
     }
 
-    fn state(&self) -> &DeviceState {
-        &self.state
+    fn state(&self) -> DeviceState {
+        self.state.clone()
     }
 
     fn is_available(&self) -> bool {
@@ -147,7 +147,7 @@ impl XpuDevice for SyclDevice {
         Ok(())
     }
 
-    fn check_health(&mut self) -> Result<DeviceHealth> {
+    fn check_health(&self) -> Result<DeviceHealth> {
         let health = DeviceHealth {
             is_healthy: self.state == DeviceState::Ready,
             temperature: None,
