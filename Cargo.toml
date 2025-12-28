@@ -31,7 +31,6 @@ aes-gcm = "0.10.3"
 rayon = "1.10.0"
 zeroize = { version = "1.8.2", features = ["derive", "zeroize_derive"] }
 libsm = "0.6.0"
-gm-sm4 = "0.10.0"
 thiserror = "2.0.17"
 ghash = "0.5.1"
 hmac = "0.12"
