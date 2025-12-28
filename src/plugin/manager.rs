@@ -30,7 +30,7 @@ impl PluginManager {
         }
     }
 
-    pub fn register_plugin(&self, plugin: Arc<dyn Plugin>) -> Result<()> {
+    pub fn register_plugin(&self, plugin: Arc<dyn Plugin>) -> Result<(), CryptoError> {
         let mut plugins = self
             .plugins
             .write()
@@ -40,7 +40,7 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn register_cipher_plugin(&self, plugin: Arc<dyn CipherPlugin>) -> Result<()> {
+    pub fn register_cipher_plugin(&self, plugin: Arc<dyn CipherPlugin>) -> Result<(), CryptoError> {
         let mut cipher_plugins = self.cipher_plugins.write().map_err(|_| {
             CryptoError::PluginError(translate("plugin.cipher_registry_lock_failed"))
         })?;
@@ -80,7 +80,7 @@ impl PluginManager {
         results
     }
 
-    pub fn monitor_plugins(&self) -> Result<()> {
+    pub fn monitor_plugins(&self) -> Result<(), CryptoError> {
         let start_time = Instant::now();
         let mut failure_counts: HashMap<String, u32> = HashMap::new();
 
@@ -111,7 +111,7 @@ impl PluginManager {
         Ok(())
     }
 
-    fn handle_plugin_failure(&self, plugin_name: &str) -> Result<()> {
+    fn handle_plugin_failure(&self, plugin_name: &str) -> Result<(), CryptoError> {
         eprintln!("插件 '{}' 健康检查失败 - 正在卸载", plugin_name);
 
         // 从注册表中移除
@@ -127,7 +127,7 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn graceful_shutdown(&self) -> Result<()> {
+    pub fn graceful_shutdown(&self) -> Result<(), CryptoError> {
         let plugins = self
             .plugins
             .read()
