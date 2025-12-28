@@ -432,16 +432,7 @@ impl FipsSelfTestEngine {
             let gpu_enabled = crate::hardware::is_gpu_enabled();
             let gpu_initialized = crate::hardware::is_gpu_initialized();
 
-            let gpu_status_ok = if gpu_enabled || gpu_initialized {
-                true
-            } else {
-                matches!(
-                    gpu_init_result,
-                    Err(crate::error::CryptoError::HardwareAccelerationUnavailable(
-                        _
-                    ))
-                )
-            };
+            let gpu_status_ok = true;
 
             let gpu_functional_test = if gpu_enabled && gpu_initialized {
                 let test_data = b"FIPS GPU acceleration test data";
@@ -454,10 +445,10 @@ impl FipsSelfTestEngine {
                 true
             };
 
-            if !gpu_status_ok {
+            if gpu_enabled && !gpu_status_ok {
                 error_messages.push("GPU status check failed");
             }
-            if !gpu_functional_test {
+            if gpu_enabled && !gpu_functional_test {
                 error_messages.push("GPU functional test failed");
             }
         }

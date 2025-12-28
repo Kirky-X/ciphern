@@ -7,12 +7,15 @@
 //!
 //! 验证CUDA设备枚举、初始化和实际GPU计算功能
 
+#[cfg(feature = "gpu")]
 use ciphern::hardware::gpu::device::{XpuManager, XpuType};
+#[cfg(feature = "gpu")]
 use ciphern::hardware::gpu::{init_gpu, is_gpu_enabled, is_gpu_initialized};
+#[cfg(feature = "gpu")]
 use ciphern::Algorithm;
 
 #[test]
-#[cfg(feature = "gpu-cuda")]
+#[cfg(all(feature = "gpu", feature = "gpu-cuda"))]
 fn test_cuda_device_detection() {
     let manager = XpuManager::new();
 
@@ -39,7 +42,7 @@ fn test_cuda_device_detection() {
 }
 
 #[test]
-#[cfg(feature = "gpu-cuda")]
+#[cfg(all(feature = "gpu", feature = "gpu-cuda"))]
 fn test_gpu_initialization() {
     let result = init_gpu();
     println!("GPU init result: {:?}", result);
@@ -56,7 +59,7 @@ fn test_gpu_initialization() {
 }
 
 #[test]
-#[cfg(feature = "gpu-cuda")]
+#[cfg(all(feature = "gpu", feature = "gpu-cuda"))]
 fn test_device_enumeration_detailed() {
     let manager_result = XpuManager::new();
 
@@ -90,7 +93,7 @@ fn test_device_enumeration_detailed() {
 }
 
 #[test]
-#[cfg(feature = "gpu-cuda")]
+#[cfg(all(feature = "gpu", feature = "gpu-cuda"))]
 fn test_actual_gpu_kernel_usage() {
     let manager_result = XpuManager::new();
 
@@ -142,7 +145,7 @@ fn test_actual_gpu_kernel_usage() {
 }
 
 #[test]
-#[cfg(feature = "gpu-cuda")]
+#[cfg(all(feature = "gpu", feature = "gpu-cuda"))]
 fn test_gpu_memory_operations() {
     let manager_result = XpuManager::new();
 
@@ -178,7 +181,7 @@ fn test_gpu_memory_operations() {
 }
 
 #[test]
-#[cfg(feature = "gpu-cuda")]
+#[cfg(all(feature = "gpu", feature = "gpu-cuda"))]
 fn test_gpu_sha256_computation() {
     use ciphern::Hasher;
 

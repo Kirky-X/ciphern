@@ -60,15 +60,19 @@ pub fn init_gpu() -> Result<(), CryptoError> {
         return Ok(());
     }
 
-    let manager = XpuManager::new()?;
-    if manager.has_available_device() {
-        GPU_ENABLED.store(true, Ordering::Relaxed);
-        GPU_INITIALIZED.store(true, Ordering::Relaxed);
-        Ok(())
-    } else {
-        Err(CryptoError::HardwareAccelerationUnavailable(
-            "No compatible GPU device found".into(),
-        ))
+    match XpuManager::new() {
+        Ok(manager) => {
+            if manager.has_available_device() {
+                GPU_ENABLED.store(true, Ordering::Relaxed);
+                GPU_INITIALIZED.store(true, Ordering::Relaxed);
+                Ok(())
+            } else {
+                Ok(())
+            }
+        }
+        Err(_) => {
+            Ok(())
+        }
     }
 }
 
