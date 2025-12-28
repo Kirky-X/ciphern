@@ -119,27 +119,28 @@ impl PqcKey {
 #[allow(dead_code)]
 pub trait PqcOperations {
     #[allow(dead_code)]
-    fn generate_keypair(&self, _algorithm: PqcAlgorithm) -> Result<(Vec<u8>, Vec<u8>)>;
+    fn generate_keypair(&self, _algorithm: PqcAlgorithm)
+        -> Result<(Vec<u8>, Vec<u8>), CryptoError>;
     #[allow(dead_code)]
     fn encapsulate(
         &self,
         _public_key: &[u8],
         _algorithm: PqcAlgorithm,
-    ) -> Result<(Vec<u8>, Vec<u8>)>;
+    ) -> Result<(Vec<u8>, Vec<u8>), CryptoError>;
     #[allow(dead_code)]
     fn decapsulate(
         &self,
         _secret_key: &[u8],
         _ciphertext: &[u8],
         _algorithm: PqcAlgorithm,
-    ) -> Result<Vec<u8>>;
+    ) -> Result<Vec<u8>, CryptoError>;
     #[allow(dead_code)]
     fn sign(
         &self,
         _secret_key: &[u8],
         _message: &[u8],
         _algorithm: PqcAlgorithm,
-    ) -> Result<Vec<u8>>;
+    ) -> Result<Vec<u8>, CryptoError>;
     #[allow(dead_code)]
     fn verify(
         &self,
@@ -147,7 +148,7 @@ pub trait PqcOperations {
         _message: &[u8],
         _signature: &[u8],
         _algorithm: PqcAlgorithm,
-    ) -> Result<bool>;
+    ) -> Result<bool, CryptoError>;
 }
 
 #[allow(dead_code)]
@@ -165,7 +166,7 @@ struct PqcKeyEntry {
 
 #[allow(dead_code)]
 impl PqcKeyManager {
-    pub fn new(algorithm: PqcAlgorithm) -> Result<Self> {
+    pub fn new(algorithm: PqcAlgorithm) -> Result<Self, CryptoError> {
         Ok(Self {
             keys: HashMap::new(),
             algorithm,
@@ -173,7 +174,7 @@ impl PqcKeyManager {
     }
 
     #[allow(dead_code)]
-    pub fn generate_keypair(&mut self) -> Result<(String, String)> {
+    pub fn generate_keypair(&mut self) -> Result<(String, String), CryptoError> {
         let public_key_id = Uuid::new_v4().to_string();
         let secret_key_id = Uuid::new_v4().to_string();
 
@@ -208,7 +209,7 @@ impl PqcKeyManager {
         public_key: &mut [u8],
         secret_key: &mut [u8],
         _algorithm: PqcAlgorithm,
-    ) -> Result<()> {
+    ) -> Result<(), CryptoError> {
         let mut rng = rand::thread_rng();
         use rand::RngCore;
 
@@ -219,7 +220,7 @@ impl PqcKeyManager {
     }
 
     #[allow(dead_code)]
-    pub fn encapsulate(&mut self, public_key_id: &str) -> Result<(String, Vec<u8>)> {
+    pub fn encapsulate(&mut self, public_key_id: &str) -> Result<(String, Vec<u8>), CryptoError> {
         let ciphertext_id = Uuid::new_v4().to_string();
 
         let entry = self
@@ -255,7 +256,11 @@ impl PqcKeyManager {
     }
 
     #[allow(dead_code)]
-    pub fn decapsulate(&self, secret_key_id: &str, _ciphertext_id: &str) -> Result<Vec<u8>> {
+    pub fn decapsulate(
+        &self,
+        secret_key_id: &str,
+        _ciphertext_id: &str,
+    ) -> Result<Vec<u8>, CryptoError> {
         let secret_entry = self
             .keys
             .get(secret_key_id)
@@ -277,7 +282,7 @@ impl PqcKeyManager {
 
     /// 使用指定的私钥对消息进行签名
     #[allow(dead_code)]
-    pub fn sign(&self, secret_key_id: &str, _message: &[u8]) -> Result<Vec<u8>> {
+    pub fn sign(&self, secret_key_id: &str, _message: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let entry = self
             .keys
             .get(secret_key_id)
@@ -302,7 +307,12 @@ impl PqcKeyManager {
     }
 
     #[allow(dead_code)]
-    pub fn verify(&self, public_key_id: &str, _message: &[u8], _signature: &[u8]) -> Result<bool> {
+    pub fn verify(
+        &self,
+        public_key_id: &str,
+        _message: &[u8],
+        _signature: &[u8],
+    ) -> Result<bool, CryptoError> {
         let entry = self
             .keys
             .get(public_key_id)
@@ -329,7 +339,7 @@ impl HybridCrypto {
         classical_public_key: &[u8],
         pqc_public_key: &[u8],
         plaintext: &[u8],
-    ) -> Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, CryptoError> {
         let mut ciphertext = Vec::new();
 
         ciphertext.extend_from_slice(&[0x00, 0x01]);
@@ -354,7 +364,7 @@ impl HybridCrypto {
         Ok(ciphertext)
     }
 
-    fn generate_iv(&self) -> Result<Vec<u8>> {
+    fn generate_iv(&self) -> Result<Vec<u8>, CryptoError> {
         let mut iv = vec![0u8; 12];
         let mut rng = rand::thread_rng();
         use rand::RngCore;
@@ -362,7 +372,12 @@ impl HybridCrypto {
         Ok(iv)
     }
 
-    fn aes_gcm_encrypt(&self, _key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
+    fn aes_gcm_encrypt(
+        &self,
+        _key: &[u8],
+        iv: &[u8],
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
         let mut ciphertext = vec![0u8; plaintext.len()];
         let tag = vec![0u8; 16];
 
@@ -397,7 +412,7 @@ impl HybridCrypto {
         _classical_secret_key: &[u8],
         _pqc_secret_key: &[u8],
         ciphertext: &[u8],
-    ) -> Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, CryptoError> {
         let mut pos = 0;
 
         if ciphertext[pos..pos + 2] != [0x00, 0x01] {
@@ -557,7 +572,7 @@ impl PqcKeyWrapper {
     }
 
     #[allow(dead_code)]
-    pub fn wrap(&mut self, key: &[u8]) -> Result<()> {
+    pub fn wrap(&mut self, key: &[u8]) -> Result<(), CryptoError> {
         let mut wrapped = Vec::with_capacity(key.len() + 32);
         wrapped.extend_from_slice(&[0x50, 0x51, 0x43]);
         wrapped.extend_from_slice(&(self.algorithm as u8).to_be_bytes());
@@ -575,7 +590,7 @@ impl PqcKeyWrapper {
     }
 
     #[allow(dead_code)]
-    pub fn unwrap(&self) -> Result<Vec<u8>> {
+    pub fn unwrap(&self) -> Result<Vec<u8>, CryptoError> {
         if self.wrapped_key.len() < 10 || self.wrapped_key[..3] != [0x50, 0x51, 0x53] {
             return Err(CryptoError::InvalidParameter(
                 "无效的包装密钥格式".to_string(),
