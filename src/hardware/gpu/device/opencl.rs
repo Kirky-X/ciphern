@@ -45,13 +45,14 @@ impl OpenclDevice {
 
         let mut device_count = 0usize;
         for platform in &platforms {
-            let platform_devices = match std::panic::catch_unwind(|| Device::list(platform, None)) {
-                Ok(devices) => devices,
-                Err(_) => {
-                    continue;
+            let platform_devices =
+                match std::panic::catch_unwind(|| Device::list(platform, None)) {
+                    Ok(devices) => devices,
+                    Err(_) => {
+                        continue;
+                    }
                 }
-            }
-            .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
+                .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
 
             for device in platform_devices {
                 let name = device

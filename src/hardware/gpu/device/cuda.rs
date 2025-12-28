@@ -196,9 +196,10 @@ impl XpuDevice for CudaDevice {
                 }
                 Ok(Arc::new(kernel.clone()))
             }
-            _ => Err(CryptoError::HardwareAccelerationUnavailable(
-                format!("Algorithm {:?} not supported on CUDA device", algorithm),
-            )),
+            _ => Err(CryptoError::HardwareAccelerationUnavailable(format!(
+                "Algorithm {:?} not supported on CUDA device",
+                algorithm
+            ))),
         }
     }
 }

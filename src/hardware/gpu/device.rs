@@ -230,8 +230,9 @@ impl std::fmt::Debug for XpuManager {
     }
 }
 
-/// XPU 管理器单例（延迟初始化）
-static MANAGER: once_cell::sync::OnceCell<XpuManager> = once_cell::sync::OnceCell::new();
+/// XPU 管理器单例（延迟初始化，使用 Mutex 支持内部可变性）
+static MANAGER: once_cell::sync::Lazy<std::sync::Mutex<Option<XpuManager>>> =
+    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
 impl XpuManager {
     pub fn new() -> Result<Self, CryptoError> {
@@ -361,15 +362,30 @@ impl XpuManager {
         self.default_device_type.clone()
     }
 
-    /// 获取单例实例（延迟初始化）
-    pub fn get() -> &'static XpuManager {
-        MANAGER.get_or_init(|| {
-            XpuManager::new().unwrap_or_else(|_| XpuManager {
-                devices: Vec::new(),
-                primary_device: None,
-                default_device_type: XpuType::Unknown,
-            })
-        })
+    pub fn shutdown_all_devices(&mut self) -> Result<(), CryptoError> {
+        self.devices.clear();
+        self.primary_device = None;
+        Ok(())
+    }
+
+    pub fn get() -> std::sync::MutexGuard<'static, Option<XpuManager>> {
+        let mut manager = MANAGER.lock().expect("Mutex poisoned");
+        if manager.is_none() {
+            *manager = XpuManager::new().ok().map(|mut m| {
+                if !m.has_available_device() {
+                    m.devices.clear();
+                }
+                m
+            });
+        }
+        manager
+    }
+
+    pub fn has_instance() -> bool {
+        MANAGER
+            .lock()
+            .map(|m| m.is_some())
+            .unwrap_or(false)
     }
 }
 
