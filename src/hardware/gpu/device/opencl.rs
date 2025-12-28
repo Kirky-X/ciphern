@@ -7,8 +7,18 @@
 //!
 //! 使用 ocl 库与 AMD/Intel GPU 通信
 
+use crate::error::CryptoError;
+use crate::hardware::gpu::device::{
+    DeviceCapabilities, DeviceHealth, DeviceState, XpuDevice, XpuKernel, XpuType,
+};
+use crate::types::Algorithm;
+use std::sync::Arc;
+
 #[cfg(feature = "gpu-opencl")]
 use ocl::{Context, Device, DeviceType, Platform};
+
+#[cfg(feature = "gpu-opencl")]
+use ocl::enums::DeviceInfo;
 
 #[cfg(feature = "gpu-opencl")]
 pub struct OpenclDevice {
@@ -23,28 +33,41 @@ pub struct OpenclDevice {
 
 #[cfg(feature = "gpu-opencl")]
 impl OpenclDevice {
-    pub fn enumerate() -> Result<Vec<Self>> {
+    pub fn enumerate() -> Result<Vec<Self>, CryptoError> {
         let mut devices = Vec::new();
 
-        let platforms = Platform::list()
-            .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
+        let platforms = Platform::list();
 
         let mut device_count = 0usize;
         for platform in &platforms {
-            let platform_devices = Device::list_by_type(platform, None)
+            let platform_devices = Device::list(platform, None)
                 .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
 
             for device in platform_devices {
-                let name = device.name().unwrap_or("Unknown OpenCL Device").to_string();
+                let name = device
+                    .name()
+                    .unwrap_or_else(|_| "Unknown OpenCL Device".to_string());
 
-                let compute_units = device.max_compute_units().unwrap_or(1) as u32;
-                let max_work_group_size = device.max_work_group_size().unwrap_or(256) as usize;
-                let global_memory = device.global_mem_size().unwrap_or(0);
-                let max_alloc_size = device.max_mem_alloc_size().unwrap_or(1024 * 1024 * 1024);
+                let compute_units = match device.info(DeviceInfo::MaxComputeUnits) {
+                    Ok(ocl::enums::DeviceInfoResult::MaxComputeUnits(val)) => val,
+                    _ => 1,
+                };
+                let max_work_group_size = match device.info(DeviceInfo::MaxWorkGroupSize) {
+                    Ok(ocl::enums::DeviceInfoResult::MaxWorkGroupSize(val)) => val,
+                    _ => 256,
+                };
+                let global_memory = match device.info(DeviceInfo::GlobalMemSize) {
+                    Ok(ocl::enums::DeviceInfoResult::GlobalMemSize(val)) => val,
+                    _ => 0,
+                };
+                let max_alloc_size = match device.info(DeviceInfo::MaxMemAllocSize) {
+                    Ok(ocl::enums::DeviceInfoResult::MaxMemAllocSize(val)) => val,
+                    _ => 1024 * 1024 * 1024,
+                };
 
-                let device_type = device
-                    .device_type()
-                    .map(|dt| {
+                let device_type_info = device.info(DeviceInfo::Type);
+                let device_type = match device_type_info {
+                    Ok(ocl::enums::DeviceInfoResult::Type(dt)) => {
                         if dt.contains(DeviceType::GPU) {
                             if name.contains("AMD") || name.contains("Radeon") {
                                 XpuType::AmdGpu
@@ -58,8 +81,9 @@ impl OpenclDevice {
                         } else {
                             XpuType::Unknown
                         }
-                    })
-                    .unwrap_or(XpuType::Unknown);
+                    }
+                    _ => XpuType::Unknown,
+                };
 
                 let capabilities = DeviceCapabilities {
                     device_type,
@@ -98,6 +122,13 @@ impl OpenclDevice {
     }
 }
 
+#[cfg(not(feature = "gpu-opencl"))]
+impl OpenclDevice {
+    pub fn enumerate() -> Result<Vec<Self>, CryptoError> {
+        Ok(Vec::new())
+    }
+}
+
 #[cfg(feature = "gpu-opencl")]
 impl XpuDevice for OpenclDevice {
     fn device_type(&self) -> XpuType {
@@ -120,7 +151,7 @@ impl XpuDevice for OpenclDevice {
         self.state == DeviceState::Ready
     }
 
-    fn initialize(&mut self) -> Result<()> {
+    fn initialize(&mut self) -> Result<(), CryptoError> {
         if self.state == DeviceState::Ready {
             return Ok(());
         }
@@ -140,13 +171,13 @@ impl XpuDevice for OpenclDevice {
         Ok(())
     }
 
-    fn shutdown(&mut self) -> Result<()> {
+    fn shutdown(&mut self) -> Result<(), CryptoError> {
         self.context.take();
         self.state = DeviceState::Shutdown;
         Ok(())
     }
 
-    fn check_health(&mut self) -> Result<DeviceHealth> {
+    fn check_health(&mut self) -> Result<DeviceHealth, CryptoError> {
         let health = DeviceHealth {
             is_healthy: self.state == DeviceState::Ready,
             temperature: None,
@@ -159,27 +190,31 @@ impl XpuDevice for OpenclDevice {
         Ok(health)
     }
 
-    fn allocate_host_buffer(&self, _size: usize) -> Result<Vec<u8>> {
+    fn allocate_host_buffer(&self, _size: usize) -> Result<Vec<u8>, CryptoError> {
         Ok(vec![0u8; _size])
     }
 
-    fn allocate_device_buffer(&self, _size: usize) -> Result<()> {
+    fn allocate_device_buffer(&self, _size: usize) -> Result<(), CryptoError> {
         Ok(())
     }
 
-    fn deallocate_device_buffer(&self, _buffer_id: u64) -> Result<()> {
+    fn deallocate_device_buffer(&self, _buffer_id: u64) -> Result<(), CryptoError> {
         Ok(())
     }
 
-    fn copy_to_device(&self, _host_data: &[u8], _device_offset: usize) -> Result<()> {
+    fn copy_to_device(&self, _host_data: &[u8], _device_offset: usize) -> Result<(), CryptoError> {
         Ok(())
     }
 
-    fn copy_from_device(&self, _device_offset: usize, _size: usize) -> Result<Vec<u8>> {
+    fn copy_from_device(
+        &self,
+        _device_offset: usize,
+        _size: usize,
+    ) -> Result<Vec<u8>, CryptoError> {
         Ok(vec![0u8; _size])
     }
 
-    fn get_kernel(&self, _algorithm: crate::types::Algorithm) -> Result<Arc<dyn XpuKernel>> {
+    fn get_kernel(&self, _algorithm: Algorithm) -> Result<Arc<dyn XpuKernel>, CryptoError> {
         Err(CryptoError::HardwareAccelerationUnavailable(
             "OpenCL kernel not implemented".into(),
         ))

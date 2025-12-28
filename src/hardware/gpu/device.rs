@@ -20,18 +20,15 @@ use std::sync::Arc;
 pub mod cuda;
 #[cfg(feature = "gpu-opencl")]
 pub mod opencl;
-#[cfg(feature = "gpu-sycl")]
-pub mod sycl;
 
 #[cfg(feature = "gpu-cuda")]
 pub use cuda::CudaDevice;
 #[cfg(feature = "gpu-opencl")]
 pub use opencl::OpenclDevice;
-#[cfg(feature = "gpu-sycl")]
-pub use sycl::SyclDevice;
 
 /// XPU 设备类型枚举
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum XpuType {
     /// NVIDIA CUDA GPU
     NvidiaCuda,
@@ -62,6 +59,7 @@ impl std::fmt::Display for XpuType {
 
 /// 设备能力描述
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DeviceCapabilities {
     pub device_type: XpuType,
     pub device_name: String,
@@ -71,11 +69,12 @@ pub struct DeviceCapabilities {
     pub max_alloc_size: usize,
     pub supported_algorithms: Vec<Algorithm>,
     pub has_local_memory: bool,
-    pub ECC_supported: bool,
+    pub ecc_supported: bool,
 }
 
 /// 设备状态
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum DeviceState {
     Uninitialized,
     Initializing,
@@ -87,6 +86,7 @@ pub enum DeviceState {
 
 /// 设备健康检查结果
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DeviceHealth {
     pub is_healthy: bool,
     pub temperature: Option<f32>,
@@ -114,18 +114,18 @@ pub trait XpuDevice: Send + Sync {
     fn device_type(&self) -> XpuType;
     fn device_name(&self) -> &str;
     fn capabilities(&self) -> &DeviceCapabilities;
-    fn state(&self) -> &DeviceState;
+    fn state(&self) -> DeviceState;
     fn is_available(&self) -> bool;
-    fn initialize(&mut self) -> Result<()>;
-    fn shutdown(&mut self) -> Result<()>;
+    fn initialize(&mut self) -> Result<(), CryptoError>;
+    fn shutdown(&mut self) -> Result<(), CryptoError>;
 
-    fn check_health(&mut self) -> Result<DeviceHealth>;
+    fn check_health(&self) -> Result<DeviceHealth, CryptoError>;
 
-    fn allocate_host_buffer(&self, size: usize) -> Result<Vec<u8>>;
-    fn allocate_device_buffer(&self, size: usize) -> Result<()>;
-    fn deallocate_device_buffer(&self, buffer_id: u64) -> Result<()>;
-    fn copy_to_device(&self, host_data: &[u8], device_offset: usize) -> Result<()>;
-    fn copy_from_device(&self, device_offset: usize, size: usize) -> Result<Vec<u8>>;
+    fn allocate_host_buffer(&self, size: usize) -> Result<Vec<u8>, CryptoError>;
+    fn allocate_device_buffer(&self, size: usize) -> Result<(), CryptoError>;
+    fn deallocate_device_buffer(&self, buffer_id: u64) -> Result<(), CryptoError>;
+    fn copy_to_device(&self, host_data: &[u8], device_offset: usize) -> Result<(), CryptoError>;
+    fn copy_from_device(&self, device_offset: usize, size: usize) -> Result<Vec<u8>, CryptoError>;
 
     fn supports_algorithm(&self, algorithm: Algorithm) -> bool {
         self.capabilities()
@@ -133,14 +133,24 @@ pub trait XpuDevice: Send + Sync {
             .contains(&algorithm)
     }
 
-    fn get_kernel(&self, algorithm: Algorithm) -> Result<Arc<dyn XpuKernel>>;
+    fn get_kernel(&self, algorithm: Algorithm) -> Result<Arc<dyn XpuKernel>, CryptoError>;
 
-    fn aes_gcm_encrypt(&self, key: &[u8], nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    fn aes_gcm_encrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        data: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
         let kernel = self.get_kernel(Algorithm::AES256GCM)?;
         kernel.aes_gcm_encrypt(key, nonce, data)
     }
 
-    fn aes_gcm_decrypt(&self, key: &[u8], nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    fn aes_gcm_decrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        data: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
         let kernel = self.get_kernel(Algorithm::AES256GCM)?;
         kernel.aes_gcm_decrypt(key, nonce, data)
     }
@@ -150,45 +160,81 @@ pub trait XpuDevice: Send + Sync {
 pub trait XpuKernel: Send + Sync {
     fn supported_algorithms(&self) -> Vec<Algorithm>;
 
-    fn hash(&self, data: &[u8], algorithm: Algorithm) -> Result<Vec<u8>>;
-    fn hash_batch(&self, data: &[Vec<u8>], algorithm: Algorithm) -> Result<Vec<Vec<u8>>>;
+    fn hash(&self, data: &[u8], algorithm: Algorithm) -> Result<Vec<u8>, CryptoError>;
+    fn hash_batch(
+        &self,
+        data: &[Vec<u8>],
+        algorithm: Algorithm,
+    ) -> Result<Vec<Vec<u8>>, CryptoError>;
 
-    fn aes_gcm_encrypt(&self, key: &[u8], nonce: &[u8], data: &[u8]) -> Result<Vec<u8>>;
-    fn aes_gcm_decrypt(&self, key: &[u8], nonce: &[u8], data: &[u8]) -> Result<Vec<u8>>;
+    fn aes_gcm_encrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        data: &[u8],
+    ) -> Result<Vec<u8>, CryptoError>;
+    fn aes_gcm_decrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        data: &[u8],
+    ) -> Result<Vec<u8>, CryptoError>;
 
-    fn sm4_encrypt(&self, key: &[u8], data: &[u8], mode: &str) -> Result<Vec<u8>>;
-    fn sm4_decrypt(&self, key: &[u8], data: &[u8], mode: &str) -> Result<Vec<u8>>;
+    fn sm4_encrypt(&self, key: &[u8], data: &[u8], mode: &str) -> Result<Vec<u8>, CryptoError>;
+    fn sm4_decrypt(&self, key: &[u8], data: &[u8], mode: &str) -> Result<Vec<u8>, CryptoError>;
 
-    fn ecdsa_sign(&self, private_key: &[u8], data: &[u8], algorithm: Algorithm) -> Result<Vec<u8>>;
+    fn ecdsa_sign(
+        &self,
+        private_key: &[u8],
+        data: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<Vec<u8>, CryptoError>;
     fn ecdsa_verify(
         &self,
         public_key: &[u8],
         data: &[u8],
         signature: &[u8],
         algorithm: Algorithm,
-    ) -> Result<bool>;
+    ) -> Result<bool, CryptoError>;
     fn ecdsa_verify_batch(
         &self,
         public_keys: &[&[u8]],
         data: &[&[u8]],
         signatures: &[&[u8]],
         algorithm: Algorithm,
-    ) -> Result<Vec<bool>>;
+    ) -> Result<Vec<bool>, CryptoError>;
+
+    fn ed25519_sign(&self, private_key: &[u8], data: &[u8]) -> Result<Vec<u8>, CryptoError>;
+    fn ed25519_verify(
+        &self,
+        public_key: &[u8],
+        data: &[u8],
+        signature: &[u8],
+    ) -> Result<bool, CryptoError>;
 }
 
 /// XPU 设备管理器
-#[derive(Debug)]
 pub struct XpuManager {
     devices: Vec<Arc<dyn XpuDevice>>,
     primary_device: Option<usize>,
     default_device_type: XpuType,
 }
 
+impl std::fmt::Debug for XpuManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("XpuManager")
+            .field("device_count", &self.devices.len())
+            .field("primary_device", &self.primary_device)
+            .field("default_device_type", &self.default_device_type)
+            .finish()
+    }
+}
+
 /// XPU 管理器单例（延迟初始化）
 static MANAGER: once_cell::sync::OnceCell<XpuManager> = once_cell::sync::OnceCell::new();
 
 impl XpuManager {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self, CryptoError> {
         let mut manager = Self {
             devices: Vec::new(),
             primary_device: None,
@@ -201,9 +247,6 @@ impl XpuManager {
         #[cfg(feature = "gpu-opencl")]
         manager.try_add_opencl_devices()?;
 
-        #[cfg(feature = "gpu-sycl")]
-        manager.try_add_sycl_devices()?;
-
         if manager.devices.is_empty() {
             return Err(CryptoError::HardwareAccelerationUnavailable(
                 "No compatible XPU device found".into(),
@@ -215,7 +258,7 @@ impl XpuManager {
     }
 
     #[cfg(feature = "gpu-cuda")]
-    fn try_add_cuda_devices(&mut self) -> Result<()> {
+    fn try_add_cuda_devices(&mut self) -> Result<(), CryptoError> {
         match CudaDevice::enumerate() {
             Ok(cuda_devices) => {
                 for mut device in cuda_devices {
@@ -236,7 +279,7 @@ impl XpuManager {
     }
 
     #[cfg(feature = "gpu-opencl")]
-    fn try_add_opencl_devices(&mut self) -> Result<()> {
+    fn try_add_opencl_devices(&mut self) -> Result<(), CryptoError> {
         match OpenclDevice::enumerate() {
             Ok(opencl_devices) => {
                 for mut device in opencl_devices {
@@ -251,27 +294,6 @@ impl XpuManager {
             }
             Err(e) => {
                 log::warn!("OpenCL device detection failed: {:?}", e);
-            }
-        }
-        Ok(())
-    }
-
-    #[cfg(feature = "gpu-sycl")]
-    fn try_add_sycl_devices(&mut self) -> Result<()> {
-        match SyclDevice::enumerate() {
-            Ok(sycl_devices) => {
-                for mut device in sycl_devices {
-                    if device.initialize().is_ok() {
-                        self.devices.push(Arc::new(device));
-                        if self.primary_device.is_none() {
-                            self.primary_device = Some(self.devices.len() - 1);
-                            self.default_device_type = XpuType::IntelGpu;
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                log::warn!("SYCL device detection failed: {:?}", e);
             }
         }
         Ok(())
@@ -301,7 +323,7 @@ impl XpuManager {
         !self.devices.is_empty()
     }
 
-    pub fn get_primary_device(&self) -> Result<Arc<dyn XpuDevice>> {
+    pub fn get_primary_device(&self) -> Result<Arc<dyn XpuDevice>, CryptoError> {
         let index = self.primary_device.ok_or_else(|| {
             CryptoError::HardwareAccelerationUnavailable("No primary device selected".into())
         })?;
@@ -336,7 +358,7 @@ impl XpuManager {
     }
 
     pub fn default_device_type(&self) -> XpuType {
-        self.default_device_type
+        self.default_device_type.clone()
     }
 
     /// 获取单例实例（延迟初始化）
@@ -365,7 +387,7 @@ fn device_capability_score(device: &dyn XpuDevice) -> i32 {
 
     score += (caps.compute_units / 10) as i32;
     score += (caps.global_memory / (1024 * 1024 * 1024)) as i32;
-    score += if caps.ECC_supported { 10 } else { 0 };
+    score += if caps.ecc_supported { 10 } else { 0 };
     score += if caps.max_work_group_size >= 256 {
         10
     } else {
@@ -377,6 +399,8 @@ fn device_capability_score(device: &dyn XpuDevice) -> i32 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_xpu_type_display() {
         assert_eq!(XpuType::NvidiaCuda.to_string(), "NVIDIA CUDA");
