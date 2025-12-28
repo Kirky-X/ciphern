@@ -415,42 +415,144 @@ impl FipsSelfTestEngine {
             true
         };
 
-        let mut error_messages = Vec::new();
+        let mut error_messages: Vec<String> = Vec::new();
         if !consistency_check {
-            error_messages.push("CPU feature detection inconsistency");
+            error_messages.push("CPU feature detection inconsistency".to_string());
         }
         if !accelerated_hash_test {
-            error_messages.push("Accelerated hash test failed");
+            error_messages.push("Accelerated hash test failed".to_string());
         }
         if !accelerated_aes_test {
-            error_messages.push("Accelerated AES test failed");
+            error_messages.push("Accelerated AES test failed".to_string());
         }
 
         #[cfg(feature = "gpu")]
         {
-            let _gpu_init_result = crate::hardware::init_gpu();
+            let gpu_init_result = crate::hardware::init_gpu();
             let gpu_enabled = crate::hardware::is_gpu_enabled();
-            let gpu_initialized = crate::hardware::is_gpu_initialized();
 
-            let gpu_status_ok = true;
+            if gpu_enabled && gpu_init_result.is_ok() {
+                use crate::hardware::gpu::kernels::{GpuKernel, KernelManager};
+                use crate::types::Algorithm;
 
-            let gpu_functional_test = if gpu_enabled && gpu_initialized {
-                let test_data = vec![0u8; 64 * 1024];
-                let hash_result = crate::hardware::accelerated_hash_gpu(
-                    &test_data,
-                    crate::types::Algorithm::SHA256,
-                );
-                hash_result.is_ok()
-            } else {
-                true
-            };
+                let mut kernel_manager = KernelManager::new();
 
-            if gpu_enabled && !gpu_status_ok {
-                error_messages.push("GPU status check failed");
+                let mut aes_kernel = crate::hardware::gpu::kernels::AesKernel::default();
+                aes_kernel.initialize()?;
+                let aes_kernel = Arc::new(std::sync::RwLock::new(aes_kernel));
+
+                let mut hash_kernel = crate::hardware::gpu::kernels::HashKernel::default();
+                hash_kernel.initialize()?;
+                let hash_kernel = Arc::new(std::sync::RwLock::new(hash_kernel));
+
+                kernel_manager.register_kernel(aes_kernel);
+                kernel_manager.register_kernel(hash_kernel);
+
+                let aes_test_result: Result<bool> = {
+                    let key = [0u8; 32];
+                    let nonce = [0u8; 12];
+                    let plaintext = b"test data for GPU AES encryption test";
+
+                    kernel_manager
+                        .get_kernel(Algorithm::AES256GCM)
+                        .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable("Kernel not found".into()))
+                        .and_then(|kernel| {
+                            kernel
+                                .write()
+                                .unwrap()
+                                .execute_aes_gcm_encrypt(&key, &nonce, plaintext, None)
+                        })
+                        .and_then(|ciphertext| {
+                            kernel_manager
+                                .get_kernel(Algorithm::AES256GCM)
+                                .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable("Kernel not found".into()))
+                                .and_then(|kernel| {
+                                    kernel.write().unwrap().execute_aes_gcm_decrypt(
+                                        &key,
+                                        &nonce,
+                                        &ciphertext,
+                                        None,
+                                    )
+                                })
+                                .map(|decrypted| decrypted.as_slice() == plaintext)
+                        })
+                };
+
+                match aes_test_result {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        error_messages.push(String::from("AES-GCM decrypt mismatch"));
+                    }
+                    Err(e) => {
+                        error_messages.push(format!("AES-GCM failed: {}", e));
+                    }
+                }
+
+                let hash_test_result: Result<bool> = {
+                    let test_data = b"FIPS GPU hash test data for acceleration verification";
+                    kernel_manager
+                        .get_kernel(Algorithm::SHA256)
+                        .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable("Kernel not found".into()))
+                        .and_then(|kernel| {
+                            kernel
+                                .write()
+                                .unwrap()
+                                .execute_hash(test_data, Algorithm::SHA256)
+                        })
+                        .map(|hash| hash.len() == 32)
+                };
+
+                match hash_test_result {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        error_messages.push(String::from("GPU SHA256 hash length mismatch"));
+                    }
+                    Err(e) => {
+                        error_messages.push(format!("GPU SHA256 hash failed: {}", e));
+                    }
+                }
+
+                let batch_test_result: Result<bool> = {
+                    let batch_data: Vec<Vec<u8>> = (0..32)
+                        .map(|i| format!("batch test data item {}", i).into_bytes())
+                        .collect();
+
+                    kernel_manager
+                        .get_kernel(Algorithm::SHA256)
+                        .ok_or_else(|| CryptoError::HardwareAccelerationUnavailable("Kernel not found".into()))
+                        .and_then(|kernel| {
+                            kernel
+                                .write()
+                                .unwrap()
+                                .execute_hash_batch(&batch_data, Algorithm::SHA256)
+                        })
+                        .map(|hashes| {
+                            let all_correct_length = hashes.iter().all(|h| h.len() == 32);
+                            let count_correct = hashes.len() == 32;
+                            if !count_correct {
+                                error_messages.push(format!(
+                                    "Batch hash count mismatch: expected 32, got {}",
+                                    hashes.len()
+                                ));
+                            }
+                            all_correct_length && count_correct
+                        })
+                };
+
+                match batch_test_result {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        error_messages.push(String::from("GPU batch hash failed"));
+                    }
+                    Err(e) => {
+                        error_messages.push(format!("GPU batch hash failed: {}", e));
+                    }
+                }
+
+                let _ = kernel_manager.shutdown_all();
             }
-            if gpu_enabled && !gpu_functional_test {
-                error_messages.push("GPU functional test failed");
-            }
+
+            let _ = crate::hardware::shutdown_gpu();
         }
 
         #[cfg(not(feature = "gpu"))]
