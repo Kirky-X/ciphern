@@ -8,25 +8,34 @@
 //! 提供加密和哈希操作的 GPU Kernel 抽象
 //! 每个 Algorithm 对应一个或多个 Kernel 实现
 
+use crate::error::CryptoError;
 use crate::types::Algorithm;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub mod aes_kernel;
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub mod hash_kernel;
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub mod signature_kernel;
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub mod sm4_kernel;
 
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub use aes_kernel::AesKernel;
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub use hash_kernel::HashKernel;
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub use signature_kernel::SignatureKernel;
 #[cfg(feature = "gpu")]
+#[allow(unused)]
 pub use sm4_kernel::Sm4Kernel;
 
 /// Kernel 类型
@@ -119,14 +128,18 @@ pub trait GpuKernel: Send + Sync {
     fn supported_algorithms(&self) -> Vec<Algorithm>;
     fn is_available(&self) -> bool;
 
-    fn initialize(&mut self) -> Result<()>;
-    fn shutdown(&mut self) -> Result<()>;
+    fn initialize(&mut self) -> Result<(), CryptoError>;
+    fn shutdown(&mut self) -> Result<(), CryptoError>;
 
     fn get_metrics(&self) -> Option<KernelMetrics>;
     fn reset_metrics(&mut self);
 
-    fn execute_hash(&self, data: &[u8], algorithm: Algorithm) -> Result<Vec<u8>>;
-    fn execute_hash_batch(&self, data: &[Vec<u8>], algorithm: Algorithm) -> Result<Vec<Vec<u8>>>;
+    fn execute_hash(&self, data: &[u8], algorithm: Algorithm) -> Result<Vec<u8>, CryptoError>;
+    fn execute_hash_batch(
+        &self,
+        data: &[Vec<u8>],
+        algorithm: Algorithm,
+    ) -> Result<Vec<Vec<u8>>, CryptoError>;
 
     fn execute_aes_gcm_encrypt(
         &self,
@@ -134,62 +147,161 @@ pub trait GpuKernel: Send + Sync {
         nonce: &[u8],
         data: &[u8],
         aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>>;
+    ) -> Result<Vec<u8>, CryptoError>;
     fn execute_aes_gcm_decrypt(
         &self,
         key: &[u8],
         nonce: &[u8],
         data: &[u8],
         aad: Option<&[u8]>,
-    ) -> Result<Vec<u8>>;
+    ) -> Result<Vec<u8>, CryptoError>;
 
     fn execute_aes_gcm_encrypt_batch(
         &self,
         keys: &[&[u8]],
         nonces: &[&[u8]],
         data: &[&[u8]],
-    ) -> Result<Vec<Vec<u8>>>;
+    ) -> Result<Vec<Vec<u8>>, CryptoError>;
     fn execute_aes_gcm_decrypt_batch(
         &self,
         keys: &[&[u8]],
         nonces: &[&[u8]],
         data: &[&[u8]],
-    ) -> Result<Vec<Vec<u8>>>;
+    ) -> Result<Vec<Vec<u8>>, CryptoError>;
 
     fn execute_ecdsa_sign(
         &self,
         private_key: &[u8],
         data: &[u8],
         algorithm: Algorithm,
-    ) -> Result<Vec<u8>>;
+    ) -> Result<Vec<u8>, CryptoError>;
     fn execute_ecdsa_verify(
         &self,
         public_key: &[u8],
         data: &[u8],
         signature: &[u8],
         algorithm: Algorithm,
-    ) -> Result<bool>;
+    ) -> Result<bool, CryptoError>;
     fn execute_ecdsa_verify_batch(
         &self,
         public_keys: &[&[u8]],
         data: &[&[u8]],
         signatures: &[&[u8]],
         algorithm: Algorithm,
-    ) -> Result<Vec<bool>>;
-    fn execute_ed25519_sign(&self, private_key: &[u8], data: &[u8]) -> Result<Vec<u8>>;
+    ) -> Result<Vec<bool>, CryptoError>;
+    fn execute_ed25519_sign(&self, private_key: &[u8], data: &[u8])
+        -> Result<Vec<u8>, CryptoError>;
     fn execute_ed25519_verify(
         &self,
         public_key: &[u8],
         data: &[u8],
         signature: &[u8],
-    ) -> Result<bool>;
+    ) -> Result<bool, CryptoError>;
+}
+
+impl<T: GpuKernel> crate::hardware::gpu::device::XpuKernel for T {
+    fn supported_algorithms(&self) -> Vec<Algorithm> {
+        GpuKernel::supported_algorithms(self)
+    }
+
+    fn hash(&self, data: &[u8], algorithm: Algorithm) -> Result<Vec<u8>, CryptoError> {
+        GpuKernel::execute_hash(self, data, algorithm)
+    }
+
+    fn hash_batch(
+        &self,
+        data: &[Vec<u8>],
+        algorithm: Algorithm,
+    ) -> Result<Vec<Vec<u8>>, CryptoError> {
+        GpuKernel::execute_hash_batch(self, data, algorithm)
+    }
+
+    fn aes_gcm_encrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        data: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
+        GpuKernel::execute_aes_gcm_encrypt(self, key, nonce, data, None)
+    }
+
+    fn aes_gcm_decrypt(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        data: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
+        GpuKernel::execute_aes_gcm_decrypt(self, key, nonce, data, None)
+    }
+
+    fn sm4_encrypt(&self, _key: &[u8], _data: &[u8], _mode: &str) -> Result<Vec<u8>, CryptoError> {
+        Err(CryptoError::InvalidInput(
+            "SM4 not supported by this kernel".into(),
+        ))
+    }
+
+    fn sm4_decrypt(&self, _key: &[u8], _data: &[u8], _mode: &str) -> Result<Vec<u8>, CryptoError> {
+        Err(CryptoError::InvalidInput(
+            "SM4 not supported by this kernel".into(),
+        ))
+    }
+
+    fn ecdsa_sign(
+        &self,
+        private_key: &[u8],
+        data: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<Vec<u8>, CryptoError> {
+        GpuKernel::execute_ecdsa_sign(self, private_key, data, algorithm)
+    }
+
+    fn ecdsa_verify(
+        &self,
+        public_key: &[u8],
+        data: &[u8],
+        signature: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<bool, CryptoError> {
+        GpuKernel::execute_ecdsa_verify(self, public_key, data, signature, algorithm)
+    }
+
+    fn ecdsa_verify_batch(
+        &self,
+        public_keys: &[&[u8]],
+        data: &[&[u8]],
+        signatures: &[&[u8]],
+        algorithm: Algorithm,
+    ) -> Result<Vec<bool>, CryptoError> {
+        GpuKernel::execute_ecdsa_verify_batch(self, public_keys, data, signatures, algorithm)
+    }
+
+    fn ed25519_sign(&self, private_key: &[u8], data: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        GpuKernel::execute_ed25519_sign(self, private_key, data)
+    }
+
+    fn ed25519_verify(
+        &self,
+        public_key: &[u8],
+        data: &[u8],
+        signature: &[u8],
+    ) -> Result<bool, CryptoError> {
+        GpuKernel::execute_ed25519_verify(self, public_key, data, signature)
+    }
 }
 
 /// Kernel 管理器
-#[derive(Debug)]
 pub struct KernelManager {
-    kernels: Vec<Arc<dyn GpuKernel>>,
-    algorithm_kernel_map: std::collections::HashMap<Algorithm, Arc<dyn GpuKernel>>,
+    kernels: Vec<Arc<RwLock<dyn GpuKernel>>>,
+    algorithm_kernel_map: std::collections::HashMap<Algorithm, Arc<RwLock<dyn GpuKernel>>>,
+}
+
+impl std::fmt::Debug for KernelManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KernelManager")
+            .field("kernel_count", &self.kernels.len())
+            .field("algorithm_count", &self.algorithm_kernel_map.len())
+            .finish()
+    }
 }
 
 impl KernelManager {
@@ -200,34 +312,36 @@ impl KernelManager {
         }
     }
 
-    pub fn register_kernel(&mut self, kernel: Arc<dyn GpuKernel>) {
-        for algo in kernel.supported_algorithms() {
+    pub fn register_kernel(&mut self, kernel: Arc<RwLock<dyn GpuKernel>>) {
+        for algo in kernel.read().unwrap().supported_algorithms() {
             self.algorithm_kernel_map.insert(algo, Arc::clone(&kernel));
         }
         self.kernels.push(Arc::clone(&kernel));
     }
 
-    pub fn get_kernel(&self, algorithm: Algorithm) -> Option<Arc<dyn GpuKernel>> {
+    pub fn get_kernel(&self, algorithm: Algorithm) -> Option<Arc<RwLock<dyn GpuKernel>>> {
         self.algorithm_kernel_map.get(&algorithm).map(Arc::clone)
     }
 
-    pub fn get_kernel_by_type(&self, kernel_type: KernelType) -> Option<Arc<dyn GpuKernel>> {
+    pub fn get_kernel_by_type(
+        &self,
+        kernel_type: KernelType,
+    ) -> Option<Arc<RwLock<dyn GpuKernel>>> {
         self.kernels
             .iter()
-            .find(|k| k.kernel_type() == kernel_type)
+            .find(|k| k.read().unwrap().kernel_type() == kernel_type)
             .map(Arc::clone)
     }
 
-    pub fn get_all_kernels(&self) -> Vec<Arc<dyn GpuKernel>> {
+    pub fn get_all_kernels(&self) -> Vec<Arc<RwLock<dyn GpuKernel>>> {
         self.kernels.iter().map(Arc::clone).collect()
     }
 
-    pub fn shutdown_all(&self) -> Result<()> {
+    pub fn shutdown_all(&self) -> Result<(), CryptoError> {
         for kernel in &self.kernels {
-            if kernel.is_available() {
-                if let Ok(mut k) = Arc::clone(kernel).lock() {
-                    let _ = k.shutdown();
-                }
+            if kernel.read().unwrap().is_available() {
+                let mut k = kernel.write().unwrap();
+                let _ = k.shutdown();
             }
         }
         Ok(())
@@ -384,6 +498,8 @@ impl BatchConfig {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_kernel_type_display() {
         assert_eq!(KernelType::GpuAes.to_string(), "GPU AES");
