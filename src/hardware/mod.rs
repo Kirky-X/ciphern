@@ -24,7 +24,7 @@ pub use gpu::{
     accelerated_aes_gpu, accelerated_ecdsa_sign_gpu, accelerated_ecdsa_verify_batch_gpu,
     accelerated_ecdsa_verify_gpu, accelerated_ed25519_sign_gpu, accelerated_ed25519_verify_gpu,
     accelerated_hash_gpu, get_gpu_config, init_gpu, is_gpu_enabled, is_gpu_initialized,
-    set_gpu_config, GpuThresholdConfig, GPU_CONFIG, GPU_ENABLED, GPU_INITIALIZED,
+    set_gpu_config, shutdown_gpu, GpuThresholdConfig, GPU_CONFIG, GPU_ENABLED, GPU_INITIALIZED,
 };
 
 #[cfg(not(feature = "gpu"))]
