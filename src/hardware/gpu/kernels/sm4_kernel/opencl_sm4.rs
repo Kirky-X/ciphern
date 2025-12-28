@@ -68,7 +68,7 @@ impl super::GpuKernel for OpenclSm4Kernel {
         ))
     }
 
-    fn execute_sm4_gcm_encrypt(
+    fn execute_aes_gcm_encrypt(
         &self,
         key: &[u8],
         nonce: &[u8],
@@ -98,7 +98,7 @@ impl super::GpuKernel for OpenclSm4Kernel {
         Ok(result)
     }
 
-    fn execute_sm4_gcm_decrypt(
+    fn execute_aes_gcm_decrypt(
         &self,
         key: &[u8],
         nonce: &[u8],
@@ -126,6 +126,56 @@ impl super::GpuKernel for OpenclSm4Kernel {
             .with_throughput(data.len() as f32 / elapsed.as_secs_f32() / 1_000_000.0);
 
         Ok(result)
+    }
+
+    fn execute_aes_gcm_encrypt_batch(
+        &self,
+        _keys: &[&[u8]],
+        _nonces: &[&[u8]],
+        _data: &[&[u8]],
+    ) -> Result<Vec<Vec<u8>>> {
+        Err(CryptoError::InvalidInput(
+            "SM4 kernel does not support batch encrypt operation".into(),
+        ))
+    }
+
+    fn execute_aes_gcm_decrypt_batch(
+        &self,
+        _keys: &[&[u8]],
+        _nonces: &[&[u8]],
+        _data: &[&[u8]],
+    ) -> Result<Vec<Vec<u8>>> {
+        Err(CryptoError::InvalidInput(
+            "SM4 kernel does not support batch decrypt operation".into(),
+        ))
+    }
+
+    fn execute_ecdsa_sign(
+        &self,
+        _private_key: &[u8],
+        _data: &[u8],
+        _algorithm: Algorithm,
+    ) -> Result<Vec<u8>> {
+        Err(CryptoError::InvalidInput(
+            "SM4 kernel does not support ECDSA sign operation".into(),
+        ))
+    }
+
+    fn execute_ed25519_sign(&self, _private_key: &[u8], _data: &[u8]) -> Result<Vec<u8>> {
+        Err(CryptoError::InvalidInput(
+            "SM4 kernel does not support Ed25519 sign operation".into(),
+        ))
+    }
+
+    fn execute_ed25519_verify(
+        &self,
+        _public_key: &[u8],
+        _data: &[u8],
+        _signature: &[u8],
+    ) -> Result<bool> {
+        Err(CryptoError::InvalidInput(
+            "SM4 kernel does not support Ed25519 verify operation".into(),
+        ))
     }
 
     fn execute_signature_verification(
