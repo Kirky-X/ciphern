@@ -48,12 +48,14 @@ fn example_sha512() -> Result<()> {
     Ok(())
 }
 
+type HashFn = fn(&[u8]) -> Result<Vec<u8>>;
+
 fn example_multi_hash() -> Result<()> {
     println!("[3] Multiple Hash Algorithms Comparison");
 
     let data = b"Test data for hash comparison";
 
-    let algorithms: Vec<(String, fn(&[u8]) -> Result<Vec<u8>>)> = vec![
+    let algorithms: Vec<(String, HashFn)> = vec![
         ("SHA-256".to_string(), |d| {
             let hasher = Hasher::new(ciphern::Algorithm::SHA256)?;
             Ok(hasher.hash(d))

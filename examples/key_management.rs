@@ -175,6 +175,7 @@ pub fn run_multiple_keys_example() -> Result<(), Box<dyn std::error::Error>> {
 
     let key_manager = setup()?;
 
+    #[allow(clippy::useless_vec)]
     let key_ids = vec![
         key_manager.generate_key(ciphern::Algorithm::AES256GCM)?,
         key_manager.generate_key(ciphern::Algorithm::AES256GCM)?,
