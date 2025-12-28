@@ -18,17 +18,17 @@ use std::sync::RwLock;
 pub mod device;
 #[cfg(feature = "gpu")]
 #[allow(unused)]
-mod kernels;
+pub mod kernels;
 #[cfg(feature = "gpu")]
 #[allow(unused)]
-mod memory;
+pub mod memory;
 
 #[cfg(feature = "gpu")]
 #[allow(unused)]
 pub use device::{XpuDevice, XpuManager, XpuType};
 #[cfg(feature = "gpu")]
 #[allow(unused)]
-pub use kernels::GpuKernel;
+pub use kernels::{GpuKernel, KernelManager, KernelMetrics, KernelType};
 #[cfg(feature = "gpu")]
 #[allow(unused)]
 pub use memory::GpuBuffer;
@@ -67,11 +67,19 @@ pub fn init_gpu() -> Result<(), CryptoError> {
                 GPU_INITIALIZED.store(true, Ordering::Relaxed);
                 Ok(())
             } else {
-                Ok(())
+                GPU_ENABLED.store(false, Ordering::Relaxed);
+                GPU_INITIALIZED.store(false, Ordering::Relaxed);
+                Err(CryptoError::HardwareAccelerationUnavailable(
+                    "No GPU devices available".into(),
+                ))
             }
         }
-        Err(_) => {
-            Ok(())
+        Err(e) => {
+            GPU_ENABLED.store(false, Ordering::Relaxed);
+            GPU_INITIALIZED.store(false, Ordering::Relaxed);
+            Err(CryptoError::HardwareAccelerationUnavailable(
+                format!("GPU initialization failed: {}", e),
+            ))
         }
     }
 }
@@ -175,10 +183,16 @@ pub fn accelerated_hash_gpu(data: &[u8], algorithm: Algorithm) -> Result<Vec<u8>
     }
 
     let manager = XpuManager::get();
-    let device = manager.get_primary_device()?;
+    if let Some(ref m) = *manager {
+        let device = m.get_primary_device()?;
 
-    let kernel = device.get_kernel(algorithm)?;
-    kernel.hash(data, algorithm)
+        let kernel = device.get_kernel(algorithm)?;
+        kernel.hash(data, algorithm)
+    } else {
+        Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not initialized".into(),
+        ))
+    }
 }
 
 /// GPU 加速的 AES 加密
@@ -203,12 +217,18 @@ pub fn accelerated_aes_gpu(
     }
 
     let manager = XpuManager::get();
-    let device = manager.get_primary_device()?;
+    if let Some(ref m) = *manager {
+        let device = m.get_primary_device()?;
 
-    if encrypt {
-        device.aes_gcm_encrypt(key, nonce, data)
+        if encrypt {
+            device.aes_gcm_encrypt(key, nonce, data)
+        } else {
+            device.aes_gcm_decrypt(key, nonce, data)
+        }
     } else {
-        device.aes_gcm_decrypt(key, nonce, data)
+        Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not initialized".into(),
+        ))
     }
 }
 
@@ -233,10 +253,16 @@ pub fn accelerated_ecdsa_sign_gpu(
     }
 
     let manager = XpuManager::get();
-    let device = manager.get_primary_device()?;
+    if let Some(ref m) = *manager {
+        let device = m.get_primary_device()?;
 
-    let kernel = device.get_kernel(algorithm)?;
-    kernel.ecdsa_sign(private_key, data, algorithm)
+        let kernel = device.get_kernel(algorithm)?;
+        kernel.ecdsa_sign(private_key, data, algorithm)
+    } else {
+        Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not initialized".into(),
+        ))
+    }
 }
 
 /// GPU 加速的 ECDSA 验证
@@ -261,10 +287,16 @@ pub fn accelerated_ecdsa_verify_gpu(
     }
 
     let manager = XpuManager::get();
-    let device = manager.get_primary_device()?;
+    if let Some(ref m) = *manager {
+        let device = m.get_primary_device()?;
 
-    let kernel = device.get_kernel(algorithm)?;
-    kernel.ecdsa_verify(public_key, data, signature, algorithm)
+        let kernel = device.get_kernel(algorithm)?;
+        kernel.ecdsa_verify(public_key, data, signature, algorithm)
+    } else {
+        Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not initialized".into(),
+        ))
+    }
 }
 
 /// GPU 加速的 ECDSA 批量验证
@@ -290,10 +322,16 @@ pub fn accelerated_ecdsa_verify_batch_gpu(
     }
 
     let manager = XpuManager::get();
-    let device = manager.get_primary_device()?;
+    if let Some(ref m) = *manager {
+        let device = m.get_primary_device()?;
 
-    let kernel = device.get_kernel(algorithm)?;
-    kernel.ecdsa_verify_batch(public_keys, data, signatures, algorithm)
+        let kernel = device.get_kernel(algorithm)?;
+        kernel.ecdsa_verify_batch(public_keys, data, signatures, algorithm)
+    } else {
+        Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not initialized".into(),
+        ))
+    }
 }
 
 /// GPU 加速的 Ed25519 签名
@@ -316,10 +354,16 @@ pub fn accelerated_ed25519_sign_gpu(
     }
 
     let manager = XpuManager::get();
-    let device = manager.get_primary_device()?;
+    if let Some(ref m) = *manager {
+        let device = m.get_primary_device()?;
 
-    let kernel = device.get_kernel(Algorithm::Ed25519)?;
-    kernel.ed25519_sign(private_key, data)
+        let kernel = device.get_kernel(Algorithm::Ed25519)?;
+        kernel.ed25519_sign(private_key, data)
+    } else {
+        Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not initialized".into(),
+        ))
+    }
 }
 
 /// GPU 加速的 Ed25519 验证
@@ -343,10 +387,40 @@ pub fn accelerated_ed25519_verify_gpu(
     }
 
     let manager = XpuManager::get();
-    let device = manager.get_primary_device()?;
+    if let Some(ref m) = *manager {
+        let device = m.get_primary_device()?;
 
-    let kernel = device.get_kernel(Algorithm::Ed25519)?;
-    kernel.ed25519_verify(public_key, data, signature)
+        let kernel = device.get_kernel(Algorithm::Ed25519)?;
+        kernel.ed25519_verify(public_key, data, signature)
+    } else {
+        Err(CryptoError::HardwareAccelerationUnavailable(
+            "GPU not initialized".into(),
+        ))
+    }
+}
+
+/// 关闭 GPU 加速，释放资源
+#[cfg(feature = "gpu")]
+pub fn shutdown_gpu() -> Result<(), CryptoError> {
+    if !GPU_INITIALIZED.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+
+    let mut manager = XpuManager::get();
+    if let Some(ref mut m) = *manager {
+        m.shutdown_all_devices()?;
+    }
+
+    GPU_ENABLED.store(false, Ordering::Relaxed);
+    GPU_INITIALIZED.store(false, Ordering::Relaxed);
+
+    Ok(())
+}
+
+/// 关闭 GPU 加速（无 GPU 静默失败）
+#[cfg(not(feature = "gpu"))]
+pub fn shutdown_gpu() -> Result<(), CryptoError> {
+    Ok(())
 }
 
 #[cfg(test)]
