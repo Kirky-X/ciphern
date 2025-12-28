@@ -36,12 +36,22 @@ impl OpenclDevice {
     pub fn enumerate() -> Result<Vec<Self>, CryptoError> {
         let mut devices = Vec::new();
 
-        let platforms = Platform::list();
+        let platforms = match std::panic::catch_unwind(|| Platform::list()) {
+            Ok(p) => p,
+            Err(_) => {
+                return Ok(devices);
+            }
+        };
 
         let mut device_count = 0usize;
         for platform in &platforms {
-            let platform_devices = Device::list(platform, None)
-                .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
+            let platform_devices = match std::panic::catch_unwind(|| Device::list(platform, None)) {
+                Ok(devices) => devices,
+                Err(_) => {
+                    continue;
+                }
+            }
+            .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
 
             for device in platform_devices {
                 let name = device
@@ -109,7 +119,7 @@ impl OpenclDevice {
                     device_name: name,
                     capabilities,
                     state: DeviceState::Uninitialized,
-                    platform: Some(platform.clone()),
+                    platform: Some(*platform),
                     device: Some(device),
                     context: None,
                 });
@@ -161,7 +171,7 @@ impl XpuDevice for OpenclDevice {
         })?;
 
         let context = Context::builder()
-            .devices(device.clone())
+            .devices(*device)
             .build()
             .map_err(|e| CryptoError::HardwareAccelerationUnavailable(e.to_string()))?;
 

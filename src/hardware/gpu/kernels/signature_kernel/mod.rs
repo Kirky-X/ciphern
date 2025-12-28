@@ -258,7 +258,7 @@ impl SignatureKernelImpl {
             }
             _ => {
                 return Err(CryptoError::InvalidInput(
-                    format!("Unsupported signature algorithm: {:?}", algorithm).into(),
+                    format!("Unsupported signature algorithm: {:?}", algorithm),
                 ));
             }
         };
@@ -321,7 +321,7 @@ impl SignatureKernelImpl {
             }
             _ => {
                 return Err(CryptoError::InvalidInput(
-                    format!("Unsupported signature algorithm: {:?}", algorithm).into(),
+                    format!("Unsupported signature algorithm: {:?}", algorithm),
                 ));
             }
         };

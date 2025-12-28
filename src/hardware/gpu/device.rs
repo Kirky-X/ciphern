@@ -346,11 +346,11 @@ impl XpuManager {
         self.devices
             .iter()
             .find(|d| d.device_type() == device_type)
-            .map(|d| Arc::clone(d))
+            .cloned()
     }
 
     pub fn get_all_devices(&self) -> Vec<Arc<dyn XpuDevice>> {
-        self.devices.iter().map(|d| Arc::clone(d)).collect()
+        self.devices.to_vec()
     }
 
     pub fn get_device_count(&self) -> usize {
