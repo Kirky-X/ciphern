@@ -190,10 +190,10 @@ pub fn simd_sha256_block_vectorized(block: &[u8]) -> [u8; 32] {
     let mut g = 0x1f83d9abu32;
     let mut h = 0x5be0cd19u32;
 
-    for i in 0..64 {
+    for (i, &wi) in w.iter().enumerate() {
         let idx = i / 4;
         let k = k_vals[idx];
-        let offset = (i % 4);
+        let offset = i % 4;
 
         let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
         let maj = (a & b) ^ (a & c) ^ (b & c);
@@ -205,7 +205,7 @@ pub fn simd_sha256_block_vectorized(block: &[u8]) -> [u8; 32] {
             .wrapping_add(s1)
             .wrapping_add(ch)
             .wrapping_add(k[offset])
-            .wrapping_add(w[i]);
+            .wrapping_add(wi);
 
         h = g;
         g = f;

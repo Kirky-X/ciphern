@@ -40,10 +40,10 @@ fn sm4_sbox_byte(x: u32) -> u32 {
     let b2 = ((x >> 16) & 0xff) as usize;
     let b3 = ((x >> 24) & 0xff) as usize;
 
-    ((SM4_SBOX[b0] as u32))
-        | ((SM4_SBOX[b1] as u32) << 8)
-        | ((SM4_SBOX[b2] as u32) << 16)
-        | ((SM4_SBOX[b3] as u32) << 24)
+    (SM4_SBOX[b0] as u32)
+        | (SM4_SBOX[b1] as u32) << 8
+        | (SM4_SBOX[b2] as u32) << 16
+        | (SM4_SBOX[b3] as u32) << 24
 }
 
 #[inline]
@@ -85,9 +85,9 @@ pub fn sm4_key_schedule(key: &[u8; 16]) -> [u32; 32] {
     }
 
     let mut rk = [0u32; 32];
-    for i in 0..32 {
-        rk[i] = k[i + 4];
-    }
+    rk.iter_mut().take(32).enumerate().for_each(|(i, rki)| {
+        *rki = k[i + 4];
+    });
     rk
 }
 
@@ -98,8 +98,8 @@ pub fn sm4_encrypt_round(x: &[u32; 4], rk: &[u32; 32]) -> [u8; 16] {
     let mut x2 = x[2];
     let mut x3 = x[3];
 
-    for i in 0..32 {
-        let t = sm4_t_prime(x1 ^ x2 ^ x3 ^ rk[i]);
+    for rki in rk.iter().take(32) {
+        let t = sm4_t_prime(x1 ^ x2 ^ x3 ^ rki);
         let new_x3 = x0 ^ t;
         x0 = x1;
         x1 = x2;
