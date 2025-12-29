@@ -153,14 +153,17 @@ impl Signer for Sm2Provider {
 }
 
 /// SM2 批量签名验证提供者 - 支持并行处理
+#[cfg(feature = "parallel")]
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct Sm2BatchProvider {
     algorithm: Algorithm,
 }
 
+#[cfg(feature = "parallel")]
+#[allow(dead_code)]
 impl Sm2BatchProvider {
-    #[allow(dead_code)]
+    /// 创建新的批量签名验证提供者
     pub fn new(algorithm: Algorithm) -> Self {
         Self { algorithm }
     }

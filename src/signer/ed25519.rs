@@ -100,14 +100,17 @@ impl Signer for Ed25519Provider {
 }
 
 /// Ed25519 批量签名提供者 - 支持并行处理多个签名
+#[cfg(feature = "parallel")]
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct Ed25519BatchProvider {
     algorithm: Algorithm,
 }
 
+#[cfg(feature = "parallel")]
+#[allow(dead_code)]
 impl Ed25519BatchProvider {
-    #[allow(dead_code)]
+    /// 创建新的批量签名提供者
     pub fn new(algorithm: Algorithm) -> Self {
         Self { algorithm }
     }
