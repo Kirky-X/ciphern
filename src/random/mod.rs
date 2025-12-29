@@ -14,6 +14,13 @@ mod monitor;
 
 use monitor::{RngMonitor, RngMonitorConfig, RngMonitorManager};
 
+mod hardware;
+
+pub use hardware::{
+    detect_hardware_rng, is_hardware_rng_available, is_rdseed_available,
+    rdseed_fill_bytes, hardware_fill_bytes, BulkHardwareRng, HardwareRng, SeedGenerator,
+};
+
 static RNG_MONITOR_MANAGER: OnceLock<Arc<RngMonitorManager>> = OnceLock::new();
 
 pub fn get_rng_monitor_manager() -> Arc<RngMonitorManager> {

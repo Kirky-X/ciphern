@@ -56,7 +56,9 @@ pub use key::derivation::{Argon2id, Hkdf, Pbkdf2, Sm3Kdf};
 pub use key::manager::KeyManager;
 #[cfg(feature = "encrypt")]
 pub use key::{Key, KeyState};
-pub use random::{EntropySource, SecureRandom};
+pub use random::{EntropySource, SecureRandom, HardwareRng, is_hardware_rng_available};
+#[cfg(feature = "encrypt")]
+pub use random::{BulkHardwareRng, SeedGenerator, is_rdseed_available, rdseed_fill_bytes, hardware_fill_bytes, detect_hardware_rng};
 pub use types::Algorithm;
 
 #[cfg(feature = "simd")]
@@ -99,10 +101,11 @@ pub fn init() -> Result<()> {
     // 初始化 RNG 监控系统
     let _rng_monitor_manager = random::get_rng_monitor_manager();
 
-    // 初始化 CPU 硬件加速特性
+    // Initialize CPU hardware acceleration features
     #[cfg(feature = "encrypt")]
     {
         hardware::init_cpu_features();
+        random::detect_hardware_rng();
     }
 
     Ok(())
