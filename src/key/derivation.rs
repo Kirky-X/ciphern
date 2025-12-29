@@ -373,7 +373,7 @@ impl Sm3Kdf {
                 input.extend_from_slice(&(i as u32).to_be_bytes());
 
                 let mut hasher = Sm3Hash::new(&input);
-                hasher.get_hash()
+                hasher.get_hash().to_vec()
             })
             .collect();
 

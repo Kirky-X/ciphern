@@ -9,7 +9,7 @@ use thiserror::Error;
 #[allow(unused_imports)]
 use pyo3::exceptions::PyRuntimeError;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum CryptoError {
     #[error("Invalid key size: expected {expected}, got {actual}")]
     InvalidKeySize { expected: usize, actual: usize },
@@ -77,7 +77,7 @@ pub enum CryptoError {
     NotImplemented(String),
 
     #[error("IO Error: {0}")]
-    IoError(#[from] std::io::Error),
+    IoError(String),
 
     #[error("System time error")]
     TimeError,
@@ -268,8 +268,8 @@ mod i18n_error_impl {
             CryptoError::NotImplemented(feature) => {
                 vec![("feature", feature.clone())]
             }
-            CryptoError::IoError(e) => {
-                vec![("message", e.to_string())]
+            CryptoError::IoError(msg) => {
+                vec![("message", msg.clone())]
             }
             CryptoError::InsufficientEntropy
             | CryptoError::MemoryTampered
