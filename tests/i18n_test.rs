@@ -273,10 +273,7 @@ fn test_error_title_only() {
     use ciphern::{get_localized_title, CryptoError};
 
     set_locale("en");
-    let error = CryptoError::IoError(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
-        "file not found",
-    ));
+    let error = CryptoError::IoError("file not found".to_string());
     assert_eq!(get_localized_title(&error), "I/O Error");
 
     set_locale("zh");
