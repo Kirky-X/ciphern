@@ -1,6 +1,6 @@
 [package]
 name = "ciphern"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["Kirky.X <Kirky-X@outlook.com>"]
 description = "Enterprise-grade cryptographic library"
