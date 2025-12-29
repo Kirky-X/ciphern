@@ -750,15 +750,15 @@ mod tests {
             0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x12,
             0x34, 0x56, 0x78, 0x90,
         ];
-        assert!(rng.run_health_tests(&mut normal_data).is_ok());
+        assert!(rng.run_health_tests(&normal_data).is_ok());
 
         // All-same data should fail
-        let mut same_data = [0xAB; 32];
-        assert!(rng.run_health_tests(&mut same_data).is_err());
+        let same_data = [0xAB; 32];
+        assert!(rng.run_health_tests(&same_data).is_err());
 
         // Short data should pass (threshold is 16 bytes)
-        let mut short_data = [0xCD; 8];
-        assert!(rng.run_health_tests(&mut short_data).is_ok());
+        let short_data = [0xCD; 8];
+        assert!(rng.run_health_tests(&short_data).is_ok());
     }
 
     #[test]
