@@ -12,11 +12,20 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+const DEFAULT_MAX_PLUGIN_SIZE: u64 = 50 * 1024 * 1024;
+const DEFAULT_PLUGIN_LOAD_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_MAX_CONCURRENT_LOADS: usize = 4;
 
 pub struct PluginLoader {
     plugin_dirs: Vec<PathBuf>,
     loaded_plugins: HashMap<String, Arc<dyn Plugin>>,
     libraries: Vec<Arc<Library>>,
+    max_plugin_size: u64,
+    load_timeout: Duration,
+    max_concurrent_loads: usize,
+    active_loads: std::sync::atomic::AtomicUsize,
 }
 
 #[allow(dead_code)]
@@ -26,11 +35,53 @@ impl PluginLoader {
             plugin_dirs,
             loaded_plugins: HashMap::new(),
             libraries: Vec::new(),
+            max_plugin_size: DEFAULT_MAX_PLUGIN_SIZE,
+            load_timeout: DEFAULT_PLUGIN_LOAD_TIMEOUT,
+            max_concurrent_loads: DEFAULT_MAX_CONCURRENT_LOADS,
+            active_loads: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    pub fn with_limits(
+        plugin_dirs: Vec<PathBuf>,
+        max_plugin_size: u64,
+        load_timeout: Duration,
+        max_concurrent_loads: usize,
+    ) -> Self {
+        Self {
+            plugin_dirs,
+            loaded_plugins: HashMap::new(),
+            libraries: Vec::new(),
+            max_plugin_size,
+            load_timeout,
+            max_concurrent_loads,
+            active_loads: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
     pub fn load_plugin_from_file(&mut self, path: &Path) -> Result<Arc<dyn Plugin>> {
         let metadata = self.validate_plugin_file(path)?;
+        self.check_concurrent_load_limit()?;
+
+        let load_start = Instant::now();
+        let _guard = LoadGuard::new(&self.active_loads, self.max_concurrent_loads);
+
+        if load_start.elapsed() > self.load_timeout {
+            return Err(CryptoError::PluginError(
+                translate("plugin.load_timeout").to_string(),
+            ));
+        }
+
+        let file_size = fs::metadata(path)
+            .map_err(|e| CryptoError::PluginError(format!("获取插件文件元数据失败: {}", e)))?
+            .len();
+
+        if file_size > self.max_plugin_size {
+            return Err(CryptoError::PluginError(format!(
+                "插件文件大小 {} 超过最大允许大小 {}",
+                file_size, self.max_plugin_size
+            )));
+        }
 
         // 使用 libloading 加载动态库
         let lib = unsafe {
@@ -179,5 +230,42 @@ impl PluginLoader {
 
     pub fn list_plugins(&self) -> Vec<String> {
         self.loaded_plugins.keys().cloned().collect()
+    }
+}
+
+struct LoadGuard<'a> {
+    active_loads: &'a std::sync::atomic::AtomicUsize,
+    _marker: std::marker::PhantomData<()>,
+}
+
+impl<'a> LoadGuard<'a> {
+    fn new(
+        active_loads: &'a std::sync::atomic::AtomicUsize,
+        _max_loads: usize,
+    ) -> Self {
+        active_loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Self {
+            active_loads,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a> Drop for LoadGuard<'a> {
+    fn drop(&mut self) {
+        self.active_loads.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+impl PluginLoader {
+    fn check_concurrent_load_limit(&self) -> Result<()> {
+        let current_loads = self.active_loads.load(std::sync::atomic::Ordering::SeqCst);
+        if current_loads >= self.max_concurrent_loads {
+            return Err(CryptoError::PluginError(format!(
+                "已达到最大并发插件加载数 {}，请等待当前加载完成",
+                self.max_concurrent_loads
+            )));
+        }
+        Ok(())
     }
 }

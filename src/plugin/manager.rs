@@ -17,6 +17,10 @@ pub struct PluginManager {
     cipher_plugins: Arc<RwLock<HashMap<Algorithm, Arc<dyn CipherPlugin>>>>,
     health_check_interval: Duration,
     max_failures: u32,
+    #[allow(dead_code)]
+    max_plugins: usize,
+    #[allow(dead_code)]
+    max_memory_mb: u64,
 }
 
 #[allow(dead_code)]
@@ -27,14 +31,36 @@ impl PluginManager {
             cipher_plugins: Arc::new(RwLock::new(HashMap::new())),
             health_check_interval: Duration::from_secs(30),
             max_failures: 3,
+            max_plugins: 16,
+            max_memory_mb: 256,
+        }
+    }
+
+    pub fn with_limits(max_plugins: usize, max_memory_mb: u64) -> Self {
+        Self {
+            plugins: Arc::new(RwLock::new(HashMap::new())),
+            cipher_plugins: Arc::new(RwLock::new(HashMap::new())),
+            health_check_interval: Duration::from_secs(30),
+            max_failures: 3,
+            max_plugins,
+            max_memory_mb,
         }
     }
 
     pub fn register_plugin(&self, plugin: Arc<dyn Plugin>) -> Result<(), CryptoError> {
+        self.check_plugin_limits()?;
+
         let mut plugins = self
             .plugins
             .write()
             .map_err(|_| CryptoError::PluginError(translate("plugin.registry_lock_failed")))?;
+
+        if plugins.len() >= self.max_plugins {
+            return Err(CryptoError::PluginError(format!(
+                "已达到最大插件数量限制 {}，无法注册更多插件",
+                self.max_plugins
+            )));
+        }
 
         plugins.insert(plugin.name().to_string(), plugin.clone());
         Ok(())
@@ -108,6 +134,17 @@ impl PluginManager {
             }
         }
 
+        Ok(())
+    }
+
+    fn check_plugin_limits(&self) -> Result<(), CryptoError> {
+        let current_count = self.plugins.read().map(|p| p.len()).unwrap_or(0);
+        if current_count >= self.max_plugins {
+            return Err(CryptoError::PluginError(format!(
+                "插件数量 {} 已达到上限 {}",
+                current_count, self.max_plugins
+            )));
+        }
         Ok(())
     }
 
