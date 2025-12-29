@@ -3,6 +3,7 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use crate::audit::AuditLogger;
 use crate::error::{CryptoError, Result};
 use crate::key::Key;
 use crate::types::Algorithm;
@@ -13,6 +14,19 @@ use pbkdf2::pbkdf2;
 use ring::hkdf;
 use sha2::Sha256;
 use zeroize::Zeroize;
+
+/// Check if SHA-NI hardware acceleration is available for hash operations.
+#[inline]
+pub fn is_sha_ni_available() -> bool {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        std::is_x86_feature_detected!("sha")
+    }
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    {
+        false
+    }
+}
 
 #[allow(dead_code)]
 pub struct Hkdf;
@@ -38,6 +52,21 @@ impl Hkdf {
 
         let _secret = master_key.secret_bytes()?;
         let key_size = output_algo.key_size();
+
+        // Log hardware acceleration status
+        let sha_ni_available = is_sha_ni_available();
+        AuditLogger::log(
+            "HKDF_DERIVE_START",
+            None,
+            None,
+            if sha_ni_available {
+                Ok(())
+            } else {
+                Err(CryptoError::HardwareAccelerationUnavailable(
+                    "SHA-NI not available for HKDF".into(),
+                ))
+            },
+        );
 
         // 对于32字节密钥，直接使用HKDF
         if key_size == 32 {
@@ -100,6 +129,9 @@ impl Hkdf {
         // 清零派生过程中的敏感数据
         derived_bytes.zeroize();
 
+        // Log successful completion
+        AuditLogger::log("HKDF_DERIVE_COMPLETE", None, None, Ok(()));
+
         result
     }
 }
@@ -129,10 +161,26 @@ impl Pbkdf2 {
             "PBKDF2 iterations should be at least 10000 for security"
         );
 
+        // Log hardware acceleration status
+        let sha_ni_available = is_sha_ni_available();
+        AuditLogger::log(
+            "PBKDF2_DERIVE_START",
+            None,
+            None,
+            if sha_ni_available {
+                Ok(())
+            } else {
+                Err(CryptoError::HardwareAccelerationUnavailable(
+                    "SHA-NI not available for PBKDF2".into(),
+                ))
+            },
+        );
+
         let key_size = output_algo.key_size();
         let mut derived_key = vec![0u8; key_size];
 
         // 使用PBKDF2-HMAC-SHA256进行密钥派生
+        // ring库和sha2 crate会自动使用SHA-NI硬件加速（如果可用）
         pbkdf2::<Hmac<Sha256>>(password, salt, iterations, &mut derived_key)
             .map_err(|e| CryptoError::EncryptionFailed(format!("PBKDF2 failed: {:?}", e)))?;
 
@@ -140,6 +188,9 @@ impl Pbkdf2 {
 
         // 清零派生过程中的敏感数据
         derived_key.zeroize();
+
+        // Log successful completion
+        AuditLogger::log("PBKDF2_DERIVE_COMPLETE", None, None, Ok(()));
 
         result
     }
