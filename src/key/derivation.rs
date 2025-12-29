@@ -14,6 +14,8 @@ use pbkdf2::pbkdf2;
 use ring::hkdf;
 use sha2::Sha256;
 use zeroize::Zeroize;
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
 
 /// Check if SHA-NI hardware acceleration is available for hash operations.
 #[inline]
@@ -314,6 +316,120 @@ impl Sm3Kdf {
         derived_key.zeroize();
 
         result
+    }
+
+    /// 使用 SM3-KDF 并行派生密钥（使用 Rayon）
+    ///
+    /// 当启用了 parallel 特征时，使用 Rayon 进行并行处理，
+    /// 可显著提升大批量密钥派生性能。
+    ///
+    /// # 参数
+    ///
+    /// * `master_key` - 用于派生的主密钥
+    /// * `data` - 输入数据 (Z || 其他信息)
+    /// * `key_len` - 派生密钥的期望长度（字节）
+    /// * `output_algo` - 派生密钥的算法
+    ///
+    /// # 返回
+    ///
+    /// 返回派生的密钥
+    #[cfg(feature = "parallel")]
+    #[allow(dead_code)]
+    pub fn parallel_derive(
+        master_key: &Key,
+        data: &[u8],
+        key_len: usize,
+        output_algo: Algorithm,
+    ) -> Result<Key> {
+        const HASH_LEN: usize = 32;
+
+        if key_len == 0 || key_len > 1024 {
+            return Err(CryptoError::InvalidParameter(format!(
+                "Invalid key length for KDF: {}",
+                key_len
+            )));
+        }
+
+        let secret = master_key.secret_bytes()?;
+        let secret_bytes = secret.as_bytes();
+        let n = key_len.div_ceil(HASH_LEN);
+
+        if n > (u32::MAX as usize) {
+            return Err(CryptoError::InvalidParameter(
+                "Key length too large".to_string(),
+            ));
+        }
+
+        // Log parallel processing start
+        AuditLogger::log("SM3KDF_PARALLEL_DERIVE_START", None, None, Ok(()));
+
+        // 并行计算所有哈希块
+        let hashes: Vec<Vec<u8>> = (1..=n)
+            .into_par_iter()
+            .map(|i| {
+                let mut input = Vec::with_capacity(secret_bytes.len() + data.len() + 4);
+                input.extend_from_slice(secret_bytes);
+                input.extend_from_slice(data);
+                input.extend_from_slice(&(i as u32).to_be_bytes());
+
+                let mut hasher = Sm3Hash::new(&input);
+                hasher.get_hash()
+            })
+            .collect();
+
+        // 收集结果
+        let mut derived_key = Vec::with_capacity(key_len);
+        for hash in hashes {
+            derived_key.extend_from_slice(&hash);
+        }
+
+        // Truncate to requested length
+        derived_key.truncate(key_len);
+
+        let result = Key::new_active(output_algo, derived_key.clone());
+
+        // Zeroize intermediate buffer
+        derived_key.zeroize();
+
+        // Log parallel processing complete
+        AuditLogger::log("SM3KDF_PARALLEL_DERIVE_COMPLETE", None, None, Ok(()));
+
+        result
+    }
+
+    /// 自动选择是否使用并行派生
+    ///
+    /// 根据密钥长度自动选择最优的派生方法。
+    /// 对于较大的密钥长度（> 64字节），使用并行版本可能更快。
+    #[cfg(feature = "parallel")]
+    #[allow(dead_code)]
+    pub fn derive_optimal(
+        master_key: &Key,
+        data: &[u8],
+        key_len: usize,
+        output_algo: Algorithm,
+    ) -> Result<Key> {
+        // 对于较大的密钥长度，使用并行版本
+        if key_len > 64 {
+            return Self::parallel_derive(master_key, data, key_len, output_algo);
+        }
+        // 对于较小的密钥长度，使用标准版本
+        Self::derive(master_key, data, key_len, output_algo)
+    }
+
+    /// 自动选择是否使用并行派生（无并行版本）
+    ///
+    /// 当并行特征未启用时，回退到标准派生方法。
+    #[cfg(not(feature = "parallel"))]
+    #[allow(dead_code)]
+    pub fn derive_optimal(
+        master_key: &Key,
+        data: &[u8],
+        key_len: usize,
+        output_algo: Algorithm,
+    ) -> Result<Key> {
+        // 使用标准版本
+        Self::derive(master_key, data, key_len, output_algo)
     }
 }
 
