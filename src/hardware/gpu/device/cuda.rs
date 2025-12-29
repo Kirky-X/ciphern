@@ -87,6 +87,8 @@ impl CudaDevice {
     }
 }
 
+const MAX_GPU_BUFFER_SIZE: usize = 1024 * 1024 * 1024; // 1GB limit
+
 #[cfg(feature = "gpu-cuda")]
 impl XpuDevice for CudaDevice {
     fn device_type(&self) -> XpuType {
@@ -139,8 +141,25 @@ impl XpuDevice for CudaDevice {
         Ok(health)
     }
 
-    fn allocate_host_buffer(&self, _size: usize) -> Result<Vec<u8>, CryptoError> {
-        Ok(vec![0u8; _size])
+    fn allocate_host_buffer(&self, size: usize) -> Result<Vec<u8>, CryptoError> {
+        if size == 0 {
+            return Err(CryptoError::InvalidParameter(
+                "Buffer size must be greater than 0".into(),
+            ));
+        }
+        if size > MAX_GPU_BUFFER_SIZE {
+            return Err(CryptoError::InvalidParameter(format!(
+                "Buffer size {} exceeds maximum allowed size {}",
+                size, MAX_GPU_BUFFER_SIZE
+            )));
+        }
+        if size > self.capabilities.global_memory {
+            return Err(CryptoError::MemoryAllocationFailed(format!(
+                "Requested buffer size {} exceeds device memory {}",
+                size, self.capabilities.global_memory
+            )));
+        }
+        Ok(vec![0u8; size])
     }
 
     fn allocate_device_buffer(&self, _size: usize) -> Result<(), CryptoError> {

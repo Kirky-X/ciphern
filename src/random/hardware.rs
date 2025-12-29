@@ -262,9 +262,9 @@ pub fn rdseed_fill_bytes(dest: &mut [u8]) -> Result<()> {
 /// ```
 /// use ciphern::random::HardwareRng;
 ///
-/// let mut rng = HardwareRng::new();
+/// let rng = HardwareRng::new().expect("Failed to create HardwareRng");
 /// let mut bytes = [0u8; 32];
-/// rng.fill_bytes(&mut bytes);
+/// rng.fill(&mut bytes);
 /// ```
 #[derive(Clone)]
 pub struct HardwareRng {
@@ -359,7 +359,23 @@ impl HardwareRng {
 
 impl Default for HardwareRng {
     fn default() -> Self {
-        Self::new().expect("Failed to initialize HardwareRng")
+        Self::new().unwrap_or_else(|_e| {
+            AuditLogger::log(
+                "HARDWARE_RNG_INIT_FAILURE",
+                None,
+                None,
+                Err(CryptoError::InsufficientEntropy),
+            );
+            let mut seed = [0u8; 32];
+            let _ = getrandom::getrandom(&mut seed);
+            let rng = ChaCha20Rng::from_seed(seed);
+            seed.zeroize();
+
+            Self {
+                csprng: Arc::new(Mutex::new(rng)),
+                use_hardware: false,
+            }
+        })
     }
 }
 
@@ -367,26 +383,42 @@ impl RngCore for HardwareRng {
     #[inline]
     fn next_u32(&mut self) -> u32 {
         let mut buf = [0u8; 4];
-        self.fill(&mut buf).expect("RNG failed");
+        if let Err(e) = self.fill(&mut buf) {
+            AuditLogger::log("RNG_FAILURE", None, None, Err(e));
+            panic!("Critical RNG failure: unable to generate random data");
+        }
         u32::from_le_bytes(buf)
     }
 
     #[inline]
     fn next_u64(&mut self) -> u64 {
         let mut buf = [0u8; 8];
-        self.fill(&mut buf).expect("RNG failed");
+        if let Err(e) = self.fill(&mut buf) {
+            AuditLogger::log("RNG_FAILURE", None, None, Err(e));
+            panic!("Critical RNG failure: unable to generate random data");
+        }
         u64::from_le_bytes(buf)
     }
 
     #[inline]
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.fill(dest).expect("RNG failed");
+        if let Err(e) = self.fill(dest) {
+            AuditLogger::log("RNG_FAILURE", None, None, Err(e));
+            panic!("Critical RNG failure: unable to fill bytes");
+        }
     }
 
     #[inline]
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> std::result::Result<(), rand::Error> {
-        self.fill(dest)
-            .map_err(|_| rand::Error::new("Hardware RNG failed"))
+        self.fill(dest).map_err(|_e| {
+            AuditLogger::log(
+                "RNG_FAILURE",
+                None,
+                None,
+                Err(CryptoError::InsufficientEntropy),
+            );
+            rand::Error::new("Hardware RNG failed")
+        })
     }
 }
 
@@ -509,7 +541,7 @@ impl SeedGenerator {
             }
 
             // Handle remainder
-            if self.pool_filled < 64 && remaining % 8 != 0 {
+            if self.pool_filled < 64 && !remaining.is_multiple_of(8) {
                 rdseed_fill_bytes(&mut chunk)?;
                 let remainder = remaining % 8;
                 self.entropy_pool[self.pool_filled..self.pool_filled + remainder]
@@ -527,7 +559,7 @@ impl SeedGenerator {
                 self.pool_filled += 8;
             }
 
-            if self.pool_filled < 64 && remaining % 8 != 0 {
+            if self.pool_filled < 64 && !remaining.is_multiple_of(8) {
                 hardware_fill_bytes(&mut chunk)?;
                 let remainder = remaining % 8;
                 self.entropy_pool[self.pool_filled..self.pool_filled + remainder]
@@ -704,6 +736,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(unused_mut)]
     fn test_health_tests() {
         if !is_hardware_rng_available() {
             return;
@@ -738,6 +771,7 @@ mod tests {
         let rng = HardwareRng::new();
         assert!(rng.is_ok());
 
+        #[allow(unused_mut)]
         if let Ok(mut rng) = rng {
             let mut buf = [0u8; 32];
             let result = rng.fill(&mut buf);
@@ -756,11 +790,11 @@ mod tests {
         }
 
         let rng1 = HardwareRng::new().expect("Failed to create HardwareRng");
-        let rng2 = rng1.clone();
+        let _rng2 = rng1.clone();
 
         // Both should be usable
         let mut buf1 = [0u8; 32];
-        let mut buf2 = [0u8; 32];
+        let _buf2 = [0u8; 32];
 
         // Note: Cloned RNGs share state, so fill operations
         // may interfere with each other. This is intentional

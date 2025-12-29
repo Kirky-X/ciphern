@@ -10,16 +10,26 @@
 
 use std::hint::black_box;
 
-/// 两个字节数组的恒定时间比较
+/// Constant-time comparison of two byte arrays
+///
+/// This function compares two byte arrays in constant time regardless
+/// of whether they are equal or not, and regardless of their content.
+///
+/// Returns true if the arrays are equal, false otherwise.
 #[allow(dead_code)]
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
+    let len_match = a.len() == b.len();
+    let min_len = a.len().min(b.len());
+
     let mut result = 0u8;
-    for i in 0..a.len() {
+    for i in 0..min_len {
         result |= a[i] ^ b[i];
     }
+
+    if !len_match {
+        result |= 1;
+    }
+
     black_box(result) == 0
 }
 
