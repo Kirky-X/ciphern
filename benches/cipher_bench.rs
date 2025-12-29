@@ -6,6 +6,7 @@
 use ciphern::random::{is_hardware_rng_available, BulkHardwareRng, HardwareRng};
 use ciphern::{Algorithm, Cipher, KeyManager};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use rand::RngCore;
 use std::hint::black_box;
 
 fn bench_aes256_encrypt(c: &mut Criterion) {
