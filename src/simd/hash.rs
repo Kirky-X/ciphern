@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn test_sha256_vectorized() {
         let data = b"hello world";
-        let padded_len = ((data.len() + 9 + 63) / 64) * 64;
+        let padded_len = (data.len() + 9).div_ceil(64) * 64;
         let mut processed = Vec::with_capacity(padded_len);
         processed.extend_from_slice(data);
         while processed.len() < padded_len - 8 {
