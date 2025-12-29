@@ -239,10 +239,7 @@ struct LoadGuard<'a> {
 }
 
 impl<'a> LoadGuard<'a> {
-    fn new(
-        active_loads: &'a std::sync::atomic::AtomicUsize,
-        _max_loads: usize,
-    ) -> Self {
+    fn new(active_loads: &'a std::sync::atomic::AtomicUsize, _max_loads: usize) -> Self {
         active_loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Self {
             active_loads,
@@ -253,7 +250,8 @@ impl<'a> LoadGuard<'a> {
 
 impl<'a> Drop for LoadGuard<'a> {
     fn drop(&mut self) {
-        self.active_loads.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        self.active_loads
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
     }
 }
 
