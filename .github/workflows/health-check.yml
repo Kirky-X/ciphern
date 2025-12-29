@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
-        rust_version: [ stable, 1.70.0, beta ]
+        rust_version: [ stable, 1.84.0, beta ]
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
