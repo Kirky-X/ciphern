@@ -76,7 +76,7 @@ fn demonstrate_sm4_encryption() {
     let key = [0x12u8; 16];
     let plaintext = b"SM4 encrypted with SIMD acceleration demo data!!";
     assert!(
-        plaintext.len() % 16 == 0,
+        plaintext.len().is_multiple_of(16),
         "Plaintext must be multiple of 16 bytes"
     );
 
@@ -139,7 +139,7 @@ mod tests {
             return;
         }
         let key = [0u8; 16];
-        let plaintext = b"test data for sm4";
+        let plaintext = b"test data 16 !!!"; // exactly 16 bytes
         let encrypted = simd::simd_sm4_encrypt(&key, plaintext);
         let decrypted = simd::simd_sm4_decrypt(&key, &encrypted);
         assert_eq!(&decrypted[..plaintext.len()], plaintext);
