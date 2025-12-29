@@ -33,12 +33,7 @@ impl Signer for Sm2Provider {
         }
 
         // Log signing operation start
-        AuditLogger::log(
-            "SM2_SIGN_START",
-            Some(self.algorithm),
-            None,
-            Ok(()),
-        );
+        AuditLogger::log("SM2_SIGN_START", Some(self.algorithm), None, Ok(()));
 
         let secret = key.secret_bytes()?;
         let secret_bytes = secret.as_bytes();
@@ -87,12 +82,7 @@ impl Signer for Sm2Provider {
         result.extend(s_bytes);
 
         // Log signing operation complete
-        AuditLogger::log(
-            "SM2_SIGN_COMPLETE",
-            Some(self.algorithm),
-            None,
-            Ok(()),
-        );
+        AuditLogger::log("SM2_SIGN_COMPLETE", Some(self.algorithm), None, Ok(()));
 
         Ok(result)
     }
@@ -164,18 +154,25 @@ impl Signer for Sm2Provider {
 
 /// SM2 批量签名验证提供者 - 支持并行处理
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct Sm2BatchProvider {
     algorithm: Algorithm,
 }
 
 impl Sm2BatchProvider {
+    #[allow(dead_code)]
     pub fn new(algorithm: Algorithm) -> Self {
         Self { algorithm }
     }
 
     /// 批量验证多个签名（并行执行）
     #[cfg(feature = "parallel")]
-    pub fn verify_batch(&self, key: &Key, messages: &[&[u8]], signatures: &[&[u8]]) -> Result<Vec<bool>> {
+    pub fn verify_batch(
+        &self,
+        key: &Key,
+        messages: &[&[u8]],
+        signatures: &[&[u8]],
+    ) -> Result<Vec<bool>> {
         if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),
@@ -188,12 +185,7 @@ impl Sm2BatchProvider {
             ));
         }
 
-        AuditLogger::log(
-            "SM2_BATCH_VERIFY_START",
-            Some(self.algorithm),
-            None,
-            Ok(()),
-        );
+        AuditLogger::log("SM2_BATCH_VERIFY_START", Some(self.algorithm), None, Ok(()));
 
         let secret = key.secret_bytes()?;
         let secret_bytes = secret.as_bytes();
@@ -232,7 +224,12 @@ impl Sm2BatchProvider {
     }
 
     /// 批量验证多个签名（顺序执行）
-    pub fn verify_batch_sequential(&self, key: &Key, messages: &[&[u8]], signatures: &[&[u8]]) -> Result<Vec<bool>> {
+    pub fn verify_batch_sequential(
+        &self,
+        key: &Key,
+        messages: &[&[u8]],
+        signatures: &[&[u8]],
+    ) -> Result<Vec<bool>> {
         if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),

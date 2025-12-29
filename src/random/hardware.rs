@@ -309,8 +309,7 @@ impl HardwareRng {
     #[inline]
     fn get_software_seed() -> Result<[u8; 32]> {
         let mut seed = [0u8; 32];
-        getrandom::getrandom(&mut seed)
-            .map_err(|_| CryptoError::InsufficientEntropy)?;
+        getrandom::getrandom(&mut seed).map_err(|_| CryptoError::InsufficientEntropy)?;
         Ok(seed)
     }
 
@@ -351,9 +350,7 @@ impl HardwareRng {
                         "RNG health test failed: output appears biased".into(),
                     )),
                 );
-                return Err(CryptoError::FipsError(
-                    "RNG health test failed".into(),
-                ));
+                return Err(CryptoError::FipsError("RNG health test failed".into()));
             }
         }
         Ok(())
@@ -388,7 +385,8 @@ impl RngCore for HardwareRng {
 
     #[inline]
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> std::result::Result<(), rand::Error> {
-        self.fill(dest).map_err(|_| rand::Error::new("Hardware RNG failed"))
+        self.fill(dest)
+            .map_err(|_| rand::Error::new("Hardware RNG failed"))
     }
 }
 
@@ -461,8 +459,7 @@ impl BulkHardwareRng {
         if self.hardware {
             hardware_fill_bytes(&mut self.buffer)
         } else {
-            getrandom::getrandom(&mut self.buffer)
-                .map_err(|_| CryptoError::InsufficientEntropy)
+            getrandom::getrandom(&mut self.buffer).map_err(|_| CryptoError::InsufficientEntropy)
         }
     }
 
@@ -507,8 +504,7 @@ impl SeedGenerator {
 
             for _ in 0..(remaining / 8) {
                 rdseed_fill_bytes(&mut chunk)?;
-                self.entropy_pool[self.pool_filled..self.pool_filled + 8]
-                    .copy_from_slice(&chunk);
+                self.entropy_pool[self.pool_filled..self.pool_filled + 8].copy_from_slice(&chunk);
                 self.pool_filled += 8;
             }
 
@@ -527,8 +523,7 @@ impl SeedGenerator {
 
             for _ in 0..(remaining / 8) {
                 hardware_fill_bytes(&mut chunk)?;
-                self.entropy_pool[self.pool_filled..self.pool_filled + 8]
-                    .copy_from_slice(&chunk);
+                self.entropy_pool[self.pool_filled..self.pool_filled + 8].copy_from_slice(&chunk);
                 self.pool_filled += 8;
             }
 
@@ -580,6 +575,12 @@ impl SeedGenerator {
         self.pool_filled = 0;
 
         Ok(seed)
+    }
+}
+
+impl Default for SeedGenerator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -711,10 +712,11 @@ mod tests {
         let mut rng = HardwareRng::new().expect("Failed to create HardwareRng");
 
         // Normal data should pass (use varied data, not all same bytes)
-        let mut normal_data = [0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90,
-                               0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90,
-                               0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90,
-                               0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90];
+        let mut normal_data = [
+            0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56,
+            0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF, 0x12,
+            0x34, 0x56, 0x78, 0x90,
+        ];
         assert!(rng.run_health_tests(&mut normal_data).is_ok());
 
         // All-same data should fail

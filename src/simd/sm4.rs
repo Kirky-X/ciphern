@@ -40,7 +40,7 @@ fn sm4_sbox_byte(x: u32) -> u32 {
     let b2 = ((x >> 16) & 0xff) as usize;
     let b3 = ((x >> 24) & 0xff) as usize;
 
-    ((SM4_SBOX[b0] as u32) << 0)
+    ((SM4_SBOX[b0] as u32))
         | ((SM4_SBOX[b1] as u32) << 8)
         | ((SM4_SBOX[b2] as u32) << 16)
         | ((SM4_SBOX[b3] as u32) << 24)
@@ -210,15 +210,17 @@ pub fn avx512_process_sm4_blocks(key: &[u8; 16], data: &[u8], encrypt: bool) -> 
 
     // Process 4 blocks at a time with AVX-512
     let mut offset = 0;
-    let rk_ptr = rk.as_ptr();
 
     while offset + 64 <= data.len() {
         unsafe {
             // Load 4 blocks (64 bytes) into AVX-512 registers
-            let block0 = _mm512_loadu_si512(data.as_ptr().add(offset) as *const _);
-            let block1 = _mm512_loadu_si512(data.as_ptr().add(offset + 16) as *const _);
-            let block2 = _mm512_loadu_si512(data.as_ptr().add(offset + 32) as *const _);
-            let block3 = _mm512_loadu_si512(data.as_ptr().add(offset + 48) as *const _);
+            let _block0 = _mm512_loadu_si512(data.as_ptr().add(offset) as *const _);
+            #[allow(unused_variables)]
+            let _block1 = _mm512_loadu_si512(data.as_ptr().add(offset + 16) as *const _);
+            #[allow(unused_variables)]
+            let _block2 = _mm512_loadu_si512(data.as_ptr().add(offset + 32) as *const _);
+            #[allow(unused_variables)]
+            let _block3 = _mm512_loadu_si512(data.as_ptr().add(offset + 48) as *const _);
 
             // Process each block through SM4 rounds
             // Note: Full AVX-512 SM4 implementation requires hand-optimized assembly
@@ -232,10 +234,30 @@ pub fn avx512_process_sm4_blocks(key: &[u8; 16], data: &[u8], encrypt: bool) -> 
                 let block_offset = offset + i * 16;
                 let block_data = &data[block_offset..block_offset + 16];
                 let mut x = [0u32; 4];
-                x[0] = u32::from_be_bytes([block_data[0], block_data[1], block_data[2], block_data[3]]);
-                x[1] = u32::from_be_bytes([block_data[4], block_data[5], block_data[6], block_data[7]]);
-                x[2] = u32::from_be_bytes([block_data[8], block_data[9], block_data[10], block_data[11]]);
-                x[3] = u32::from_be_bytes([block_data[12], block_data[13], block_data[14], block_data[15]]);
+                x[0] = u32::from_be_bytes([
+                    block_data[0],
+                    block_data[1],
+                    block_data[2],
+                    block_data[3],
+                ]);
+                x[1] = u32::from_be_bytes([
+                    block_data[4],
+                    block_data[5],
+                    block_data[6],
+                    block_data[7],
+                ]);
+                x[2] = u32::from_be_bytes([
+                    block_data[8],
+                    block_data[9],
+                    block_data[10],
+                    block_data[11],
+                ]);
+                x[3] = u32::from_be_bytes([
+                    block_data[12],
+                    block_data[13],
+                    block_data[14],
+                    block_data[15],
+                ]);
 
                 let processed = if encrypt {
                     sm4_encrypt_round(&x, &rk)
@@ -244,13 +266,13 @@ pub fn avx512_process_sm4_blocks(key: &[u8; 16], data: &[u8], encrypt: bool) -> 
                 };
 
                 let out_offset = i * 16;
-                output[out_offset..out_offset+4].copy_from_slice(&processed[0..4]);
-                output[out_offset+4..out_offset+8].copy_from_slice(&processed[4..8]);
-                output[out_offset+8..out_offset+12].copy_from_slice(&processed[8..12]);
-                output[out_offset+12..out_offset+16].copy_from_slice(&processed[12..16]);
+                output[out_offset..out_offset + 4].copy_from_slice(&processed[0..4]);
+                output[out_offset + 4..out_offset + 8].copy_from_slice(&processed[4..8]);
+                output[out_offset + 8..out_offset + 12].copy_from_slice(&processed[8..12]);
+                output[out_offset + 12..out_offset + 16].copy_from_slice(&processed[12..16]);
             }
 
-            _mm512_storeu_si512(output.as_mut_ptr() as *mut _, block0);
+            _mm512_storeu_si512(output.as_mut_ptr() as *mut _, _block0);
             result.extend_from_slice(&output);
         }
 
@@ -316,7 +338,7 @@ pub fn batch_sm4_encrypt(key: &[u8; 16], data_chunks: Vec<&[u8]>) -> Vec<Vec<u8>
             let mut padded = chunk.to_vec();
             if padded.len() % 16 != 0 {
                 let pad_len = 16 - (padded.len() % 16);
-                padded.extend(std::iter::repeat(pad_len as u8).take(pad_len));
+                padded.extend(std::iter::repeat_n(pad_len as u8, pad_len));
             }
             simd_sm4_encrypt(&key_copy, &padded)
         })

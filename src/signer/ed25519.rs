@@ -44,25 +44,26 @@ impl Signer for Ed25519Provider {
             "ED25519_SIGN_START",
             Some(self.algorithm),
             None,
-            if sha_accelerated { Ok(()) } else { Err(CryptoError::HardwareAccelerationUnavailable("SHA-512 acceleration not available".into())) },
+            if sha_accelerated {
+                Ok(())
+            } else {
+                Err(CryptoError::HardwareAccelerationUnavailable(
+                    "SHA-512 acceleration not available".into(),
+                ))
+            },
         );
 
         let private_key = key.secret_bytes()?;
         let result = hardware::accelerated_ed25519_sign(private_key.as_bytes(), message);
 
         // Log signing operation complete
-        AuditLogger::log(
-            "ED25519_SIGN_COMPLETE",
-            Some(self.algorithm),
-            None,
-            {
-                let r = result.as_ref();
-                match r {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err((*e).clone()),
-                }
-            },
-        );
+        AuditLogger::log("ED25519_SIGN_COMPLETE", Some(self.algorithm), None, {
+            let r = result.as_ref();
+            match r {
+                Ok(_) => Ok(()),
+                Err(e) => Err((*e).clone()),
+            }
+        });
 
         result
     }
@@ -86,18 +87,13 @@ impl Signer for Ed25519Provider {
         let result = hardware::accelerated_ed25519_verify(&public_key_bytes, message, signature);
 
         // Log verification result
-        AuditLogger::log(
-            "ED25519_VERIFY",
-            Some(self.algorithm),
-            None,
-            {
-                let r = result.as_ref();
-                match r {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err((*e).clone()),
-                }
-            },
-        );
+        AuditLogger::log("ED25519_VERIFY", Some(self.algorithm), None, {
+            let r = result.as_ref();
+            match r {
+                Ok(_) => Ok(()),
+                Err(e) => Err((*e).clone()),
+            }
+        });
 
         result
     }
@@ -105,11 +101,13 @@ impl Signer for Ed25519Provider {
 
 /// Ed25519 批量签名提供者 - 支持并行处理多个签名
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct Ed25519BatchProvider {
     algorithm: Algorithm,
 }
 
 impl Ed25519BatchProvider {
+    #[allow(dead_code)]
     pub fn new(algorithm: Algorithm) -> Self {
         Self { algorithm }
     }
@@ -146,9 +144,7 @@ impl Ed25519BatchProvider {
         // 并行签名
         let signatures: Result<Vec<Vec<u8>>> = messages
             .par_iter()
-            .map(|&msg| {
-                hardware::accelerated_ed25519_sign(private_key.as_bytes(), msg)
-            })
+            .map(|&msg| hardware::accelerated_ed25519_sign(private_key.as_bytes(), msg))
             .collect();
 
         AuditLogger::log(
@@ -194,7 +190,12 @@ impl Ed25519BatchProvider {
     ///
     /// 返回验证结果列表
     #[cfg(feature = "parallel")]
-    pub fn verify_batch(&self, key: &Key, messages: &[&[u8]], signatures: &[&[u8]]) -> Result<Vec<bool>> {
+    pub fn verify_batch(
+        &self,
+        key: &Key,
+        messages: &[&[u8]],
+        signatures: &[&[u8]],
+    ) -> Result<Vec<bool>> {
         if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),
@@ -228,8 +229,7 @@ impl Ed25519BatchProvider {
             .par_iter()
             .zip(signatures.par_iter())
             .map(|(&msg, &sig)| {
-                hardware::accelerated_ed25519_verify(&public_key_bytes, msg, sig)
-                    .unwrap_or(false)
+                hardware::accelerated_ed25519_verify(&public_key_bytes, msg, sig).unwrap_or(false)
             })
             .collect();
 
@@ -244,7 +244,12 @@ impl Ed25519BatchProvider {
     }
 
     /// 批量验证多个签名（顺序执行，无并行）
-    pub fn verify_batch_sequential(&self, key: &Key, messages: &[&[u8]], signatures: &[&[u8]]) -> Result<Vec<bool>> {
+    pub fn verify_batch_sequential(
+        &self,
+        key: &Key,
+        messages: &[&[u8]],
+        signatures: &[&[u8]],
+    ) -> Result<Vec<bool>> {
         if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),
@@ -268,8 +273,8 @@ impl Ed25519BatchProvider {
 
         let mut results = Vec::with_capacity(messages.len());
         for (&msg, &sig) in messages.iter().zip(signatures.iter()) {
-            let result = hardware::accelerated_ed25519_verify(&public_key_bytes, msg, sig)
-                .unwrap_or(false);
+            let result =
+                hardware::accelerated_ed25519_verify(&public_key_bytes, msg, sig).unwrap_or(false);
             results.push(result);
         }
 

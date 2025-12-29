@@ -3,8 +3,8 @@
 // Licensed under the MIT License
 // See LICENSE file in the project root for full license information.
 
+use ciphern::random::{is_hardware_rng_available, BulkHardwareRng, HardwareRng};
 use ciphern::{Algorithm, Cipher, KeyManager};
-use ciphern::random::{HardwareRng, is_hardware_rng_available, BulkHardwareRng};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
 
@@ -134,5 +134,11 @@ fn bench_bulk_hardware_rng(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_aes256_encrypt, bench_sm4_encrypt, bench_hardware_rng, bench_bulk_hardware_rng);
+criterion_group!(
+    benches,
+    bench_aes256_encrypt,
+    bench_sm4_encrypt,
+    bench_hardware_rng,
+    bench_bulk_hardware_rng
+);
 criterion_main!(benches);

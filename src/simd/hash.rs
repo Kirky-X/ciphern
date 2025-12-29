@@ -14,7 +14,7 @@ pub fn simd_process_blocks_sha256(data: &[u8]) -> Vec<u8> {
     let padded_len = if data.is_empty() {
         64
     } else {
-        ((data.len() + 9 + 63) / 64) * 64
+        (data.len() + 9).div_ceil(64) * 64
     };
 
     let mut processed = Vec::with_capacity(padded_len);
@@ -193,7 +193,7 @@ pub fn simd_sha256_block_vectorized(block: &[u8]) -> [u8; 32] {
     for i in 0..64 {
         let idx = i / 4;
         let k = k_vals[idx];
-        let offset = (i % 4) as usize;
+        let offset = (i % 4);
 
         let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
         let maj = (a & b) ^ (a & c) ^ (b & c);

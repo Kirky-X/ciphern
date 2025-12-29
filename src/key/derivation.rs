@@ -11,11 +11,11 @@ use argon2::{Algorithm as Argon2Algorithm, Argon2, Params, Version};
 use hmac::Hmac;
 use libsm::sm3::hash::Sm3Hash;
 use pbkdf2::pbkdf2;
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
 use ring::hkdf;
 use sha2::Sha256;
 use zeroize::Zeroize;
-#[cfg(feature = "parallel")]
-use rayon::prelude::*;
 
 /// Check if SHA-NI hardware acceleration is available for hash operations.
 #[inline]

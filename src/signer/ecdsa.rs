@@ -40,12 +40,7 @@ impl Signer for EcdsaProvider {
         let algo = self.to_hardware_algorithm();
 
         // Log signing operation start
-        AuditLogger::log(
-            "ECDSA_SIGN_START",
-            Some(self.algorithm),
-            None,
-            Ok(()),
-        );
+        AuditLogger::log("ECDSA_SIGN_START", Some(self.algorithm), None, Ok(()));
 
         let result = hardware::accelerated_ecdsa_sign(private_key.as_bytes(), message, algo);
 
@@ -89,7 +84,8 @@ impl Signer for EcdsaProvider {
         let algo = self.to_hardware_algorithm();
 
         // Log verification operation
-        let result = hardware::accelerated_ecdsa_verify(&public_key_bytes, message, signature, algo);
+        let result =
+            hardware::accelerated_ecdsa_verify(&public_key_bytes, message, signature, algo);
 
         AuditLogger::log(
             "ECDSA_VERIFY",
@@ -104,11 +100,13 @@ impl Signer for EcdsaProvider {
 
 /// ECDSA 批量签名验证提供者 - 支持并行处理多个签名验证
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct EcdsaBatchProvider {
     algorithm: Algorithm,
 }
 
 impl EcdsaBatchProvider {
+    #[allow(dead_code)]
     pub fn new(algorithm: Algorithm) -> Self {
         Self { algorithm }
     }
@@ -127,7 +125,12 @@ impl EcdsaBatchProvider {
     ///
     /// 返回验证结果列表
     #[cfg(feature = "parallel")]
-    pub fn verify_batch(&self, key: &Key, messages: &[&[u8]], signatures: &[&[u8]]) -> Result<Vec<bool>> {
+    pub fn verify_batch(
+        &self,
+        key: &Key,
+        messages: &[&[u8]],
+        signatures: &[&[u8]],
+    ) -> Result<Vec<bool>> {
         if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),
@@ -189,7 +192,12 @@ impl EcdsaBatchProvider {
     }
 
     /// 批量验证多个签名（顺序执行，无并行）
-    pub fn verify_batch_sequential(&self, key: &Key, messages: &[&[u8]], signatures: &[&[u8]]) -> Result<Vec<bool>> {
+    pub fn verify_batch_sequential(
+        &self,
+        key: &Key,
+        messages: &[&[u8]],
+        signatures: &[&[u8]],
+    ) -> Result<Vec<bool>> {
         if key.algorithm() != self.algorithm {
             return Err(CryptoError::UnsupportedAlgorithm(
                 "Key algorithm mismatch".into(),

@@ -77,7 +77,8 @@ impl CpuFeatures {
             CpuFeatures {
                 aes_ni: std::is_x86_feature_detected!("aes"),
                 avx2: std::is_x86_feature_detected!("avx2"),
-                avx512: std::is_x86_feature_detected!("avx512f") && std::is_x86_feature_detected!("avx512bw"),
+                avx512: std::is_x86_feature_detected!("avx512f")
+                    && std::is_x86_feature_detected!("avx512bw"),
                 sha_ni: std::is_x86_feature_detected!("sha"),
             }
         }
@@ -403,12 +404,9 @@ pub fn accelerated_ecdsa_verify_batch_cpu(
     let results: Vec<bool> = messages
         .par_iter()
         .zip(signatures.par_iter())
-        .map(|(&msg, &sig)| {
-            match accelerated_ecdsa_verify(public_key, msg, sig, algorithm) {
-                Ok(valid) => valid,
-                Err(_) => false,
-            }
-        })
+        .map(
+            |(&msg, &sig)| accelerated_ecdsa_verify(public_key, msg, sig, algorithm).unwrap_or_default(),
+        )
         .collect();
 
     Ok(results)
