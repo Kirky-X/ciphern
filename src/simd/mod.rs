@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn test_batch_sm4() {
         let key = [0u8; 16];
-        let plaintexts = vec![b"hello".as_slice(), b"world".as_slice(), b"test".as_slice()];
+        let plaintexts = [b"hello".as_slice(), b"world".as_slice(), b"test".as_slice()];
 
         let padded: Vec<Vec<u8>> = plaintexts
             .iter()
