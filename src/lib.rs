@@ -1,3 +1,4 @@
+#![feature(portable_simd)]
 // Copyright (c) 2025 Kirky.X
 //
 // Licensed under the MIT License
@@ -22,6 +23,9 @@ pub(crate) mod hash;
 #[cfg(feature = "encrypt")]
 pub(crate) mod key;
 pub(crate) mod memory;
+
+#[cfg(feature = "simd")]
+pub mod simd;
 
 pub(crate) mod random;
 
@@ -54,6 +58,12 @@ pub use key::manager::KeyManager;
 pub use key::{Key, KeyState};
 pub use random::{EntropySource, SecureRandom};
 pub use types::Algorithm;
+
+#[cfg(feature = "simd")]
+pub use simd::{
+    is_simd_available, simd_combine_hashes, simd_process_blocks_sha256, simd_sha256_finalize,
+    simd_sm4_decrypt, simd_sm4_encrypt,
+};
 
 #[cfg(feature = "i18n")]
 pub use error::{get_localized_error, get_localized_message, get_localized_title, LocalizedError};
