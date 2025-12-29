@@ -29,16 +29,10 @@ fn has_avx2_hw() -> bool {
     std::is_x86_feature_detected!("avx2")
 }
 
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(target_arch = "x86_64")]
 #[inline]
-fn has_aes_ni_hw() -> bool {
-    false
-}
-
-#[cfg(not(target_arch = "x86_64"))]
-#[inline]
-fn has_sha_ni_hw() -> bool {
-    false
+fn has_avx512_hw() -> bool {
+    std::is_x86_feature_detected!("avx512f") && std::is_x86_feature_detected!("avx512bw")
 }
 
 #[cfg(not(target_arch = "x86_64"))]
@@ -47,11 +41,18 @@ fn has_avx2_hw() -> bool {
     false
 }
 
+#[cfg(not(target_arch = "x86_64"))]
+#[inline]
+fn has_avx512_hw() -> bool {
+    false
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SimdCapabilities {
     pub aes_ni: bool,
     pub sha_ni: bool,
     pub avx2: bool,
+    pub avx512: bool,
     pub std_simd: bool,
 }
 
@@ -61,6 +62,7 @@ pub fn get_simd_capabilities() -> SimdCapabilities {
         aes_ni: has_aes_ni_hw(),
         sha_ni: has_sha_ni_hw(),
         avx2: has_avx2_hw(),
+        avx512: has_avx512_hw(),
         std_simd: true,
     }
 }
@@ -71,6 +73,7 @@ pub fn get_simd_capabilities() -> SimdCapabilities {
         aes_ni: has_aes_ni_hw(),
         sha_ni: has_sha_ni_hw(),
         avx2: has_avx2_hw(),
+        avx512: has_avx512_hw(),
         std_simd: false,
     }
 }
@@ -93,7 +96,10 @@ pub mod sm3;
 pub use hash::{simd_combine_hashes, simd_process_blocks_sha256, simd_sha256_finalize};
 
 #[cfg(feature = "simd")]
-pub use sm4::{simd_process_sm4_blocks, simd_sm4_decrypt, simd_sm4_encrypt, sm4_key_schedule};
+pub use sm4::{
+    avx512_process_sm4_blocks, batch_sm4_decrypt, batch_sm4_encrypt, has_avx512,
+    simd_process_sm4_blocks, simd_sm4_decrypt, simd_sm4_encrypt, sm4_key_schedule,
+};
 
 #[cfg(feature = "simd")]
 pub use sm3::{simd_combine_sm3_hashes, simd_process_blocks_sm3, simd_sm3_finalize};

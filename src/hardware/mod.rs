@@ -58,12 +58,14 @@ pub use cpu::{
 
 pub static AES_NI_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static AVX2_SUPPORTED: AtomicBool = AtomicBool::new(false);
+pub static AVX512_SUPPORTED: AtomicBool = AtomicBool::new(false);
 pub static SHA_NI_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CpuFeatures {
     pub aes_ni: bool,
     pub avx2: bool,
+    pub avx512: bool,
     pub sha_ni: bool,
 }
 
@@ -75,6 +77,7 @@ impl CpuFeatures {
             CpuFeatures {
                 aes_ni: std::is_x86_feature_detected!("aes"),
                 avx2: std::is_x86_feature_detected!("avx2"),
+                avx512: std::is_x86_feature_detected!("avx512f") && std::is_x86_feature_detected!("avx512bw"),
                 sha_ni: std::is_x86_feature_detected!("sha"),
             }
         }
@@ -89,6 +92,7 @@ impl CpuFeatures {
                 avx2: cpufeatures::is_aarch64_feature_detected!("fp"),
                 #[cfg(not(feature = "cpu-aesni"))]
                 avx2: false,
+                avx512: false, // ARM equivalent is sve but not directly mapped
                 #[cfg(feature = "cpu-aesni")]
                 sha_ni: cpufeatures::is_aarch64_feature_detected!("sha2"),
                 #[cfg(not(feature = "cpu-aesni"))]
@@ -100,6 +104,7 @@ impl CpuFeatures {
             CpuFeatures {
                 aes_ni: false,
                 avx2: false,
+                avx512: false,
                 sha_ni: false,
             }
         }
@@ -109,6 +114,11 @@ impl CpuFeatures {
     pub fn is_accelerated(&self) -> bool {
         self.aes_ni || self.avx2 || self.sha_ni
     }
+
+    #[inline]
+    pub fn has_avx512(&self) -> bool {
+        self.avx512
+    }
 }
 
 #[inline]
@@ -116,6 +126,7 @@ pub fn init_cpu_features() {
     let features = CpuFeatures::detect();
     AES_NI_SUPPORTED.store(features.aes_ni, Ordering::Relaxed);
     AVX2_SUPPORTED.store(features.avx2, Ordering::Relaxed);
+    AVX512_SUPPORTED.store(features.avx512, Ordering::Relaxed);
     SHA_NI_SUPPORTED.store(features.sha_ni, Ordering::Relaxed);
 }
 
@@ -127,6 +138,11 @@ pub fn has_aes_ni() -> bool {
 #[inline]
 pub fn has_avx2() -> bool {
     AVX2_SUPPORTED.load(Ordering::Relaxed)
+}
+
+#[inline]
+pub fn has_avx512() -> bool {
+    AVX512_SUPPORTED.load(Ordering::Relaxed)
 }
 
 #[inline]
@@ -340,6 +356,92 @@ pub fn accelerated_ecdsa_verify(
             "ECDSA verification not supported for this algorithm".into(),
         )),
     }
+}
+
+/// CPU-accelerated ECDSA batch verification using Rayon parallel processing
+///
+/// This function provides SIMD-like parallelization for ECDSA verification by processing
+/// multiple signatures concurrently using Rayon's work-stealing thread pool.
+///
+/// # Arguments
+///
+/// * `public_key` - The ECDSA public key
+/// * `messages` - Slice of message slices to verify
+/// * `signatures` - Slice of signature slices corresponding to messages
+/// * `algorithm` - The ECDSA algorithm variant (P-256 or P-384)
+///
+/// # Returns
+///
+/// Returns a vector of boolean results, each indicating whether the corresponding
+/// signature verified successfully.
+///
+/// # Performance Notes
+///
+/// - Uses Rayon for parallel processing, automatically scaling to available cores
+/// - Most effective for batch sizes > 10 signatures
+/// - Falls back to sequential processing if parallel feature is disabled
+#[cfg(feature = "parallel")]
+#[inline]
+pub fn accelerated_ecdsa_verify_batch_cpu(
+    public_key: &[u8],
+    messages: &[&[u8]],
+    signatures: &[&[u8]],
+    algorithm: Algorithm,
+) -> Result<Vec<bool>> {
+    use rayon::prelude::*;
+
+    if messages.len() != signatures.len() {
+        return Err(CryptoError::InvalidParameter(
+            "Messages and signatures must have the same length".into(),
+        ));
+    }
+
+    if messages.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let results: Vec<bool> = messages
+        .par_iter()
+        .zip(signatures.par_iter())
+        .map(|(&msg, &sig)| {
+            match accelerated_ecdsa_verify(public_key, msg, sig, algorithm) {
+                Ok(valid) => valid,
+                Err(_) => false,
+            }
+        })
+        .collect();
+
+    Ok(results)
+}
+
+/// Sequential CPU ECDSA batch verification (fallback when parallel feature is disabled)
+#[cfg(not(feature = "parallel"))]
+#[inline]
+pub fn accelerated_ecdsa_verify_batch_cpu(
+    public_key: &[u8],
+    messages: &[&[u8]],
+    signatures: &[&[u8]],
+    algorithm: Algorithm,
+) -> Result<Vec<bool>> {
+    if messages.len() != signatures.len() {
+        return Err(CryptoError::InvalidParameter(
+            "Messages and signatures must have the same length".into(),
+        ));
+    }
+
+    if messages.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut results = Vec::with_capacity(messages.len());
+    for (&msg, &sig) in messages.iter().zip(signatures.iter()) {
+        match accelerated_ecdsa_verify(public_key, msg, sig, algorithm) {
+            Ok(valid) => results.push(valid),
+            Err(_) => results.push(false),
+        }
+    }
+
+    Ok(results)
 }
 
 #[inline]
