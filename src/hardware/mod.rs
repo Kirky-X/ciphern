@@ -404,9 +404,9 @@ pub fn accelerated_ecdsa_verify_batch_cpu(
     let results: Vec<bool> = messages
         .par_iter()
         .zip(signatures.par_iter())
-        .map(
-            |(&msg, &sig)| accelerated_ecdsa_verify(public_key, msg, sig, algorithm).unwrap_or_default(),
-        )
+        .map(|(&msg, &sig)| {
+            accelerated_ecdsa_verify(public_key, msg, sig, algorithm).unwrap_or_default()
+        })
         .collect();
 
     Ok(results)

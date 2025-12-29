@@ -27,7 +27,7 @@ pub(crate) mod memory;
 #[cfg(feature = "simd")]
 pub mod simd;
 
-pub(crate) mod random;
+pub mod random;
 
 pub(crate) mod ffi;
 #[cfg(feature = "plugin")]
