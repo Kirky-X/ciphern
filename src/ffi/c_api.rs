@@ -206,8 +206,21 @@ pub extern "C" fn ciphern_encrypt(
         "密文缓冲区应足够大以容纳加密数据"
     );
 
+    // 严格的参数验证
     if key_id.is_null() || plaintext.is_null() || ciphertext.is_null() || ciphertext_len.is_null() {
         return CiphernError::InvalidParameter;
+    }
+
+    // 添加最大长度限制
+    const MAX_PLAINTEXT_SIZE: usize = 1024 * 1024; // 1MB
+    if plaintext_len == 0 || plaintext_len > MAX_PLAINTEXT_SIZE {
+        return CiphernError::InvalidParameter;
+    }
+
+    // 验证缓冲区大小
+    const MIN_CIPHERTEXT_OVERHEAD: usize = 28; // nonce(12) + tag(16)
+    if ciphertext_buffer_size < MIN_CIPHERTEXT_OVERHEAD {
+        return CiphernError::BufferTooSmall;
     }
 
     match std::panic::catch_unwind(|| {
@@ -215,6 +228,12 @@ pub extern "C" fn ciphern_encrypt(
             // 验证参数
             let key_id_str = unsafe { validation::validate_c_str(key_id) }
                 .map_err(|_e| CiphernError::InvalidParameter)?;
+
+            // 验证密钥ID长度
+            if key_id_str.len() > 256 {
+                return Err(CiphernError::InvalidParameter);
+            }
+
             let plaintext_slice = unsafe { validation::validate_slice(plaintext, plaintext_len) }
                 .map_err(|_e| CiphernError::InvalidParameter)?;
             let ciphertext_buffer =
@@ -288,8 +307,26 @@ pub extern "C" fn ciphern_decrypt(
         "明文缓冲区应足够大以容纳解密数据"
     );
 
+    // 严格的参数验证
     if key_id.is_null() || ciphertext.is_null() || plaintext.is_null() || plaintext_len.is_null() {
         return CiphernError::InvalidParameter;
+    }
+
+    // 添加最大长度限制
+    const MAX_CIPHERTEXT_SIZE: usize = 1024 * 1024 + 32; // 1MB + 32 bytes overhead
+    if ciphertext_len == 0 || ciphertext_len > MAX_CIPHERTEXT_SIZE {
+        return CiphernError::InvalidParameter;
+    }
+
+    // 验证密文最小长度（nonce + tag）
+    const MIN_CIPHERTEXT_SIZE: usize = 28; // nonce(12) + tag(16)
+    if ciphertext_len < MIN_CIPHERTEXT_SIZE {
+        return CiphernError::InvalidParameter;
+    }
+
+    // 验证缓冲区大小
+    if plaintext_buffer_size < ciphertext_len - MIN_CIPHERTEXT_SIZE {
+        return CiphernError::BufferTooSmall;
     }
 
     match std::panic::catch_unwind(|| {
@@ -297,6 +334,12 @@ pub extern "C" fn ciphern_decrypt(
             // 验证参数
             let key_id_str = unsafe { validation::validate_c_str(key_id) }
                 .map_err(|_e| CiphernError::InvalidParameter)?;
+
+            // 验证密钥ID长度
+            if key_id_str.len() > 256 {
+                return Err(CiphernError::InvalidParameter);
+            }
+
             let ciphertext_slice =
                 unsafe { validation::validate_slice(ciphertext, ciphertext_len) }
                     .map_err(|_e| CiphernError::InvalidParameter)?;

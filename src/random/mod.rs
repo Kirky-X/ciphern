@@ -127,3 +127,68 @@ impl RngCore for SecureRandom {
 }
 
 impl CryptoRng for SecureRandom {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_secure_random_generation() {
+        let rng = SecureRandom::new().unwrap();
+        let mut buf = [0u8; 32];
+        rng.fill(&mut buf).unwrap();
+
+        // 确保生成的随机数不是全零
+        assert_ne!(buf, [0u8; 32]);
+
+        // 确保生成的随机数不是全相同
+        let mut buf2 = [0u8; 32];
+        rng.fill(&mut buf2).unwrap();
+        assert_ne!(buf, buf2);
+    }
+
+    #[test]
+    fn test_secure_random_different_sizes() {
+        let rng = SecureRandom::new().unwrap();
+
+        // 测试不同大小的缓冲区
+        let sizes = [1, 16, 32, 64, 128, 256, 512, 1024];
+        for size in sizes {
+            let mut buf = vec![0u8; size];
+            rng.fill(&mut buf).unwrap();
+            assert_ne!(buf, vec![0u8; size]);
+        }
+    }
+
+    #[test]
+    fn test_entropy_source() {
+        let entropy = OsEntropy;
+        let mut buf = [0u8; 32];
+        entropy.get_bytes(&mut buf).unwrap();
+        assert_ne!(buf, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_rng_monitor_manager() {
+        let manager = get_rng_monitor_manager();
+        let metrics = manager.get_first_monitor().unwrap().get_health_metrics();
+        assert!(metrics.health_score >= 0.0 && metrics.health_score <= 1.0);
+    }
+
+    #[test]
+    fn test_rng_monitor_sampling_rate() {
+        let config = RngMonitorConfig {
+            sampling_rate: 0.5, // 50% 采样率
+            ..Default::default()
+        };
+        let monitor = RngMonitor::new(config);
+
+        // 执行多次健康检查，应该有部分跳过完整检查
+        for _ in 0..10 {
+            let _ = monitor.perform_health_check();
+        }
+
+        let metrics = monitor.get_health_metrics();
+        assert!(metrics.total_tests > 0);
+    }
+}

@@ -350,3 +350,159 @@ impl From<cudarc::driver::result::DriverError> for CryptoError {
         CryptoError::HardwareInitializationFailed(format!("CUDA error code: {:?}", error.0))
     }
 }
+
+/// 哈希化密钥ID以防止在日志中泄露敏感信息
+///
+/// 此函数使用 SHA-256 对密钥ID进行哈希，返回一个安全的哈希值，
+/// 用于在审计日志中标识密钥而不泄露原始ID。
+///
+/// # 参数
+///
+/// * `key_id` - 原始密钥ID
+///
+/// # 返回
+///
+/// 返回格式为 "key_<hash>" 的哈希化密钥ID
+///
+/// # 示例
+///
+/// ```ignore
+/// use crate::error::hash_key_id;
+///
+/// let key_id = "my-secret-key-123";
+/// let hashed = hash_key_id(key_id);
+/// assert!(hashed.starts_with("key_"));
+/// assert!(!hashed.contains("my-secret-key-123"));
+/// ```
+pub fn hash_key_id(key_id: &str) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    hasher.update(key_id.as_bytes());
+    let hash = hasher.finalize();
+    format!("key_{}", hex::encode(hash))
+}
+
+/// 为生产环境清理错误信息，防止泄露敏感数据
+///
+/// 此函数将详细的错误信息转换为通用的安全错误信息，
+/// 防止攻击者通过错误消息获取系统内部信息。
+///
+/// # 参数
+///
+/// * `error` - 原始错误
+///
+/// # 返回
+///
+/// 返回安全的错误消息
+#[allow(dead_code)]
+pub fn to_safe_message(error: &CryptoError) -> String {
+    match error {
+        CryptoError::InvalidKeySize { .. } => "Invalid key size".to_string(),
+        CryptoError::InvalidParameter(_) => "Invalid parameter".to_string(),
+        CryptoError::InvalidInput(_) => "Invalid input".to_string(),
+        CryptoError::NotInitialized => "Not initialized".to_string(),
+        CryptoError::InvalidState(_) => "Invalid state".to_string(),
+        CryptoError::DecryptionFailed(_) => "Decryption failed".to_string(),
+        CryptoError::EncryptionFailed(_) => "Encryption failed".to_string(),
+        CryptoError::KeyNotFound(_) => "Key not found".to_string(),
+        CryptoError::KeyError(_) => "Key error".to_string(),
+        CryptoError::KeyUsageLimitExceeded { .. } => "Key usage limit exceeded".to_string(),
+        CryptoError::UnsupportedAlgorithm(_) => "Unsupported algorithm".to_string(),
+        CryptoError::InsufficientEntropy => "Insufficient entropy".to_string(),
+        CryptoError::MemoryProtectionFailed(_) => "Memory protection failed".to_string(),
+        CryptoError::MemoryAllocationFailed(_) => "Memory allocation failed".to_string(),
+        CryptoError::MemoryTransferFailed(_) => "Memory transfer failed".to_string(),
+        CryptoError::MemoryTampered => "Security violation detected".to_string(),
+        CryptoError::FipsError(_) => "FIPS mode violation".to_string(),
+        CryptoError::SideChannelError(_) => "Side-channel error".to_string(),
+        CryptoError::SecurityError(_) => "Security error".to_string(),
+        CryptoError::NotImplemented(_) => "Not implemented".to_string(),
+        CryptoError::IoError(_) => "I/O error".to_string(),
+        CryptoError::TimeError => "System time error".to_string(),
+        CryptoError::PluginError(_) => "Plugin error".to_string(),
+        CryptoError::InternalError(_) => "Internal error".to_string(),
+        CryptoError::SigningFailed(_) => "Signing failed".to_string(),
+        CryptoError::VerificationFailed(_) => "Verification failed".to_string(),
+        CryptoError::UnknownError => "Unknown error".to_string(),
+        CryptoError::InvalidKeyLength(_) => "Invalid key length".to_string(),
+        CryptoError::HardwareAccelerationUnavailable(_) => {
+            "Hardware acceleration unavailable".to_string()
+        }
+        CryptoError::AsyncOperationFailed(_) => "Async operation failed".to_string(),
+        CryptoError::HardwareInitializationFailed(_) => {
+            "Hardware initialization failed".to_string()
+        }
+    }
+}
+
+/// 辅助宏：简化锁获取和错误处理模式
+/// 用于减少重复的 `.read().map_err(|_| CryptoError::MemoryProtectionFailed(...))?` 模式
+#[macro_export]
+macro_rules! with_lock_read {
+    ($lock:expr, $lock_name:expr) => {
+        $lock.read().map_err(|_| {
+            CryptoError::MemoryProtectionFailed(format!("{} lock poisoned", $lock_name))
+        })?
+    };
+}
+
+/// 辅助宏：简化写锁获取和错误处理模式
+#[macro_export]
+macro_rules! with_lock_write {
+    ($lock:expr, $lock_name:expr) => {
+        $lock.write().map_err(|_| {
+            CryptoError::MemoryProtectionFailed(format!("{} lock poisoned", $lock_name))
+        })?
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_key_id() {
+        let key_id = "test_key_12345";
+        let hashed = hash_key_id(key_id);
+
+        // 确保哈希后的 ID 不包含原始密钥 ID
+        assert!(!hashed.contains(key_id));
+        assert!(hashed.starts_with("key_"));
+
+        // 确保相同输入产生相同输出
+        let hashed2 = hash_key_id(key_id);
+        assert_eq!(hashed, hashed2);
+
+        // 确保不同输入产生不同输出
+        let different_key_id = "test_key_67890";
+        let hashed3 = hash_key_id(different_key_id);
+        assert_ne!(hashed, hashed3);
+    }
+
+    #[test]
+    fn test_error_display() {
+        let error = CryptoError::KeyNotFound("test_key".to_string());
+        let display = format!("{}", error);
+        assert!(display.contains("Key not found"));
+
+        let error = CryptoError::EncryptionFailed("Failed to encrypt".to_string());
+        let display = format!("{}", error);
+        assert!(display.contains("Encryption failed"));
+
+        let error = CryptoError::InvalidParameter("Invalid input".to_string());
+        let display = format!("{}", error);
+        assert!(display.contains("Invalid parameter"));
+    }
+
+    #[test]
+    fn test_to_safe_message() {
+        let error = CryptoError::KeyNotFound("secret_key".to_string());
+        let safe_msg = to_safe_message(&error);
+        assert!(!safe_msg.contains("secret_key"));
+
+        let error = CryptoError::EncryptionFailed("Failed".to_string());
+        let safe_msg = to_safe_message(&error);
+        assert!(safe_msg.contains("Encryption failed"));
+    }
+}

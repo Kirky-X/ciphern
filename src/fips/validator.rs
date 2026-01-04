@@ -46,6 +46,8 @@ impl FipsAlgorithmValidator {
         Algorithm::Sm3Kdf,
         // 现代算法
         Algorithm::Ed25519,
+        Algorithm::X25519,           // 密钥交换算法，非 FIPS 批准
+        Algorithm::ChaCha20Poly1305, // AEAD 加密，非 FIPS 批准
         Algorithm::Argon2id,
     ];
 

@@ -47,6 +47,7 @@ pub struct RngMonitorConfig {
     pub max_consecutive_failures: u32,     // 最大连续失败次数
     pub failure_rate_threshold: f64,       // 失败率阈值
     pub enable_real_time_monitoring: bool, // 启用实时监控
+    pub sampling_rate: f64,                // 采样率 (0.0 - 1.0)，默认 1.0 表示每次都检查
 }
 
 impl Default for RngMonitorConfig {
@@ -58,6 +59,7 @@ impl Default for RngMonitorConfig {
             max_consecutive_failures: 3,             // 最多3次连续失败
             failure_rate_threshold: 0.1,             // 10% 失败率阈值
             enable_real_time_monitoring: true,       // 默认启用实时监控
+            sampling_rate: 1.0,                      // 默认采样率为 100%
         }
     }
 }
@@ -101,10 +103,74 @@ impl RngMonitor {
             .unwrap_or_default()
     }
 
+    /// 执行基本健康检查（快速检查，用于采样率较低时）
+    fn perform_basic_health_check(&self) -> Result<bool> {
+        // 使用较小的样本进行快速检查
+        let basic_sample_size = 1024; // 1KB 样本
+        let mut random_bytes = vec![0u8; basic_sample_size];
+
+        // 生成随机数
+        if let Err(_e) =
+            crate::random::SecureRandom::new().and_then(|rng| rng.fill(&mut random_bytes))
+        {
+            self.record_test_result(false);
+            return Ok(false);
+        }
+
+        // 执行基本随机性检查
+        let all_zeros = random_bytes.iter().all(|&b| b == 0);
+        let all_ones = random_bytes.iter().all(|&b| b == 0xFF);
+
+        if all_zeros || all_ones {
+            self.record_test_result(false);
+            return Ok(false);
+        }
+
+        // 计算简单的熵值
+        let mut frequency = [0usize; 256];
+        for &byte in &random_bytes {
+            frequency[byte as usize] += 1;
+        }
+
+        let entropy: f64 = frequency
+            .iter()
+            .filter(|&&count| count > 0)
+            .map(|&count| {
+                let p = count as f64 / random_bytes.len() as f64;
+                -p * p.log2()
+            })
+            .sum();
+
+        // 更新健康指标
+        {
+            let mut metrics = self.metrics.write().unwrap();
+            metrics.entropy_bits = entropy;
+            metrics.last_test_timestamp = Utc::now();
+
+            // 计算健康评分（简化版）
+            let entropy_score = (entropy / 8.0).min(1.0);
+            metrics.health_score = entropy_score;
+        }
+
+        self.record_test_result(true);
+        Ok(true)
+    }
+
     /// 执行 RNG 健康检查
     pub fn perform_health_check(&self) -> Result<bool> {
-        let mut random_bytes = vec![0u8; self.config.sample_size];
+        // 使用采样率控制，减少性能开销
+        // 生成一个随机数来决定是否执行完整的健康检查
+        if self.config.sampling_rate < 1.0 {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let should_sample: f64 = rng.gen();
+            if should_sample > self.config.sampling_rate {
+                // 跳过完整检查，只做基本检查
+                return self.perform_basic_health_check();
+            }
+        }
 
+        let mut random_bytes = vec![0u8; self.config.sample_size];
         // 生成随机数
         if let Err(_e) =
             crate::random::SecureRandom::new().and_then(|rng| rng.fill(&mut random_bytes))

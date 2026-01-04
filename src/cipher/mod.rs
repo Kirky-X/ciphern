@@ -5,6 +5,7 @@
 
 pub mod aes;
 pub mod base_provider;
+pub mod chacha20poly1305; // ChaCha20-Poly1305 AEAD encryption
 pub mod mode;
 pub mod pkcs7;
 pub mod provider;

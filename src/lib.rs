@@ -6,7 +6,90 @@
 
 //! Ciphern 加密库
 //!
-//! 企业级、安全优先的 Rust 加密库。
+//! 企业级、安全优先的 Rust 加密库，提供：
+//!
+//! - **对称加密**: AES-GCM, ChaCha20-Poly1305, SM4-GCM
+//! - **非对称加密**: RSA, ECDSA, Ed25519, SM2
+//! - **密钥派生**: PBKDF2, HKDF, Argon2id, SM3-KDF
+//! - **密钥交换**: X25519 (ECDH)
+//! - **哈希函数**: SHA-256, SHA-384, SHA-512, SM3
+//! - **FIPS 140-3 合规**: 支持联邦信息处理标准
+//! - **硬件加速**: SIMD, AES-NI, RDSEED
+//! - **多语言绑定**: C FFI, Java JNI, Python PyO3
+//! - **国际化**: 支持中英文界面
+//!
+//! # 快速开始
+//!
+//! ```rust
+//! use ciphern::{Algorithm, Cipher, KeyManager};
+//!
+//! // 初始化库
+//! ciphern::init()?;
+//!
+//! // 创建密钥管理器
+//! let key_manager = KeyManager::new()?;
+//!
+//! // 生成密钥
+//! let key_id = key_manager.generate_key(Algorithm::AES256GCM)?;
+//!
+//! // 创建加密器
+//! let cipher = Cipher::new(Algorithm::AES256GCM)?;
+//!
+//! // 加密数据
+//! let plaintext = b"Hello, World!";
+//! let ciphertext = cipher.encrypt(&key_manager, &key_id, plaintext)?;
+//!
+//! // 解密数据
+//! let decrypted = cipher.decrypt(&key_manager, &key_id, &ciphertext)?;
+//!
+//! # Ok::<(), ciphern::CryptoError>(())
+//! ```
+//!
+//! # 特性
+//!
+//! ## 安全特性
+//! - **零化内存**: 敏感数据使用 `zeroize` 自动清除
+//! - **恒定时间操作**: 防止计时攻击
+//! - **侧信道保护**: 缓存攻击、功耗分析防护
+//! - **密钥生命周期管理**: 生成、轮换、销毁
+//! - **审计日志**: 完整的操作记录
+//!
+//! ## 性能特性
+//! - **SIMD 加速**: AVX2, AVX-512 支持
+//! - **硬件随机数生成器**: Intel RDSEED
+//! - **批量加密**: 流式处理大文件
+//! - **并行处理**: 多线程支持
+//!
+//! ## 合规特性
+//! - **FIPS 140-3**: 符合联邦标准
+//! - **NIST SP 800-22**: 随机数测试套件
+//! - **GB/T 32907**: SM4 国密标准
+//! - **GM/T 0009**: SM2 国密标准
+//!
+//! # Cargo Features
+//!
+//! - `encrypt`: 启用加密功能（默认）
+//! - `hash`: 启用哈希功能（默认）
+//! - `kdf`: 启用密钥派生功能
+//! - `fips`: 启用 FIPS 合规模式
+//! - `simd`: 启用 SIMD 加速
+//! - `i18n`: 启用国际化支持
+//! - `plugin`: 启用插件系统
+//!
+//! # 错误处理
+//!
+//! 所有操作返回 `Result<T, CryptoError>`，其中 `CryptoError` 包含详细的错误信息。
+//!
+//! # 线程安全
+//!
+//! 大多数类型实现了 `Send` 和 `Sync`，可以安全地在多线程环境中使用。
+//!
+//! # 内存安全
+//!
+//! 所有敏感数据都使用 `ProtectedKey` 和 `SecretBytes` 保护，自动零化内存。
+
+#[macro_use]
+extern crate arrayref;
 
 #[cfg(feature = "hash")]
 use hmac::Mac;
@@ -55,7 +138,7 @@ pub use key::derivation::{Argon2id, Hkdf, Pbkdf2, Sm3Kdf};
 #[cfg(feature = "encrypt")]
 pub use key::manager::KeyManager;
 #[cfg(feature = "encrypt")]
-pub use key::{Key, KeyState};
+pub use key::{Key, X25519KeyManager, X25519Session};
 #[cfg(feature = "encrypt")]
 pub use random::{
     detect_hardware_rng, hardware_fill_bytes, is_rdseed_available, rdseed_fill_bytes,
@@ -63,6 +146,7 @@ pub use random::{
 };
 pub use random::{is_hardware_rng_available, EntropySource, HardwareRng, SecureRandom};
 pub use types::Algorithm;
+pub use types::KeyState;
 
 #[cfg(feature = "simd")]
 pub use simd::{
@@ -87,10 +171,37 @@ pub use plugin::manager::PluginManager;
 #[cfg(feature = "plugin")]
 pub use plugin::{CipherPlugin, Plugin, PluginLoadError, PluginMetadata};
 
-/// Initialize the library (e.g., FIPS self-tests)
+/// 初始化 Ciphern 库
 ///
-/// # Errors
-/// Returns `CryptoError` if FIPS self-tests fail or initialization fails
+/// 此函数执行以下初始化操作：
+/// - 运行 FIPS 自检（如果启用了 FIPS 特性）
+/// - 初始化审计日志系统
+/// - 初始化 RNG 监控系统
+/// - 检测 CPU 硬件加速特性
+/// - 检测硬件随机数生成器
+///
+/// # 示例
+///
+/// ```rust
+/// # use ciphern::init;
+/// # use ciphern::CryptoError;
+/// fn main() -> Result<(), CryptoError> {
+///     init()?;
+///     // 库已初始化，可以安全使用
+///     Ok(())
+/// }
+/// ```
+///
+/// # 错误
+///
+/// 返回 `CryptoError` 如果：
+/// - FIPS 自检失败
+/// - 审计日志初始化失败
+/// - 硬件特性检测失败
+///
+/// # 注意
+///
+/// 此函数应该在程序启动时调用一次，之后才能使用库的其他功能。
 pub fn init() -> Result<()> {
     #[cfg(feature = "fips")]
     {
@@ -114,7 +225,34 @@ pub fn init() -> Result<()> {
     Ok(())
 }
 
-/// High-level Cipher API
+/// 高级对称加密 API
+///
+/// 此结构体提供统一的加密接口，支持多种对称加密算法：
+/// - AES-GCM (128/256位）
+/// - ChaCha20-Poly1305
+/// - SM4-GCM（国密）
+///
+/// # 线程安全
+///
+/// `Cipher` 实现了 `Send` 和 `Sync`，可以安全地在多线程环境中共享。
+///
+/// # 示例
+///
+/// ```rust
+/// # use ciphern::{Algorithm, Cipher, KeyManager};
+/// # use ciphern::CryptoError;
+/// # fn main() -> Result<(), CryptoError> {
+/// let key_manager = KeyManager::new()?;
+/// let key_id = key_manager.generate_key(Algorithm::AES256GCM)?;
+/// let cipher = Cipher::new(Algorithm::AES256GCM)?;
+///
+/// let plaintext = b"secret message";
+/// let ciphertext = cipher.encrypt(&key_manager, &key_id, plaintext)?;
+/// let decrypted = cipher.decrypt(&key_manager, &key_id, &ciphertext)?;
+/// assert_eq!(plaintext, &decrypted[..]);
+/// # Ok(())
+/// # }
+/// ```
 #[cfg(feature = "encrypt")]
 pub struct Cipher {
     provider: std::sync::Arc<dyn cipher::provider::SymmetricCipher>,
@@ -123,13 +261,33 @@ pub struct Cipher {
 
 #[cfg(feature = "encrypt")]
 impl Cipher {
-    /// Create a new cipher instance
+    /// 创建新的加密器实例
     ///
-    /// This method first checks for plugin-provided implementations,
-    /// then falls back to built-in providers.
+    /// 此方法按照以下优先级选择加密提供者：
+    /// 1. 插件提供的实现（如果启用了 plugin 特性）
+    /// 2. 内置实现
     ///
-    /// # Errors
-    /// Returns `CryptoError` if the algorithm is not supported or FIPS validation fails
+    /// # 参数
+    ///
+    /// * `algorithm` - 要使用的加密算法
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// # use ciphern::{Algorithm, Cipher};
+    /// # use ciphern::CryptoError;
+    /// # fn main() -> Result<(), CryptoError> {
+    /// let cipher = Cipher::new(Algorithm::AES256GCM)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # 错误
+    ///
+    /// 返回 `CryptoError` 如果：
+    /// - 算法不被支持
+    /// - FIPS 验证失败（如果启用了 FIPS 模式）
+    /// - 插件加载失败
     pub fn new(algorithm: Algorithm) -> Result<Self> {
         fips::validate_algorithm_fips(&algorithm)?;
 
@@ -163,10 +321,46 @@ impl Cipher {
         self.provider.clone()
     }
 
-    /// Encrypt data using the specified key
+    /// 使用指定密钥加密数据
     ///
-    /// # Errors
-    /// Returns `CryptoError` if encryption fails, key is not found, or FIPS validation fails
+    /// 此方法执行以下操作：
+    /// - 运行 FIPS 条件自检（如果启用了 FIPS 特性）
+    /// - 使用密钥管理器获取密钥
+    /// - 使用加密提供者执行加密
+    /// - 记录审计日志
+    ///
+    /// # 参数
+    ///
+    /// * `key_manager` - 密钥管理器实例
+    /// * `key_id` - 密钥 ID 或别名
+    /// * `plaintext` - 要加密的明文数据
+    ///
+    /// # 返回
+    ///
+    /// 返回加密后的密文，包含 nonce 和 authentication tag。
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// # use ciphern::{Algorithm, Cipher, KeyManager};
+    /// # use ciphern::CryptoError;
+    /// # fn main() -> Result<(), CryptoError> {
+    /// let key_manager = KeyManager::new()?;
+    /// let key_id = key_manager.generate_key(Algorithm::AES256GCM)?;
+    /// let cipher = Cipher::new(Algorithm::AES256GCM)?;
+    ///
+    /// let plaintext = b"secret message";
+    /// let ciphertext = cipher.encrypt(&key_manager, &key_id, plaintext)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # 错误
+    ///
+    /// 返回 `CryptoError` 如果：
+    /// - 加密失败
+    /// - 密钥未找到
+    /// - FIPS 验证失败
     pub fn encrypt(
         &self,
         key_manager: &KeyManager,
@@ -192,13 +386,14 @@ impl Cipher {
             _ => e,
         });
 
-        // Audit Log
+        // Audit Log - 使用哈希化的密钥ID防止信息泄露
         let _duration = start.elapsed();
+        let hashed_key_id = crate::error::hash_key_id(key_id);
 
         audit::AuditLogger::log(
             "ENCRYPT",
             Some(self.algorithm),
-            Some(key_id),
+            Some(&hashed_key_id),
             if result.is_ok() {
                 Ok(())
             } else {
@@ -211,10 +406,50 @@ impl Cipher {
         result
     }
 
-    /// Decrypt data using the specified key
+    /// 使用指定密钥解密数据
     ///
-    /// # Errors
-    /// Returns `CryptoError` if decryption fails, key is not found, or FIPS validation fails
+    /// 此方法执行以下操作：
+    /// - 运行 FIPS 条件自检（如果启用了 FIPS 特性）
+    /// - 使用密钥管理器获取密钥
+    /// - 使用加密提供者执行解密
+    /// - 验证 authentication tag
+    /// - 记录审计日志
+    ///
+    /// # 参数
+    ///
+    /// * `key_manager` - 密钥管理器实例
+    /// * `key_id` - 密钥 ID 或别名
+    /// * `ciphertext` - 要解密的密文数据（包含 nonce 和 tag）
+    ///
+    /// # 返回
+    ///
+    /// 返回解密后的明文数据。
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// # use ciphern::{Algorithm, Cipher, KeyManager};
+    /// # use ciphern::CryptoError;
+    /// # fn main() -> Result<(), CryptoError> {
+    /// let key_manager = KeyManager::new()?;
+    /// let key_id = key_manager.generate_key(Algorithm::AES256GCM)?;
+    /// let cipher = Cipher::new(Algorithm::AES256GCM)?;
+    ///
+    /// let plaintext = b"secret message";
+    /// let ciphertext = cipher.encrypt(&key_manager, &key_id, plaintext)?;
+    /// let decrypted = cipher.decrypt(&key_manager, &key_id, &ciphertext)?;
+    /// assert_eq!(plaintext, &decrypted[..]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # 错误
+    ///
+    /// 返回 `CryptoError` 如果：
+    /// - 解密失败
+    /// - 密钥未找到
+    /// - Authentication tag 验证失败
+    /// - FIPS 验证失败
     pub fn decrypt(
         &self,
         key_manager: &KeyManager,
@@ -240,13 +475,14 @@ impl Cipher {
             _ => e,
         });
 
-        // Audit Log
+        // Audit Log - 使用哈希化的密钥ID防止信息泄露
         let _duration = start.elapsed();
+        let hashed_key_id = crate::error::hash_key_id(key_id);
 
         audit::AuditLogger::log(
             "DECRYPT",
             Some(self.algorithm),
-            Some(key_id),
+            Some(&hashed_key_id),
             if result.is_ok() {
                 Ok(())
             } else {

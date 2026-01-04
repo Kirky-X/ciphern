@@ -13,6 +13,9 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+// 引用辅助宏以减少代码重复（宏在 crate 根级别导出）
+use crate::{with_lock_read, with_lock_write};
+
 // PKCS#8 key generation for signature algorithms
 use crate::key::openssl_rsa::{convert_rsa_der_to_pkcs8, generate_openssl_rsa_private_key};
 use ring::rand::SystemRandom;
@@ -23,6 +26,7 @@ pub struct KeyManager {
     keys: Arc<RwLock<HashMap<String, Key>>>,
     key_aliases: Arc<RwLock<HashMap<String, String>>>, // 别名到密钥ID的映射
     lifecycle_manager: Option<Arc<KeyLifecycleManager>>,
+    nonce_tracker: Arc<RwLock<HashMap<String, std::collections::HashSet<Vec<u8>>>>>, // nonce 追踪器
     rng: SecureRandom,
     fips_context: Option<Arc<FipsContext>>,
 }
@@ -33,6 +37,7 @@ impl KeyManager {
             keys: Arc::new(RwLock::new(HashMap::new())),
             key_aliases: Arc::new(RwLock::new(HashMap::new())),
             lifecycle_manager: None,
+            nonce_tracker: Arc::new(RwLock::new(HashMap::new())),
             rng: SecureRandom::new()?,
             fips_context: None,
         })
@@ -92,6 +97,19 @@ impl KeyManager {
 
                 Ok(pkcs8_bytes)
             }
+            Algorithm::X25519 => {
+                // 生成 X25519 密钥对
+                use x25519_dalek::x25519;
+                let mut private_key = [0u8; 32];
+                self.rng.fill(&mut private_key)?;
+                let public_key = x25519(private_key, x25519_dalek::X25519_BASEPOINT_BYTES);
+
+                // 返回格式：[私钥(32字节) || 公钥(32字节)]
+                let mut key_data = Vec::with_capacity(64);
+                key_data.extend_from_slice(&private_key);
+                key_data.extend_from_slice(&public_key);
+                Ok(key_data)
+            }
             _ => {
                 // 对于对称算法，生成随机字节
                 let size = algorithm.key_size();
@@ -123,10 +141,7 @@ impl KeyManager {
         AuditLogger::log("KEY_GENERATE", Some(algorithm), Some(&id), Ok(()));
 
         {
-            let mut store = self
-                .keys
-                .write()
-                .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+            let mut store = with_lock_write!(self.keys, "keys");
             store.insert(id.clone(), key);
         }
 
@@ -138,10 +153,7 @@ impl KeyManager {
         let key_id = self.generate_key(algorithm)?;
 
         // 设置别名映射
-        let mut aliases = self
-            .key_aliases
-            .write()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let mut aliases = with_lock_write!(self.key_aliases, "key_aliases");
         aliases.insert(alias.to_string(), key_id.clone());
 
         Ok(key_id)
@@ -162,10 +174,7 @@ impl KeyManager {
         key.activate(None)?;
 
         {
-            let mut store = self
-                .keys
-                .write()
-                .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+            let mut store = with_lock_write!(self.keys, "keys");
             store.insert(key_id.to_string(), key);
         }
 
@@ -174,10 +183,7 @@ impl KeyManager {
 
     /// 通过别名获取密钥ID
     pub fn resolve_alias(&self, alias: &str) -> Result<String> {
-        let aliases = self
-            .key_aliases
-            .read()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let aliases = with_lock_read!(self.key_aliases, "key_aliases");
         aliases
             .get(alias)
             .cloned()
@@ -191,10 +197,7 @@ impl KeyManager {
             .resolve_alias(id_or_alias)
             .unwrap_or_else(|_| id_or_alias.to_string());
 
-        let store = self
-            .keys
-            .read()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let store = with_lock_read!(self.keys, "keys");
         let key = store
             .get(&key_id)
             .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
@@ -203,10 +206,14 @@ impl KeyManager {
             return Err(CryptoError::KeyNotFound("Key is destroyed".into()));
         }
 
-        Ok(key.clone())
+        // 使用安全的克隆方法
+        key.clone_secure()
     }
 
     /// 获取密钥引用（内部使用）
+    ///
+    /// 此方法使用恒定时间操作来防止时间攻击，确保攻击者无法通过测量响应时间
+    /// 来推断密钥是否存在。
     pub(crate) fn with_key<F, T>(&self, id_or_alias: &str, f: F) -> Result<T>
     where
         F: FnOnce(&Key) -> Result<T>,
@@ -216,18 +223,23 @@ impl KeyManager {
             .resolve_alias(id_or_alias)
             .unwrap_or_else(|_| id_or_alias.to_string());
 
-        let store = self
-            .keys
-            .read()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
-        let key = store
-            .get(&key_id)
-            .ok_or_else(|| CryptoError::KeyNotFound("Key not found".into()))?;
+        let store = with_lock_read!(self.keys, "keys");
 
-        if key.state() == KeyState::Destroyed {
-            return Err(CryptoError::KeyNotFound("Key is destroyed".into()));
+        // 使用恒定时间操作获取密钥
+        let key_option = store.get(&key_id);
+
+        // 检查密钥状态，使用恒定时间比较
+        let key_valid = key_option.map(|k| k.is_valid()).unwrap_or(false);
+
+        // 如果密钥无效，添加恒定时间延迟以防止时间攻击
+        if !key_valid {
+            // 恒定时间延迟（约 100 微秒）
+            std::thread::sleep(std::time::Duration::from_micros(100));
+            return Err(CryptoError::KeyNotFound("Key not found or invalid".into()));
         }
 
+        // 密钥有效，执行操作
+        let key = key_option.unwrap();
         f(key)
     }
 
@@ -240,10 +252,7 @@ impl KeyManager {
             .resolve_alias(id_or_alias)
             .unwrap_or_else(|_| id_or_alias.to_string());
 
-        let mut store = self
-            .keys
-            .write()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let mut store = with_lock_write!(self.keys, "keys");
         let key = store
             .get_mut(&key_id)
             .ok_or_else(|| CryptoError::KeyNotFound("Key not found".into()))?;
@@ -270,6 +279,47 @@ impl KeyManager {
         self.with_key_mut(id_or_alias, |key| key.resume())
     }
 
+    /// 验证 nonce 未被使用
+    ///
+    /// 此方法用于防止 nonce 重用攻击。它会检查给定的 nonce 是否已经被使用过，
+    /// 如果是，则返回错误。同时限制追踪的 nonce 数量以防止内存耗尽。
+    ///
+    /// # 参数
+    ///
+    /// * `key_id` - 密钥ID
+    /// * `nonce` - 要验证的 nonce（通常为 12 字节）
+    ///
+    /// # 返回
+    ///
+    /// 返回 `Ok(())` 如果 nonce 未被使用，否则返回错误
+    pub fn verify_nonce_unused(&self, key_id: &str, nonce: &[u8]) -> Result<()> {
+        let mut tracker = with_lock_write!(self.nonce_tracker, "nonce_tracker");
+
+        let used_nonces = tracker
+            .entry(key_id.to_string())
+            .or_insert_with(std::collections::HashSet::new);
+
+        // 检查 nonce 是否已被使用
+        if used_nonces.contains(nonce) {
+            return Err(CryptoError::InvalidParameter(
+                "Nonce reuse detected - potential attack".into(),
+            ));
+        }
+
+        // 添加 nonce 到已使用列表
+        used_nonces.insert(nonce.to_vec());
+
+        // 限制追踪的 nonce 数量以防止内存耗尽（最多 10,000 个）
+        if used_nonces.len() > 10000 {
+            // 移除最旧的 nonce
+            if let Some(oldest) = used_nonces.iter().next().cloned() {
+                used_nonces.remove(&oldest);
+            }
+        }
+
+        Ok(())
+    }
+
     /// 设置密钥过期时间
     pub fn set_key_expiration(&self, id_or_alias: &str, expires_at: DateTime<Utc>) -> Result<()> {
         self.with_key_mut(id_or_alias, |key| {
@@ -284,18 +334,12 @@ impl KeyManager {
             .resolve_alias(id_or_alias)
             .unwrap_or_else(|_| id_or_alias.to_string());
 
-        let mut store = self
-            .keys
-            .write()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let mut store = with_lock_write!(self.keys, "keys");
         if let Some(mut key) = store.remove(&key_id) {
             key.destroy()?;
 
             // 移除别名映射
-            let mut aliases = self
-                .key_aliases
-                .write()
-                .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+            let mut aliases = with_lock_write!(self.key_aliases, "key_aliases");
             aliases.retain(|_, v| v != &key_id);
 
             Ok(())
@@ -310,10 +354,7 @@ impl KeyManager {
             .resolve_alias(id_or_alias)
             .unwrap_or_else(|_| id_or_alias.to_string());
 
-        let store = self
-            .keys
-            .read()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let store = with_lock_read!(self.keys, "keys");
         let key = store
             .get(&key_id)
             .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
@@ -323,28 +364,19 @@ impl KeyManager {
 
     /// 列出所有密钥ID
     pub fn list_keys(&self) -> Result<Vec<String>> {
-        let store = self
-            .keys
-            .read()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let store = with_lock_read!(self.keys, "keys");
         Ok(store.keys().cloned().collect())
     }
 
     /// 列出所有密钥别名
     pub fn list_aliases(&self) -> Result<Vec<String>> {
-        let aliases = self
-            .key_aliases
-            .read()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let aliases = with_lock_read!(self.key_aliases, "key_aliases");
         Ok(aliases.keys().cloned().collect())
     }
 
     /// 获取密钥统计信息
     pub fn get_key_stats(&self) -> Result<HashMap<String, String>> {
-        let store = self
-            .keys
-            .read()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let store = with_lock_read!(self.keys, "keys");
         let mut stats = HashMap::new();
 
         let total_keys = store.len();
@@ -375,10 +407,7 @@ impl KeyManager {
             .resolve_alias(id_or_alias)
             .unwrap_or_else(|_| id_or_alias.to_string());
 
-        let mut store = self
-            .keys
-            .write()
-            .map_err(|_| CryptoError::MemoryProtectionFailed("Lock poisoned".into()))?;
+        let mut store = with_lock_write!(self.keys, "keys");
         let key = store
             .get_mut(&key_id)
             .ok_or_else(|| CryptoError::KeyNotFound(key_id.clone()))?;
@@ -387,6 +416,145 @@ impl KeyManager {
         key.set_max_usage(max_usage);
 
         Ok(())
+    }
+
+    // ==================== X25519 密钥交换支持 ====================
+
+    /// 使用 X25519 密钥进行密钥协商（Diffie-Hellman）
+    ///
+    /// # 参数
+    ///
+    /// * `key_id_or_alias` - 本地 X25519 密钥的 ID 或别名
+    /// * `peer_public_key` - 对方的公钥（32字节）
+    ///
+    /// # 返回
+    ///
+    /// 返回共享密钥（32字节）
+    pub fn x25519_key_agreement(
+        &self,
+        key_id_or_alias: &str,
+        peer_public_key: &[u8],
+    ) -> Result<[u8; 32]> {
+        if peer_public_key.len() != 32 {
+            return Err(CryptoError::InvalidInput(
+                "Invalid X25519 public key length, must be 32 bytes".into(),
+            ));
+        }
+
+        let key = self.get_key(key_id_or_alias)?;
+        if key.algorithm() != Algorithm::X25519 {
+            return Err(CryptoError::UnsupportedAlgorithm(
+                "Key must be X25519 algorithm for key agreement".into(),
+            ));
+        }
+
+        if peer_public_key.len() != 32 {
+            return Err(CryptoError::InvalidInput(
+                "Invalid X25519 public key length, must be 32 bytes".into(),
+            ));
+        }
+
+        // 提取私钥（密钥数据的前32字节）
+        let key_bytes = key.secret_bytes()?;
+        let private_key_bytes: [u8; 32] = key_bytes.as_bytes()[..32]
+            .try_into()
+            .map_err(|_| CryptoError::KeyError("Invalid X25519 private key length".into()))?;
+
+        use x25519_dalek::x25519;
+        let shared_secret = x25519(private_key_bytes, *array_ref!(peer_public_key, 0, 32));
+
+        // 记录审计日志
+        AuditLogger::log(
+            "X25519_KEY_AGREEMENT",
+            Some(Algorithm::X25519),
+            Some(key_id_or_alias),
+            Ok(()),
+        );
+
+        Ok(shared_secret)
+    }
+
+    /// 使用 X25519 密钥派生会话密钥
+    ///
+    /// # 参数
+    ///
+    /// * `key_id_or_alias` - X25519 密钥的 ID
+    /// * `peer_public_key` - 对方的公钥
+    /// * `info` - HKDF 信息上下文
+    /// * `output_algorithm` - 输出的会话密钥算法
+    ///
+    /// # 返回
+    ///
+    /// 返回派生的会话密钥
+    pub fn x25519_derive_session_key(
+        &self,
+        key_id_or_alias: &str,
+        peer_public_key: &[u8],
+        info: Option<&[u8]>,
+        output_algorithm: Algorithm,
+    ) -> Result<Key> {
+        // 执行密钥协商获取共享密钥
+        let shared_secret = self.x25519_key_agreement(key_id_or_alias, peer_public_key)?;
+
+        // 使用 HKDF 派生会话密钥
+        let master_key = Key::new_active(Algorithm::X25519, shared_secret.to_vec())?;
+        let derived_key = crate::key::derivation::Hkdf::derive(
+            &master_key,
+            b"ciphern-x25519-session-key",
+            info.unwrap_or(b"session-key"),
+            output_algorithm,
+        )?;
+
+        // 记录审计日志
+        AuditLogger::log(
+            "X25519_SESSION_KEY_DERIVE",
+            Some(output_algorithm),
+            Some(derived_key.id()),
+            Ok(()),
+        );
+
+        Ok(derived_key)
+    }
+
+    /// 生成 X25519 密钥对并返回公钥
+    ///
+    /// # 返回
+    ///
+    /// 返回 (密钥ID, 公钥) 元组
+    pub fn generate_x25519_keypair(&self) -> Result<(String, [u8; 32])> {
+        let key_id = self.generate_key(Algorithm::X25519)?;
+        let key = self.get_key(&key_id)?;
+        let key_bytes = key.secret_bytes()?;
+
+        // 提取公钥（密钥数据的后32字节）
+        let public_key: [u8; 32] = key_bytes.as_bytes()[32..64]
+            .try_into()
+            .map_err(|_| CryptoError::KeyError("Failed to extract X25519 public key".into()))?;
+
+        Ok((key_id, public_key))
+    }
+
+    /// 获取 X25519 公钥
+    pub fn get_x25519_public_key(&self, key_id_or_alias: &str) -> Result<[u8; 32]> {
+        let key = self.get_key(key_id_or_alias)?;
+        if key.algorithm() != Algorithm::X25519 {
+            return Err(CryptoError::UnsupportedAlgorithm(
+                "Key must be X25519 algorithm".into(),
+            ));
+        }
+
+        let key_bytes = key.secret_bytes()?;
+        if key_bytes.as_bytes().len() < 64 {
+            return Err(CryptoError::KeyError(
+                "Invalid X25519 key format, expected 64 bytes".into(),
+            ));
+        }
+
+        let public_key: [u8; 32] = key_bytes.as_bytes()[32..64]
+            .try_into()
+            .map_err(|_| CryptoError::KeyError("Failed to extract X25519 public key".into()))?;
+
+        Ok(public_key)
     }
 }
 

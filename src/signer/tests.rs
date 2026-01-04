@@ -4,7 +4,7 @@
 // See LICENSE file in the project root for full license information.
 
 use crate::cipher::provider::REGISTRY;
-use crate::key::KeyState;
+use crate::types::KeyState;
 use crate::{key::KeyManager, Algorithm};
 
 #[test]

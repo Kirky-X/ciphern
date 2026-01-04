@@ -14,13 +14,14 @@ pub mod openssl_rsa;
 pub mod post_quantum;
 pub mod rotation;
 pub mod usage_limit;
+pub mod x25519; // X25519 key exchange
 
 #[cfg(test)]
 mod tests;
 
 use crate::error::Result;
 use crate::memory::{ProtectedKey, SecretBytes};
-use crate::types::Algorithm;
+use crate::types::{Algorithm, KeyState};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -56,6 +57,8 @@ pub use usage_limit::{
     KeyUsageLimit, ResetStrategy, UsageLimitManager, UsageLimitPolicy, UsageLimitType,
     UsageReportEntry,
 };
+#[allow(unused)]
+pub use x25519::{X25519KeyManager, X25519Session};
 
 /// 密钥状态转换器
 pub struct KeyStateManager;
@@ -90,6 +93,8 @@ impl KeyStateManager {
             KeyState::Generated => "密钥已生成，等待激活",
             KeyState::Active => "密钥已激活，可以使用",
             KeyState::Suspended => "密钥已暂停，不能使用",
+            KeyState::Rotating => "密钥正在轮换",
+            KeyState::Deprecated => "密钥已弃用",
             KeyState::Destroyed => "密钥已销毁，不能再使用",
         }
     }
@@ -115,7 +120,7 @@ impl KeyStateManager {
 /// let key = Arc::new(Mutex::new(Key::new(algorithm, key_data)?));
 /// // 在多个线程中使用
 /// ```
-#[derive(Clone)]
+#[derive(Debug)]
 pub struct Key {
     id: String,
     algorithm: Algorithm,
@@ -129,6 +134,8 @@ pub struct Key {
     usage_count: usize,
     max_usage: Option<usize>,
     metadata: std::collections::HashMap<String, String>,
+    // 内部锁保护，防止并发访问
+    _lock: std::sync::Mutex<()>,
 }
 
 impl Key {
@@ -148,6 +155,7 @@ impl Key {
             usage_count: 0,
             max_usage: None,
             metadata: std::collections::HashMap::new(),
+            _lock: std::sync::Mutex::new(()),
         })
     }
 
@@ -168,6 +176,7 @@ impl Key {
             usage_count: 0,
             max_usage: None,
             metadata: std::collections::HashMap::new(),
+            _lock: std::sync::Mutex::new(()),
         })
     }
 
@@ -187,6 +196,7 @@ impl Key {
             usage_count: 0,
             max_usage: None,
             metadata: std::collections::HashMap::new(),
+            _lock: std::sync::Mutex::new(()),
         })
     }
 
@@ -274,10 +284,16 @@ impl Key {
         self.state = KeyState::Destroyed;
         self.destroyed_at = Some(Utc::now());
 
-        // 清除密钥数据 - we can't access mutable, so we'll create a new zeroized key
-        let zeroized_key =
-            crate::memory::SecretBytes::new(vec![0u8; self.data.access()?.as_bytes().len()])?;
-        self.data = crate::memory::ProtectedKey::new(zeroized_key)?;
+        // 安全地清零密钥数据
+        self.data.zeroize_secure()?;
+
+        // 清零其他敏感字段
+        self.activated_at = None;
+        self.suspended_at = None;
+        self.expires_at = None;
+        self.usage_count = 0;
+        self.max_usage = None;
+        self.metadata.clear();
 
         crate::audit::AuditLogger::log(
             "KEY_DESTROYED",
@@ -420,26 +436,41 @@ impl Key {
     pub fn metadata_mut(&mut self) -> &mut std::collections::HashMap<String, String> {
         &mut self.metadata
     }
+
+    /// 安全地克隆密钥
+    ///
+    /// 此方法创建密钥的深拷贝，确保在锁保护下进行操作。
+    /// 注意：克隆密钥会复制敏感数据，请谨慎使用。
+    pub fn clone_secure(&self) -> Result<Self> {
+        let _guard = self._lock.lock().unwrap();
+
+        // 克隆 ProtectedKey
+        let key_bytes = self.data.access()?.as_bytes().to_vec();
+        let secret = SecretBytes::new(key_bytes)?;
+        let protected_key = ProtectedKey::new(secret)?;
+
+        Ok(Self {
+            id: self.id.clone(),
+            algorithm: self.algorithm,
+            data: protected_key,
+            state: self.state,
+            created_at: self.created_at,
+            activated_at: self.activated_at,
+            suspended_at: self.suspended_at,
+            destroyed_at: self.destroyed_at,
+            expires_at: self.expires_at,
+            usage_count: self.usage_count,
+            max_usage: self.max_usage,
+            metadata: self.metadata.clone(),
+            _lock: std::sync::Mutex::new(()),
+        })
+    }
 }
 
 impl Drop for Key {
     fn drop(&mut self) {
-        if let Ok(_secret) = self.data.access() {
-            if let Ok(zeroized_key) =
-                crate::memory::SecretBytes::new(vec![0u8; _secret.as_bytes().len()])
-            {
-                // 忽略错误，因为此时正在销毁
-                let _ = crate::memory::ProtectedKey::new(zeroized_key);
-            }
-        }
+        // 不要在 Drop 中访问 data，因为此时 canary 可能已经被清零
+        // 密钥数据已经在 destroy() 方法中被清零
+        // 这里不需要做任何额外的清理工作
     }
-}
-
-/// 密钥状态枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyState {
-    Generated,
-    Active,
-    Suspended,
-    Destroyed,
 }

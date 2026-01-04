@@ -683,9 +683,14 @@ mod tests {
         let key = Key::new_active(Algorithm::AES256GCM, vec![0u8; 32]).unwrap();
 
         // 初始化加密器
-        encryptor.initialize(key.clone(), None).unwrap();
+        encryptor
+            .initialize(key.clone_secure().unwrap(), None)
+            .unwrap();
         decryptor
-            .initialize(key.clone(), encryptor.nonce().map(|n| n.to_vec()))
+            .initialize(
+                key.clone_secure().unwrap(),
+                encryptor.nonce().map(|n| n.to_vec()),
+            )
             .unwrap();
 
         // 测试数据 - 确保大于块大小
@@ -719,9 +724,14 @@ mod tests {
 
         let key = Key::new_active(Algorithm::AES256GCM, vec![0u8; 32]).unwrap();
 
-        encryptor.initialize(key.clone(), None).unwrap();
+        encryptor
+            .initialize(key.clone_secure().unwrap(), None)
+            .unwrap();
         decryptor
-            .initialize(key.clone(), encryptor.nonce().map(|n| n.to_vec()))
+            .initialize(
+                key.clone_secure().unwrap(),
+                encryptor.nonce().map(|n| n.to_vec()),
+            )
             .unwrap();
 
         // 生成大数据
@@ -762,9 +772,14 @@ mod tests {
         // SM4 使用 128位密钥
         let key = Key::new_active(Algorithm::SM4GCM, vec![0x01u8; 16]).unwrap();
 
-        encryptor.initialize(key.clone(), None).unwrap();
+        encryptor
+            .initialize(key.clone_secure().unwrap(), None)
+            .unwrap();
         decryptor
-            .initialize(key.clone(), encryptor.nonce().map(|n| n.to_vec()))
+            .initialize(
+                key.clone_secure().unwrap(),
+                encryptor.nonce().map(|n| n.to_vec()),
+            )
             .unwrap();
 
         let test_data =
@@ -795,9 +810,14 @@ mod tests {
         assert!(!encryptor.is_padding_enabled());
         assert!(!decryptor.is_padding_enabled());
 
-        encryptor.initialize(key.clone(), None).unwrap();
+        encryptor
+            .initialize(key.clone_secure().unwrap(), None)
+            .unwrap();
         decryptor
-            .initialize(key.clone(), encryptor.nonce().map(|n| n.to_vec()))
+            .initialize(
+                key.clone_secure().unwrap(),
+                encryptor.nonce().map(|n| n.to_vec()),
+            )
             .unwrap();
 
         // 测试数据长度不是块大小倍数的情况

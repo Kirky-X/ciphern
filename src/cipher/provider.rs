@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use crate::cipher::aes::AesGcmProvider;
+use crate::cipher::chacha20poly1305::ChaCha20Poly1305Provider;
 use crate::cipher::sm4::Sm4GcmProvider;
 use crate::signer::ecdsa::EcdsaProvider;
 use crate::signer::ed25519::Ed25519Provider;
@@ -72,6 +73,10 @@ impl ProviderRegistry {
             map.insert(Algorithm::AES192GCM, Arc::new(AesGcmProvider::aes192()));
             map.insert(Algorithm::AES256GCM, Arc::new(AesGcmProvider::aes256()));
             map.insert(Algorithm::SM4GCM, Arc::new(Sm4GcmProvider::default()));
+            map.insert(
+                Algorithm::ChaCha20Poly1305,
+                Arc::new(ChaCha20Poly1305Provider::new().unwrap()),
+            );
         }
 
         {
