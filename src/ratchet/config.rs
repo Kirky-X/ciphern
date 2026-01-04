@@ -21,6 +21,9 @@ pub struct RatchetConfig {
     /// 跳过消息密钥最大内存使用（字节）
     pub max_skipped_keys_memory: usize,
 
+    /// 最大明文大小（字节），0 表示无限制
+    pub max_plaintext_size: usize,
+
     /// 是否启用弱密钥检测
     pub enable_weak_key_detection: bool,
 
@@ -52,6 +55,7 @@ impl Default for RatchetConfig {
             enable_signature_verification: false,
             max_skip_messages: 1000,
             max_skipped_keys_memory: 1024 * 1024, // 1MB
+            max_plaintext_size: 16 * 1024, // 16KB 默认限制
             enable_weak_key_detection: true,
             min_entropy_threshold: 3.0,
             enable_parallel_key_derivation: true,
@@ -88,6 +92,12 @@ impl RatchetConfig {
         self
     }
 
+    /// 设置最大明文大小
+    pub fn with_max_plaintext_size(mut self, size: usize) -> Self {
+        self.max_plaintext_size = size;
+        self
+    }
+
     /// 启用审计日志
     pub fn with_audit_logging(mut self, enabled: bool) -> Self {
         self.enable_audit_logging = enabled;
@@ -108,6 +118,7 @@ impl RatchetConfig {
         if self.min_entropy_threshold <= 0.0 {
             return false;
         }
+        // max_plaintext_size 为 0 表示无限制，这是有效的
         true
     }
 }

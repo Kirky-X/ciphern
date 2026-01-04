@@ -736,10 +736,10 @@ pub fn advanced_dummy_operations() {
     // 4. The resulting slice is only used within this statement and not stored long-term
     // 5. The slice lifetime is bound to the fill_bytes call and does not outlive the buffer
     // 6. The alignment of u64 (8 bytes) satisfies the alignment requirements for u8 (1 byte)
-    if let Ok(rng) = SecureRandom::new() {
+    if let Ok(mut rng) = SecureRandom::new() {
         rng.fill_bytes(unsafe {
             std::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u8, buffer.len() * 8)
-        }).ok();
+        });
     }
 
     // Perform operations on the buffer to create memory access patterns

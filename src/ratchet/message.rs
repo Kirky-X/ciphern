@@ -18,6 +18,15 @@ use super::state::{DoubleRatchetState, RatchetMessage, RatchetMessageHeader};
 
 /// 加密消息
 pub fn encrypt_message(state: &mut DoubleRatchetState, plaintext: &[u8]) -> Result<RatchetMessage> {
+    // 检查消息大小限制
+    if state.config.max_plaintext_size > 0 && plaintext.len() > state.config.max_plaintext_size {
+        return Err(CryptoError::InvalidParameter(format!(
+            "Plaintext size {} exceeds maximum allowed size {}",
+            plaintext.len(),
+            state.config.max_plaintext_size
+        )));
+    }
+
     // 执行对称密钥 Ratchet 获取消息密钥
     let message_key = super::dh_ratchet::symmetric_key_ratchet(state)?;
 
@@ -221,7 +230,7 @@ mod tests {
     #[test]
     fn test_message_encrypt_decrypt() {
         let config = RatchetConfig::default();
-        let mut alice = DoubleRatchetState::new(config.clone(), None).unwrap();
+        let mut alice = DoubleRatchetState::new(config, None).unwrap();
         let mut bob = DoubleRatchetState::new(RatchetConfig::default(), None).unwrap();
 
         // 设置相同的初始根密钥
