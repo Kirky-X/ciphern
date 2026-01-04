@@ -3,13 +3,13 @@
 //!
 //! 实现 API Key 过期通知，支持日志、webhook 和 email 通知方式。
 
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveValue, QueryFilter, ColumnTrait};
 use chrono::{Duration, Utc};
+use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::Serialize;
 use std::fmt::Debug;
 
-use crate::api_key::error::NotificationError;
 use crate::api_key::entities::{api_key, expiry_notification};
+use crate::api_key::error::NotificationError;
 
 /// 通知配置
 #[derive(Debug, Clone)]
@@ -124,7 +124,8 @@ impl NotificationSender {
         // 2. Webhook 通知
         if let Some(webhook_url) = &self.config.webhook_url {
             let client = reqwest::Client::new();
-            let mut request = client.post(webhook_url)
+            let mut request = client
+                .post(webhook_url)
                 .header("Content-Type", "application/json")
                 .json(&payload);
 
@@ -149,7 +150,7 @@ impl NotificationSender {
                 key_record.id,
                 key_record.expires_at.to_rfc3339()
             );
-            
+
             for recipient in &self.config.email_recipients {
                 tracing::info!(recipient = %recipient, "Email 通知已排队");
                 // 实际项目中这里调用邮件发送服务
@@ -160,7 +161,9 @@ impl NotificationSender {
     }
 
     /// 获取待发送的通知统计
-    pub async fn get_pending_notifications(&self) -> Result<Vec<expiry_notification::Model>, NotificationError> {
+    pub async fn get_pending_notifications(
+        &self,
+    ) -> Result<Vec<expiry_notification::Model>, NotificationError> {
         let notifications = expiry_notification::Entity::find()
             .filter(expiry_notification::Column::NotificationSent.eq(false))
             .all(&self.db)

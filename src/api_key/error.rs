@@ -2,9 +2,9 @@
 //!
 //! 定义 API Key 生成、校验、轮换过程中可能出现的错误类型。
 
-use thiserror::Error;
 use chrono::DateTime;
 use chrono::Utc;
+use thiserror::Error;
 
 /// 校验错误
 #[derive(Debug, Error)]
@@ -128,7 +128,11 @@ pub enum PermissionError {
 }
 
 /// 结果类型别名
+#[allow(dead_code)]
 pub type ValidationResult<T> = Result<T, ValidationError>;
+#[allow(dead_code)]
 pub type GenerationResult<T> = Result<T, GenerationError>;
+#[allow(dead_code)]
 pub type RotationResult<T> = Result<T, RotationError>;
+#[allow(dead_code)]
 pub type CacheResult<T> = Result<T, CacheError>;

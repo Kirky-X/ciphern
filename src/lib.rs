@@ -124,6 +124,10 @@ pub(crate) mod types;
 // API Key Management Module
 pub mod api_key;
 
+// Double Ratchet Protocol Module
+#[cfg(feature = "encrypt")]
+pub mod ratchet;
+
 #[cfg(feature = "i18n")]
 pub(crate) mod i18n;
 #[cfg(feature = "i18n")]
@@ -173,6 +177,14 @@ pub use ui::{Button, FormField, Label, LocalizedMessage, MenuItem, Notification,
 pub use plugin::manager::PluginManager;
 #[cfg(feature = "plugin")]
 pub use plugin::{CipherPlugin, Plugin, PluginLoadError, PluginMetadata};
+
+#[cfg(feature = "encrypt")]
+pub use ratchet::{
+    calculate_entropy, decrypt_message, derive_message_key, deserialize_binary, deserialize_json,
+    dh_ratchet_step, encrypt_message, handle_skipped_messages, is_weak_key, kdf_ratchet,
+    serialize_binary, serialize_json, symmetric_key_ratchet, validate_key_quality,
+    DoubleRatchetState, RatchetConfig, RatchetMessage, RatchetMessageHeader,
+};
 
 /// 初始化 Ciphern 库
 ///

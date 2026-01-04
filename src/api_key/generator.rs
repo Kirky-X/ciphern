@@ -2,13 +2,13 @@
 //!
 //! 实现 API Key 的生成逻辑，包括自定义格式和 JWT Token。
 
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveValue};
+use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait};
 
-use crate::api_key::error::GenerationError;
-use crate::api_key::types::{ApiKeyType, Permission, PrefixType, GeneratedKey, JwtClaims};
 use crate::api_key::entities::api_key;
+use crate::api_key::error::GenerationError;
+use crate::api_key::types::{ApiKeyType, GeneratedKey, JwtClaims, Permission, PrefixType};
 use crate::random::SecureRandom;
-use chrono::{Duration, Utc, FixedOffset};
+use chrono::{Duration, FixedOffset, Utc};
 
 /// API Key 生成器
 pub struct ApiKeyGenerator {
@@ -72,7 +72,8 @@ impl ApiKeyGenerator {
         let key_hash = self.hash_key(&key)?;
 
         // 6. 计算过期时间
-        let expires_at = Utc::now() + Duration::days(expires_in_days.unwrap_or(self.default_expiry_days) as i64);
+        let expires_at =
+            Utc::now() + Duration::days(expires_in_days.unwrap_or(self.default_expiry_days) as i64);
         let expires_at_with_offset = expires_at.with_timezone(&FixedOffset::east_opt(0).unwrap());
 
         // 7. 保存到数据库
@@ -81,7 +82,9 @@ impl ApiKeyGenerator {
             key_hash: ActiveValue::Set(key_hash.clone()),
             prefix: ActiveValue::Set(prefix.as_str().to_string()),
             key_type: ActiveValue::Set("ApiKey".to_string()),
-            permissions: ActiveValue::Set(final_permissions.iter().map(|p| p.to_string()).collect()),
+            permissions: ActiveValue::Set(
+                final_permissions.iter().map(|p| p.to_string()).collect(),
+            ),
             created_at: ActiveValue::Set(Self::now_with_offset()),
             expires_at: ActiveValue::Set(expires_at_with_offset),
             last_used_at: ActiveValue::Set(None),
@@ -89,9 +92,7 @@ impl ApiKeyGenerator {
             rotation_from: ActiveValue::Set(None),
         };
 
-        let result = api_key::Entity::insert(new_key)
-            .exec(&self.db)
-            .await?;
+        let result = api_key::Entity::insert(new_key).exec(&self.db).await?;
 
         Ok(GeneratedKey {
             key_id: result.last_insert_id,
@@ -133,7 +134,8 @@ impl ApiKeyGenerator {
             &Header::default(),
             &claims,
             &EncodingKey::from_secret(secret.as_bytes()),
-        ).map_err(|e| GenerationError::JwtSigningFailed(e.to_string()))?;
+        )
+        .map_err(|e| GenerationError::JwtSigningFailed(e.to_string()))?;
 
         // 保存 JWT Token 到数据库
         let token_hash = self.hash_key(&token)?;
@@ -153,9 +155,7 @@ impl ApiKeyGenerator {
             rotation_from: ActiveValue::Set(None),
         };
 
-        api_key::Entity::insert(new_key)
-            .exec(&self.db)
-            .await?;
+        api_key::Entity::insert(new_key).exec(&self.db).await?;
 
         Ok(token)
     }
@@ -163,7 +163,8 @@ impl ApiKeyGenerator {
     /// 生成随机部分（32字符 base62）
     fn generate_random_part(&self) -> Result<String, GenerationError> {
         let mut bytes = [0u8; 16];
-        self.rng.fill(&mut bytes)
+        self.rng
+            .fill(&mut bytes)
             .map_err(|e| GenerationError::RandomGenerationFailed(e.to_string()))?;
 
         // 转换为 base62
@@ -172,7 +173,11 @@ impl ApiKeyGenerator {
     }
 
     /// 计算 CRC32 校验和
-    fn calculate_checksum(&self, prefix: &str, random_part: &str) -> Result<String, GenerationError> {
+    fn calculate_checksum(
+        &self,
+        prefix: &str,
+        random_part: &str,
+    ) -> Result<String, GenerationError> {
         let data = format!("{}{}", prefix, random_part);
         let checksum = crc32fast::hash(data.as_bytes());
         Ok(format!("{:04x}", checksum))

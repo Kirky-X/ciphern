@@ -53,49 +53,45 @@
 
 // Re-exports
 pub use types::{
-    ApiKeyType, Action, Permission, PrefixType,
-    GeneratedKey, ValidationResult, RotatedKeyPair,
-    JwtClaims, FailureReason, NotificationMethod,
+    Action, ApiKeyType, FailureReason, GeneratedKey, JwtClaims, NotificationMethod, Permission,
+    PrefixType, RotatedKeyPair, ValidationResult,
 };
 
 pub use error::{
-    ValidationError, GenerationError, RotationError,
-    CacheError, NotificationError, BackgroundTaskError,
-    PermissionError, ValidationResult as ApiKeyValidationResult,
+    BackgroundTaskError, CacheError, GenerationError, NotificationError, PermissionError,
+    RotationError, ValidationError, ValidationResult as ApiKeyValidationResult,
 };
 
 pub use cache::{Cache, CacheConfig};
 
 pub use entities::{
-    ApiKeyEntity, ApiKeyModel,
-    KeyRotationEntity, KeyRotationModel,
+    ApiKeyEntity, ApiKeyModel, ExpiryNotificationEntity, ExpiryNotificationModel,
+    KeyRotationEntity, KeyRotationModel, RateLimitBlockEntity, RateLimitBlockModel,
     ValidationFailureEntity, ValidationFailureModel,
-    RateLimitBlockEntity, RateLimitBlockModel,
-    ExpiryNotificationEntity, ExpiryNotificationModel,
 };
 
-pub use notification::{NotificationManager, NotificationConfig, NotificationSender};
-pub use task::{TaskManager, TaskConfig, TaskStats};
+pub use notification::{NotificationConfig, NotificationManager, NotificationSender};
+pub use task::{TaskConfig, TaskManager, TaskStats};
 
 // Modules
-mod types;
+mod cache;
 mod error;
 mod generator;
-mod validator;
-mod permission;
-mod cache;
-mod rotation;
 mod notification;
+mod permission;
+mod rotation;
 mod task;
+mod types;
+mod validator;
 
 pub mod entities;
 pub mod migration;
 
 // Re-exports from submodules
 pub use generator::ApiKeyGenerator;
-pub use validator::ApiKeyValidator;
-pub use rotation::ApiKeyRotation;
 pub use permission::PermissionMatcher;
+pub use rotation::ApiKeyRotation;
+pub use validator::ApiKeyValidator;
 
 /// API Key 管理器配置
 #[derive(Debug, Clone)]

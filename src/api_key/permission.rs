@@ -135,8 +135,14 @@ mod tests {
         let available = vec!["users:read".to_string(), "orders:write".to_string()];
 
         assert!(matcher.has_all_permissions(&available, &["users:read".to_string()]));
-        assert!(matcher.has_all_permissions(&available, &["users:read".to_string(), "orders:write".to_string()]));
-        assert!(!matcher.has_all_permissions(&available, &["users:read".to_string(), "orders:delete".to_string()]));
+        assert!(matcher.has_all_permissions(
+            &available,
+            &["users:read".to_string(), "orders:write".to_string()]
+        ));
+        assert!(!matcher.has_all_permissions(
+            &available,
+            &["users:read".to_string(), "orders:delete".to_string()]
+        ));
     }
 
     #[test]
@@ -145,8 +151,14 @@ mod tests {
         let available = vec!["users:read".to_string()];
 
         assert!(matcher.has_any_permission(&available, &["users:read".to_string()]));
-        assert!(matcher.has_any_permission(&available, &["users:read".to_string(), "orders:write".to_string()]));
-        assert!(!matcher.has_any_permission(&available, &["orders:write".to_string(), "products:delete".to_string()]));
+        assert!(matcher.has_any_permission(
+            &available,
+            &["users:read".to_string(), "orders:write".to_string()]
+        ));
+        assert!(!matcher.has_any_permission(
+            &available,
+            &["orders:write".to_string(), "products:delete".to_string()]
+        ));
     }
 
     #[test]

@@ -44,7 +44,7 @@ impl Action {
     }
 
     /// 从字符串解析动作
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_action(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "read" => Some(Action::Read),
             "write" => Some(Action::Write),
@@ -77,28 +77,23 @@ impl Permission {
     }
 
     /// 从字符串解析权限（格式："users:read"）
-    pub fn from_str(s: &str) -> Result<Self, String> {
+    pub fn parse_permission(s: &str) -> Result<Self, String> {
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() != 2 {
             return Err(format!("Invalid permission format: {}", s));
         }
 
         let resource = parts[0].to_string();
-        let action = Action::from_str(parts[1])
+        let action = Action::parse_action(parts[1])
             .ok_or_else(|| format!("Invalid action: {}", parts[1]))?;
 
         Ok(Self { resource, action })
-    }
-
-    /// 转换为字符串（格式："users:read"）
-    pub fn to_string(&self) -> String {
-        format!("{}:{}", self.resource, self.action.as_str())
     }
 }
 
 impl fmt::Display for Permission {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}:{}", self.resource, self.action.as_str())
     }
 }
 

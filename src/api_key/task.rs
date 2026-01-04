@@ -2,15 +2,15 @@
 //!
 //! 实现 API Key 管理的后台任务调度，包括过期检查、清理任务、通知任务等。
 
-use sea_orm::{DatabaseConnection, EntityTrait, ColumnTrait, QueryFilter, PaginatorTrait};
 use chrono::{Duration, Utc};
-use tokio::time::{interval, Duration as TokioDuration};
-use tokio::spawn;
-use std::sync::Arc;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 use std::future::Future;
+use std::sync::Arc;
+use tokio::spawn;
+use tokio::time::{interval, Duration as TokioDuration};
 
-use crate::api_key::notification::{NotificationManager, NotificationConfig};
-use crate::api_key::entities::{api_key, validation_failure, rate_limit_block};
+use crate::api_key::entities::{api_key, rate_limit_block, validation_failure};
+use crate::api_key::notification::{NotificationConfig, NotificationManager};
 
 /// 任务配置
 #[derive(Debug, Clone)]
@@ -111,7 +111,7 @@ impl TaskManager {
     async fn expiry_notification_task() {
         let mut interval = interval(TokioDuration::from_secs(86400)); // 24小时
         let _db = crate::api_key::ApiKeyConfig::default().database_url;
-        
+
         loop {
             interval.tick().await;
             // 通知扫描逻辑
@@ -121,7 +121,7 @@ impl TaskManager {
     /// 任务2: 过期密钥清理（每天执行）
     async fn expired_key_cleanup_task() {
         let mut interval = interval(TokioDuration::from_secs(86400));
-        
+
         loop {
             interval.tick().await;
             // 清理逻辑
@@ -131,7 +131,7 @@ impl TaskManager {
     /// 任务3: 限流封禁解锁（每5分钟执行）
     async fn rate_limit_unblock_task() {
         let mut interval = interval(TokioDuration::from_secs(300)); // 5分钟
-        
+
         loop {
             interval.tick().await;
             // 解锁逻辑
@@ -141,7 +141,7 @@ impl TaskManager {
     /// 任务4: 失败日志聚合统计（每小时执行）
     async fn failure_log_aggregation_task() {
         let mut interval = interval(TokioDuration::from_secs(3600)); // 1小时
-        
+
         loop {
             interval.tick().await;
             // 聚合逻辑
@@ -149,7 +149,9 @@ impl TaskManager {
     }
 
     /// 手动触发过期检查
-    pub async fn trigger_expiry_check(&self) -> Result<u64, crate::api_key::error::NotificationError> {
+    pub async fn trigger_expiry_check(
+        &self,
+    ) -> Result<u64, crate::api_key::error::NotificationError> {
         NotificationManager::new(self.db.clone(), self.config.notification_config.clone())
             .run_scan()
             .await
@@ -210,9 +212,7 @@ impl TaskManager {
             .count(&self.db)
             .await?;
 
-        let rate_limited_keys = rate_limit_block::Entity::find()
-            .count(&self.db)
-            .await?;
+        let rate_limited_keys = rate_limit_block::Entity::find().count(&self.db).await?;
 
         let validation_failures_24h = validation_failure::Entity::find()
             .filter(validation_failure::Column::FailedAt.gt(one_day_ago))

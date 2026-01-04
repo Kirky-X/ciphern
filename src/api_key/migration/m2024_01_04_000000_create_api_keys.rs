@@ -36,7 +36,7 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk_api_keys_rotation_from")
                             .from(ApiKeys::Table, ApiKeys::RotationFrom)
-                            .to(ApiKeys::Table, ApiKeys::Id)
+                            .to(ApiKeys::Table, ApiKeys::Id),
                     )
                     .to_owned(),
             )
@@ -89,13 +89,13 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk_key_rotations_old_key")
                             .from(KeyRotations::Table, KeyRotations::OldKeyId)
-                            .to(ApiKeys::Table, ApiKeys::Id)
+                            .to(ApiKeys::Table, ApiKeys::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_key_rotations_new_key")
                             .from(KeyRotations::Table, KeyRotations::NewKeyId)
-                            .to(ApiKeys::Table, ApiKeys::Id)
+                            .to(ApiKeys::Table, ApiKeys::Id),
                     )
                     .to_owned(),
             )
@@ -190,13 +190,17 @@ impl MigrationTrait for Migration {
                     .col(integer(KeyExpiryNotifications::KeyId).not_null())
                     .col(timestamp_with_time_zone(KeyExpiryNotifications::NotifyAt).not_null())
                     .col(integer(KeyExpiryNotifications::DaysUntilExpiry).not_null())
-                    .col(boolean(KeyExpiryNotifications::NotificationSent).not_null().default(false))
+                    .col(
+                        boolean(KeyExpiryNotifications::NotificationSent)
+                            .not_null()
+                            .default(false),
+                    )
                     .col(string(KeyExpiryNotifications::NotificationMethod).not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_key_expiry_notifications_key")
                             .from(KeyExpiryNotifications::Table, KeyExpiryNotifications::KeyId)
-                            .to(ApiKeys::Table, ApiKeys::Id)
+                            .to(ApiKeys::Table, ApiKeys::Id),
                     )
                     .to_owned(),
             )
@@ -219,7 +223,11 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 删除表（按依赖顺序）
         manager
-            .drop_table(Table::drop().table(KeyExpiryNotifications::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(KeyExpiryNotifications::Table)
+                    .to_owned(),
+            )
             .await?;
         manager
             .drop_table(Table::drop().table(RateLimitBlocks::Table).to_owned())

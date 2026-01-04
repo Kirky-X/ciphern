@@ -69,10 +69,7 @@ impl ActiveModelBehavior for ActiveModel {}
 /// 便捷方法
 impl Entity {
     /// 根据 key_hash 查找
-    pub async fn find_by_key_hash(
-        db: &DbConn,
-        key_hash: &str,
-    ) -> Result<Option<Model>, DbErr> {
+    pub async fn find_by_key_hash(db: &DbConn, key_hash: &str) -> Result<Option<Model>, DbErr> {
         Self::find()
             .filter(Column::KeyHash.eq(key_hash))
             .one(db)

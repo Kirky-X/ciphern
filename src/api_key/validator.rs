@@ -2,14 +2,16 @@
 //!
 //! 实现 API Key 的校验逻辑，包括格式验证、哈希验证、权限检查、过期检查等。
 
-use sea_orm::{DatabaseConnection, EntityTrait, ColumnTrait, QueryFilter, ActiveModelTrait, PaginatorTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+};
 
 use crate::api_key::cache::Cache;
+use crate::api_key::entities::{api_key, rate_limit_block, validation_failure};
 use crate::api_key::error::ValidationError;
 use crate::api_key::permission::PermissionMatcher;
 use crate::api_key::types::{Permission, ValidationResult};
-use crate::api_key::entities::{api_key, validation_failure, rate_limit_block};
-use chrono::{Utc, DateTime, FixedOffset};
+use chrono::{DateTime, FixedOffset, Utc};
 
 /// API Key 校验器
 pub struct ApiKeyValidator {
@@ -65,9 +67,14 @@ impl ApiKeyValidator {
 
         // 4. 检查缓存
         if let Some(cached) = self.cache.get(&key_hash).await {
-            let available_strings: Vec<String> = cached.permissions.iter().map(|p| p.to_string()).collect();
-            if !self.permission_matcher.matches(&available_strings, required_permission) {
-                self.record_failure(&key_hash, "PermissionDenied", None, None).await;
+            let available_strings: Vec<String> =
+                cached.permissions.iter().map(|p| p.to_string()).collect();
+            if !self
+                .permission_matcher
+                .matches(&available_strings, required_permission)
+            {
+                self.record_failure(&key_hash, "PermissionDenied", None, None)
+                    .await;
                 return Err(ValidationError::PermissionDenied {
                     required: required_permission.to_string(),
                     available: available_strings,
@@ -82,28 +89,34 @@ impl ApiKeyValidator {
             .one(&self.db)
             .await?
             .ok_or_else(|| {
-                self.record_failure(&key_hash, "KeyNotFound", None, None);
+                std::mem::drop(self.record_failure(&key_hash, "KeyNotFound", None, None));
                 ValidationError::KeyNotFound
             })?;
 
         // 6. 检查是否撤销
         if key_record.is_revoked {
-            self.record_failure(&key_hash, "KeyRevoked", None, None).await;
+            self.record_failure(&key_hash, "KeyRevoked", None, None)
+                .await;
             return Err(ValidationError::KeyRevoked);
         }
 
         // 7. 检查是否过期
         let expires_at_utc = key_record.expires_at.with_timezone(&Utc);
         if expires_at_utc < Utc::now() {
-            self.record_failure(&key_hash, "KeyExpired", None, None).await;
+            self.record_failure(&key_hash, "KeyExpired", None, None)
+                .await;
             return Err(ValidationError::KeyExpired {
                 expired_at: expires_at_utc,
             });
         }
 
         // 8. 检查权限
-        if !self.permission_matcher.matches(&key_record.permissions, required_permission) {
-            self.record_failure(&key_hash, "PermissionDenied", None, None).await;
+        if !self
+            .permission_matcher
+            .matches(&key_record.permissions, required_permission)
+        {
+            self.record_failure(&key_hash, "PermissionDenied", None, None)
+                .await;
             return Err(ValidationError::PermissionDenied {
                 required: required_permission.to_string(),
                 available: key_record.permissions.clone(),
@@ -116,11 +129,20 @@ impl ApiKeyValidator {
         // 10. 缓存结果
         let result = ValidationResult {
             key_id: key_record.id,
-            permissions: key_record.permissions.iter()
-                .map(|p| Permission::from_str(p).unwrap_or_else(|_| Permission::new(p.to_string(), crate::api_key::types::Action::Read)))
+            permissions: key_record
+                .permissions
+                .iter()
+                .map(|p| {
+                    Permission::parse_permission(p).unwrap_or_else(|_| {
+                        Permission::new(p.to_string(), crate::api_key::types::Action::Read)
+                    })
+                })
                 .collect(),
             expires_at: expires_at_utc,
-            last_used_at: key_record.last_used_at.map(|d| d.with_timezone(&Utc)).unwrap_or(Utc::now()),
+            last_used_at: key_record
+                .last_used_at
+                .map(|d| d.with_timezone(&Utc))
+                .unwrap_or(Utc::now()),
         };
         self.cache.set(&key_hash, result.clone()).await;
 
@@ -142,8 +164,12 @@ impl ApiKeyValidator {
         let available_str: Vec<String> = result.permissions.iter().map(|p| p.to_string()).collect();
 
         // 检查是否拥有所有要求的权限
-        if !self.permission_matcher.has_all_permissions(&available_str, required_permissions) {
-            let missing: Vec<String> = required_permissions.iter()
+        if !self
+            .permission_matcher
+            .has_all_permissions(&available_str, required_permissions)
+        {
+            let missing: Vec<String> = required_permissions
+                .iter()
                 .filter(|req| !self.permission_matcher.matches(&available_str, req))
                 .cloned()
                 .collect();
@@ -203,7 +229,9 @@ impl ApiKeyValidator {
             failure_reason: sea_orm::ActiveValue::Set(reason.to_string()),
             ip_address: sea_orm::ActiveValue::Set(ip_address.map(|s| s.to_string())),
             user_agent: sea_orm::ActiveValue::Set(user_agent.map(|s| s.to_string())),
-        }.insert(&self.db).await;
+        }
+        .insert(&self.db)
+        .await;
 
         // 检查是否需要封禁
         self.check_and_block(key_hash).await;
@@ -221,13 +249,19 @@ impl ApiKeyValidator {
             .unwrap_or(0);
 
         if failure_count >= self.failure_threshold as u64 {
-            let blocked_until = Utc::now() + chrono::Duration::seconds(self.block_duration_secs as i64);
+            let blocked_until =
+                Utc::now() + chrono::Duration::seconds(self.block_duration_secs as i64);
             let blocked_until_tz = blocked_until.with_timezone(&FixedOffset::east_opt(0).unwrap());
             let _ = rate_limit_block::ActiveModel {
                 key_hash: sea_orm::ActiveValue::Set(key_hash.to_string()),
                 blocked_until: sea_orm::ActiveValue::Set(blocked_until_tz),
-                block_reason: sea_orm::ActiveValue::Set(format!("Too many failures: {}", failure_count)),
-            }.insert(&self.db).await;
+                block_reason: sea_orm::ActiveValue::Set(format!(
+                    "Too many failures: {}",
+                    failure_count
+                )),
+            }
+            .insert(&self.db)
+            .await;
 
             // 清除失败记录
             let _ = validation_failure::Entity::delete_many()

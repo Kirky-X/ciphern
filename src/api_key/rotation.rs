@@ -2,13 +2,13 @@
 //!
 //! 实现 API Key 的轮换逻辑，包括生成新密钥、设置宽限期、记录轮换历史。
 
-use sea_orm::{DatabaseConnection, EntityTrait, ActiveValue, QueryFilter, ColumnTrait};
 use chrono::{Duration, Utc};
+use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
-use crate::api_key::error::RotationError;
-use crate::api_key::types::{Permission, PrefixType, RotatedKeyPair};
 use crate::api_key::entities::{api_key, key_rotation};
+use crate::api_key::error::RotationError;
 use crate::api_key::generator::ApiKeyGenerator;
+use crate::api_key::types::{Permission, PrefixType, RotatedKeyPair};
 use crate::api_key::validator::ApiKeyValidator;
 
 /// 密钥轮换器
@@ -25,7 +25,10 @@ impl ApiKeyRotation {
         Self {
             db: db.clone(),
             generator: ApiKeyGenerator::new(db.clone()).unwrap(),
-            validator: ApiKeyValidator::new(db, crate::api_key::cache::Cache::new(crate::api_key::CacheConfig::default())),
+            validator: ApiKeyValidator::new(
+                db,
+                crate::api_key::cache::Cache::new(crate::api_key::CacheConfig::default()),
+            ),
             grace_period_days,
         }
     }
@@ -45,7 +48,10 @@ impl ApiKeyRotation {
         reason: Option<String>,
     ) -> Result<RotatedKeyPair, RotationError> {
         // 1. 验证旧密钥存在且有效
-        let old_key_record = self.validator.validate(old_key, "*:*").await
+        let old_key_record = self
+            .validator
+            .validate(old_key, "*:*")
+            .await
             .map_err(|_| RotationError::KeyNotFound)?;
 
         // 2. 获取旧密钥的详细信息
@@ -61,8 +67,14 @@ impl ApiKeyRotation {
         }
 
         // 4. 转换为 Permission 对象
-        let old_permissions: Vec<Permission> = old_key_entity.permissions.iter()
-            .map(|p| Permission::from_str(p).unwrap_or_else(|_| Permission::new(p.clone(), crate::api_key::types::Action::Read)))
+        let old_permissions: Vec<Permission> = old_key_entity
+            .permissions
+            .iter()
+            .map(|p| {
+                Permission::parse_permission(p).unwrap_or_else(|_| {
+                    Permission::new(p.clone(), crate::api_key::types::Action::Read)
+                })
+            })
             .collect();
 
         // 5. 确定前缀（继承旧密钥的前缀类型）
@@ -74,18 +86,30 @@ impl ApiKeyRotation {
         };
 
         // 6. 生成新密钥（继承权限）
-        let new_key = self.generator.generate(
-            prefix_type,
-            Some(old_permissions),
-            Some(90), // 新密钥默认90天
-        ).await.map_err(|_| RotationError::DatabaseError(sea_orm::DbErr::Custom("Failed to generate new key".to_string())))?;
+        let new_key = self
+            .generator
+            .generate(
+                prefix_type,
+                Some(old_permissions),
+                Some(90), // 新密钥默认90天
+            )
+            .await
+            .map_err(|_| {
+                RotationError::DatabaseError(sea_orm::DbErr::Custom(
+                    "Failed to generate new key".to_string(),
+                ))
+            })?;
 
         // 7. 更新旧密钥（设置宽限期后标记为轮换来源）
-        let _grace_end = Utc::now() + Duration::days(grace_period_days.unwrap_or(self.grace_period_days) as i64);
-        
+        let _grace_end =
+            Utc::now() + Duration::days(grace_period_days.unwrap_or(self.grace_period_days) as i64);
+
         let mut old_key_model: api_key::ActiveModel = old_key_entity.clone().into();
         old_key_model.rotation_from = ActiveValue::Set(Some(new_key.key_id));
-        api_key::Entity::update(old_key_model).exec(&self.db).await.map_err(|e| RotationError::DatabaseError(e))?;
+        api_key::Entity::update(old_key_model)
+            .exec(&self.db)
+            .await
+            .map_err(RotationError::DatabaseError)?;
 
         // 8. 记录轮换历史
         let rotation_record = key_rotation::ActiveModel {
@@ -97,7 +121,8 @@ impl ApiKeyRotation {
         };
         key_rotation::Entity::insert(rotation_record)
             .exec(&self.db)
-            .await.map_err(|e| RotationError::DatabaseError(e))?;
+            .await
+            .map_err(RotationError::DatabaseError)?;
 
         // 9. 使旧密钥缓存失效
         let old_key_hash = self.hash_key(old_key)?;
@@ -106,7 +131,8 @@ impl ApiKeyRotation {
         Ok(RotatedKeyPair {
             old_key_id: old_key_entity.id,
             new_key,
-            grace_period_ends: Utc::now() + Duration::days(grace_period_days.unwrap_or(self.grace_period_days) as i64),
+            grace_period_ends: Utc::now()
+                + Duration::days(grace_period_days.unwrap_or(self.grace_period_days) as i64),
         })
     }
 
@@ -118,7 +144,7 @@ impl ApiKeyRotation {
     ) -> Result<(), RotationError> {
         // 验证密钥存在
         let key_hash = self.hash_key(key)?;
-        
+
         let key_record = api_key::Entity::find()
             .filter(api_key::Column::KeyHash.eq(key_hash.clone()))
             .one(&self.db)
@@ -128,7 +154,10 @@ impl ApiKeyRotation {
         // 标记为已撤销
         let mut active_key: api_key::ActiveModel = key_record.into();
         active_key.is_revoked = ActiveValue::Set(true);
-        api_key::Entity::update(active_key).exec(&self.db).await.map_err(|e| RotationError::DatabaseError(e))?;
+        api_key::Entity::update(active_key)
+            .exec(&self.db)
+            .await
+            .map_err(RotationError::DatabaseError)?;
 
         // 使缓存失效
         self.validator.invalidate_cache(&key_hash).await;
@@ -146,7 +175,8 @@ impl ApiKeyRotation {
             .filter(api_key::Column::IsRevoked.eq(false))
             .filter(api_key::Column::RotationFrom.is_null())
             .all(&self.db)
-            .await.map_err(|e| RotationError::DatabaseError(e))?;
+            .await
+            .map_err(RotationError::DatabaseError)?;
 
         for _key_record in expired_keys {
             // 重建 key 字符串（仅用于哈希计算，实际场景中可能需要其他方式）
