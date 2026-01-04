@@ -40,3 +40,8 @@ secret/
 test_crate
 temp/
 .cargo/
+
+# Test coverage reports
+tarpaulin-report.html
+*.lcov
+coverage/
