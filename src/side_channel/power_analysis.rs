@@ -728,15 +728,15 @@ pub fn advanced_dummy_operations() {
 
     // Level 2: Memory-intensive operations
     let mut buffer = vec![0u64; 256]; // Directly create u64 vector
-    // SAFETY: This unsafe block reinterprets a u64 vector byte slice for RNG filling.
-    // Requirements verified:
-    // 1. `buffer.as_mut_ptr()` returns a valid, non-null pointer to allocated memory (256 * 8 = 2048 bytes)
-    // 2. The calculated length `buffer.len() * 8` exactly matches the allocation size in bytes
-    // 3. The memory is owned exclusively by the `buffer` Vec and is writable
-    // 4. The resulting slice is only used within this statement and not stored long-term
-    // 5. The slice lifetime is bound to the fill_bytes call and does not outlive the buffer
-    // 6. The alignment of u64 (8 bytes) satisfies the alignment requirements for u8 (1 byte)
     if let Ok(mut rng) = SecureRandom::new() {
+        // SAFETY: This unsafe block reinterprets a u64 vector byte slice for RNG filling.
+        // Requirements verified:
+        // 1. `buffer.as_mut_ptr()` returns a valid, non-null pointer to allocated memory (256 * 8 = 2048 bytes)
+        // 2. The calculated length `buffer.len() * 8` exactly matches the allocation size in bytes
+        // 3. The memory is owned exclusively by the `buffer` Vec and is writable
+        // 4. The resulting slice is only used within this statement and not stored long-term
+        // 5. The slice lifetime is bound to the fill_bytes call and does not outlive the buffer
+        // 6. The alignment of u64 (8 bytes) satisfies the alignment requirements for u8 (1 byte)
         rng.fill_bytes(unsafe {
             std::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut u8, buffer.len() * 8)
         });

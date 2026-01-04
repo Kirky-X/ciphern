@@ -55,7 +55,7 @@ impl Default for RatchetConfig {
             enable_signature_verification: false,
             max_skip_messages: 1000,
             max_skipped_keys_memory: 1024 * 1024, // 1MB
-            max_plaintext_size: 16 * 1024, // 16KB 默认限制
+            max_plaintext_size: 16 * 1024,        // 16KB 默认限制
             enable_weak_key_detection: true,
             min_entropy_threshold: 3.0,
             enable_parallel_key_derivation: true,

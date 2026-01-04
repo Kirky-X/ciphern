@@ -77,8 +77,7 @@ impl FfiContext {
     pub fn initialize(&self) -> std::result::Result<(), CiphernError> {
         // 检查当前状态 (读锁)
         {
-            let inner = self.inner.read()
-                .map_err(|_| CiphernError::UnknownError)?;
+            let inner = self.inner.read().map_err(|_| CiphernError::UnknownError)?;
             match inner.state {
                 ContextState::Ready => return Ok(()),
                 ContextState::Initializing => return Err(CiphernError::UnknownError),
@@ -91,8 +90,7 @@ impl FfiContext {
 
         // 设置初始化状态 (写锁)
         {
-            let mut inner = self.inner.write()
-                .map_err(|_| CiphernError::UnknownError)?;
+            let mut inner = self.inner.write().map_err(|_| CiphernError::UnknownError)?;
             if inner.state == ContextState::Ready {
                 return Ok(());
             }
@@ -106,8 +104,7 @@ impl FfiContext {
         let result = self.do_initialize_resources();
 
         // 更新状态 (写锁)
-        let mut inner = self.inner.write()
-            .map_err(|_| CiphernError::UnknownError)?;
+        let mut inner = self.inner.write().map_err(|_| CiphernError::UnknownError)?;
         match result {
             Ok((km, lm, fc)) => {
                 inner.key_manager = Some(km);
@@ -179,8 +176,7 @@ impl FfiContext {
 
     /// 获取密钥管理器
     pub fn key_manager(&self) -> std::result::Result<Arc<KeyManager>, CiphernError> {
-        let inner = self.inner.read()
-            .map_err(|_| CiphernError::UnknownError)?;
+        let inner = self.inner.read().map_err(|_| CiphernError::UnknownError)?;
         if inner.state != ContextState::Ready {
             return Err(CiphernError::UnknownError);
         }
@@ -190,8 +186,7 @@ impl FfiContext {
     /// 获取生命周期管理器
     #[allow(dead_code)]
     pub fn lifecycle_manager(&self) -> std::result::Result<Arc<KeyLifecycleManager>, CiphernError> {
-        let inner = self.inner.read()
-            .map_err(|_| CiphernError::UnknownError)?;
+        let inner = self.inner.read().map_err(|_| CiphernError::UnknownError)?;
         if inner.state != ContextState::Ready {
             return Err(CiphernError::UnknownError);
         }
@@ -238,7 +233,8 @@ impl FfiContext {
     /// 获取状态
     #[allow(dead_code)]
     pub fn state(&self) -> ContextState {
-        self.inner.read()
+        self.inner
+            .read()
             .map(|inner| inner.state)
             .unwrap_or(ContextState::Error)
     }
@@ -250,7 +246,8 @@ static GLOBAL_CONTEXT: Lazy<Arc<Mutex<Option<Arc<FfiContext>>>>> =
 
 /// 获取或创建全局上下文
 pub fn get_context() -> std::result::Result<Arc<FfiContext>, CiphernError> {
-    let mut global = GLOBAL_CONTEXT.lock()
+    let mut global = GLOBAL_CONTEXT
+        .lock()
         .map_err(|_| CiphernError::UnknownError)?;
 
     if let Some(ref context) = *global {

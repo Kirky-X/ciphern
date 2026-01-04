@@ -70,22 +70,25 @@ impl Default for ProviderRegistry {
 impl ProviderRegistry {
     fn register_defaults(&self) -> Result<()> {
         {
-            let mut map = self.symmetric.write()
-                .map_err(|_| CryptoError::InternalError("Failed to acquire symmetric registry lock".into()))?;
+            let mut map = self.symmetric.write().map_err(|_| {
+                CryptoError::InternalError("Failed to acquire symmetric registry lock".into())
+            })?;
             map.insert(Algorithm::AES128GCM, Arc::new(AesGcmProvider::aes128()));
             map.insert(Algorithm::AES192GCM, Arc::new(AesGcmProvider::aes192()));
             map.insert(Algorithm::AES256GCM, Arc::new(AesGcmProvider::aes256()));
             map.insert(Algorithm::SM4GCM, Arc::new(Sm4GcmProvider::default()));
             map.insert(
                 Algorithm::ChaCha20Poly1305,
-                Arc::new(ChaCha20Poly1305Provider::new()
-                    .map_err(|_| CryptoError::InternalError("Failed to create ChaCha20 provider".into()))?),
+                Arc::new(ChaCha20Poly1305Provider::new().map_err(|_| {
+                    CryptoError::InternalError("Failed to create ChaCha20 provider".into())
+                })?),
             );
         }
 
         {
-            let mut map = self.signers.write()
-                .map_err(|_| CryptoError::InternalError("Failed to acquire signer registry lock".into()))?;
+            let mut map = self.signers.write().map_err(|_| {
+                CryptoError::InternalError("Failed to acquire signer registry lock".into())
+            })?;
             map.insert(
                 Algorithm::ECDSAP256,
                 Arc::new(EcdsaProvider::new(Algorithm::ECDSAP256)),
@@ -106,7 +109,8 @@ impl ProviderRegistry {
                 Algorithm::RSA4096,
                 Arc::new(RsaProvider::new(Algorithm::RSA4096)),
             );
-            map.insert(Algorithm::Ed25519,
+            map.insert(
+                Algorithm::Ed25519,
                 Arc::new(Ed25519Provider::new(Algorithm::Ed25519)),
             );
             map.insert(Algorithm::SM2, Arc::new(Sm2Provider::new(Algorithm::SM2)));
