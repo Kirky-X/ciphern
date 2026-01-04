@@ -77,7 +77,8 @@ impl FfiContext {
     pub fn initialize(&self) -> std::result::Result<(), CiphernError> {
         // 检查当前状态 (读锁)
         {
-            let inner = self.inner.read().unwrap();
+            let inner = self.inner.read()
+                .map_err(|_| CiphernError::UnknownError)?;
             match inner.state {
                 ContextState::Ready => return Ok(()),
                 ContextState::Initializing => return Err(CiphernError::UnknownError),
@@ -90,7 +91,8 @@ impl FfiContext {
 
         // 设置初始化状态 (写锁)
         {
-            let mut inner = self.inner.write().unwrap();
+            let mut inner = self.inner.write()
+                .map_err(|_| CiphernError::UnknownError)?;
             if inner.state == ContextState::Ready {
                 return Ok(());
             }
@@ -104,7 +106,8 @@ impl FfiContext {
         let result = self.do_initialize_resources();
 
         // 更新状态 (写锁)
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write()
+            .map_err(|_| CiphernError::UnknownError)?;
         match result {
             Ok((km, lm, fc)) => {
                 inner.key_manager = Some(km);
@@ -161,21 +164,23 @@ impl FfiContext {
 
     /// 清理上下文
     pub fn cleanup(&self) {
-        let mut inner = self.inner.write().unwrap();
+        // Note: cleanup should not panic even if lock acquisition fails
+        if let Ok(mut inner) = self.inner.write() {
+            inner.state = ContextState::ShuttingDown;
 
-        inner.state = ContextState::ShuttingDown;
+            // 清理资源
+            inner.key_manager = None;
+            inner.lifecycle_manager = None;
+            inner.fips_context = None;
 
-        // 清理资源
-        inner.key_manager = None;
-        inner.lifecycle_manager = None;
-        inner.fips_context = None;
-
-        inner.state = ContextState::Uninitialized;
+            inner.state = ContextState::Uninitialized;
+        }
     }
 
     /// 获取密钥管理器
     pub fn key_manager(&self) -> std::result::Result<Arc<KeyManager>, CiphernError> {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read()
+            .map_err(|_| CiphernError::UnknownError)?;
         if inner.state != ContextState::Ready {
             return Err(CiphernError::UnknownError);
         }
@@ -185,7 +190,8 @@ impl FfiContext {
     /// 获取生命周期管理器
     #[allow(dead_code)]
     pub fn lifecycle_manager(&self) -> std::result::Result<Arc<KeyLifecycleManager>, CiphernError> {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read()
+            .map_err(|_| CiphernError::UnknownError)?;
         if inner.state != ContextState::Ready {
             return Err(CiphernError::UnknownError);
         }
@@ -198,35 +204,43 @@ impl FfiContext {
     /// 获取 FIPS 上下文
     #[allow(dead_code)]
     pub fn fips_context(&self) -> Option<Arc<FipsContext>> {
-        let inner = self.inner.read().unwrap();
-        inner.fips_context.clone()
+        if let Ok(inner) = self.inner.read() {
+            inner.fips_context.clone()
+        } else {
+            None
+        }
     }
 
     /// 检查 FIPS 是否启用
     pub fn is_fips_enabled(&self) -> bool {
-        let inner = self.inner.read().unwrap();
-        inner.fips_context.is_some() && crate::fips::is_fips_enabled()
+        if let Ok(inner) = self.inner.read() {
+            inner.fips_context.is_some() && crate::fips::is_fips_enabled()
+        } else {
+            false
+        }
     }
 
     /// 设置 FIPS 启用状态
     pub fn set_fips_enabled(&self, enabled: bool) {
-        let mut inner = self.inner.write().unwrap();
-
-        if enabled && inner.fips_context.is_none() {
-            // 如果启用且当前没有FIPS上下文，尝试初始化
-            if let Ok(fips_context) = FipsContext::new(FipsMode::Enabled) {
-                inner.fips_context = Some(Arc::new(fips_context));
+        if let Ok(mut inner) = self.inner.write() {
+            if enabled && inner.fips_context.is_none() {
+                // 如果启用且当前没有FIPS上下文，尝试初始化
+                if let Ok(fips_context) = FipsContext::new(FipsMode::Enabled) {
+                    inner.fips_context = Some(Arc::new(fips_context));
+                }
+            } else if !enabled {
+                // 如果禁用，清除FIPS上下文
+                inner.fips_context = None;
             }
-        } else if !enabled {
-            // 如果禁用，清除FIPS上下文
-            inner.fips_context = None;
         }
     }
 
     /// 获取状态
     #[allow(dead_code)]
     pub fn state(&self) -> ContextState {
-        self.inner.read().unwrap().state
+        self.inner.read()
+            .map(|inner| inner.state)
+            .unwrap_or(ContextState::Error)
     }
 }
 
@@ -236,7 +250,8 @@ static GLOBAL_CONTEXT: Lazy<Arc<Mutex<Option<Arc<FfiContext>>>>> =
 
 /// 获取或创建全局上下文
 pub fn get_context() -> std::result::Result<Arc<FfiContext>, CiphernError> {
-    let mut global = GLOBAL_CONTEXT.lock().unwrap();
+    let mut global = GLOBAL_CONTEXT.lock()
+        .map_err(|_| CiphernError::UnknownError)?;
 
     if let Some(ref context) = *global {
         return Ok(context.clone());
@@ -263,8 +278,9 @@ pub fn cleanup_context() {
     }
 
     // 清除全局引用
-    let mut global = GLOBAL_CONTEXT.lock().unwrap();
-    *global = None;
+    if let Ok(mut global) = GLOBAL_CONTEXT.lock() {
+        *global = None;
+    }
 }
 
 /// 检查上下文是否就绪

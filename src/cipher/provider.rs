@@ -49,38 +49,43 @@ pub struct ProviderRegistry {
 }
 
 impl ProviderRegistry {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         let registry = Self {
             symmetric: RwLock::new(HashMap::new()),
             signers: RwLock::new(HashMap::new()),
         };
-        registry.register_defaults();
-        registry
+        registry.register_defaults()?;
+        Ok(registry)
     }
 }
 
 impl Default for ProviderRegistry {
     fn default() -> Self {
-        Self::new()
+        // During initialization, we expect these to succeed
+        // If they fail, it's a programming error that should panic
+        Self::new().expect("Failed to initialize provider registry")
     }
 }
 
 impl ProviderRegistry {
-    fn register_defaults(&self) {
+    fn register_defaults(&self) -> Result<()> {
         {
-            let mut map = self.symmetric.write().unwrap();
+            let mut map = self.symmetric.write()
+                .map_err(|_| CryptoError::InternalError("Failed to acquire symmetric registry lock".into()))?;
             map.insert(Algorithm::AES128GCM, Arc::new(AesGcmProvider::aes128()));
             map.insert(Algorithm::AES192GCM, Arc::new(AesGcmProvider::aes192()));
             map.insert(Algorithm::AES256GCM, Arc::new(AesGcmProvider::aes256()));
             map.insert(Algorithm::SM4GCM, Arc::new(Sm4GcmProvider::default()));
             map.insert(
                 Algorithm::ChaCha20Poly1305,
-                Arc::new(ChaCha20Poly1305Provider::new().unwrap()),
+                Arc::new(ChaCha20Poly1305Provider::new()
+                    .map_err(|_| CryptoError::InternalError("Failed to create ChaCha20 provider".into()))?),
             );
         }
 
         {
-            let mut map = self.signers.write().unwrap();
+            let mut map = self.signers.write()
+                .map_err(|_| CryptoError::InternalError("Failed to acquire signer registry lock".into()))?;
             map.insert(
                 Algorithm::ECDSAP256,
                 Arc::new(EcdsaProvider::new(Algorithm::ECDSAP256)),
@@ -101,12 +106,12 @@ impl ProviderRegistry {
                 Algorithm::RSA4096,
                 Arc::new(RsaProvider::new(Algorithm::RSA4096)),
             );
-            map.insert(
-                Algorithm::Ed25519,
+            map.insert(Algorithm::Ed25519,
                 Arc::new(Ed25519Provider::new(Algorithm::Ed25519)),
             );
             map.insert(Algorithm::SM2, Arc::new(Sm2Provider::new(Algorithm::SM2)));
         }
+        Ok(())
     }
 
     pub fn get_symmetric(&self, algo: Algorithm) -> Result<Arc<dyn SymmetricCipher>> {
@@ -137,5 +142,6 @@ impl ProviderRegistry {
 }
 
 lazy_static! {
-    pub static ref REGISTRY: ProviderRegistry = ProviderRegistry::new();
+    pub static ref REGISTRY: ProviderRegistry = ProviderRegistry::new()
+        .expect("Failed to initialize crypto provider registry - this is a critical system error");
 }

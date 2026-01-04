@@ -239,8 +239,10 @@ impl KeyManager {
         }
 
         // 密钥有效，执行操作
-        let key = key_option.unwrap();
-        f(key)
+        match key_option {
+            Some(key) => f(key),
+            None => Err(CryptoError::KeyNotFound("Key not found".into())),
+        }
     }
 
     /// 内部使用的可变密钥访问（提取公共逻辑）

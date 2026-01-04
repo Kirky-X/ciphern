@@ -8,3 +8,6 @@ pub mod c_api_test;
 
 #[cfg(test)]
 pub mod java_jni_test;
+
+#[cfg(test)]
+pub mod double_ratchet_test;

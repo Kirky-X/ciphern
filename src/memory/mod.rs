@@ -68,9 +68,18 @@ impl SecretBytes {
         if self.inner.is_empty() {
             return Ok(());
         }
+
         let ptr = self.inner.as_mut_ptr() as *mut c_void;
         let len = self.inner.len();
 
+        // SAFETY: This unsafe block is required to call the mlock() system call which is a POSIX standard.
+        // Requirements verified:
+        // 1. `ptr` is a valid, non-null pointer to allocated memory (as_mut_ptr guarantees this)
+        // 2. `len` is the exact length of the allocation (self.inner.len())
+        // 3. The memory range [ptr, ptr+len) is owned exclusively by this SecretBytes instance
+        // 4. mlock() does not deallocate or modify the memory content in a way that would invalidate Rust's invariants
+        // 5. Return value is checked for error (ret != 0)
+        // 6. This is wrapped in a function that handles the error gracefully with Error enum
         let ret = unsafe { mlock(ptr, len) };
         if ret != 0 {
             return Err(CryptoError::MemoryProtectionFailed("mlock failed".into()));

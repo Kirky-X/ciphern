@@ -63,13 +63,15 @@ once_cell = "1.21.3"
 rand_chacha = "0.3.1"
 rustfft = "6.1.0"
 libc = "0.2.162"
+bincode = "1.3"
 
 # Optional FFI dependencies
 jni = { version = "0.21.1", optional = true }
 pyo3 = { version = "0.27.2", features = ["extension-module"], optional = true }
 libloading = { version = "0.9.0", optional = true }
 
-# Optional GPU dependencies
+# Optional GPU dependencies - Linux only
+[target.'cfg(target_os = "linux")'.dependencies]
 cudarc = { version = "0.18.2", optional = true, default-features = false, features = ["dynamic-linking", "cuda-13000", "driver"] }
 ocl = { version = "0.19", optional = true, default-features = false }
 
@@ -80,6 +82,9 @@ pkcs8 = { version = "0.10.2", optional = true }
 p256 = { version = "0.13.2", optional = true, features = ["ecdsa"] }
 p384 = { version = "0.13.0", optional = true, features = ["ecdsa"] }
 p521 = { version = "0.13.0", optional = true, features = ["ecdsa"] }
+
+# Note: GPU acceleration is only available on Linux with CUDA/OpenCL installed
+# On other platforms, these dependencies are automatically excluded
 
 # Enable cpufeatures for aarch64 targets
 [target.aarch64-unknown-linux-gnu.dependencies]
@@ -108,10 +113,14 @@ generate_headers = []
 post_quantum = []
 i18n = []
 
-# GPU Acceleration Features
+# GPU Acceleration Features (Linux only, requires CUDA/OpenCL installation)
+# These features are NOT enabled by default to avoid linking errors on systems without GPU
 gpu = ["dep:cudarc", "dep:ecdsa", "dep:ed25519-dalek", "dep:p256", "dep:p384", "dep:p521", "gpu-cuda"]
 gpu-cuda = ["gpu", "dep:cudarc", "dep:ecdsa", "dep:ed25519-dalek", "dep:p256", "dep:p384", "dep:p521"]
 gpu-opencl = ["gpu", "dep:ocl", "dep:ecdsa", "dep:ed25519-dalek", "dep:p256", "dep:p384", "dep:p521"]
+
+# Usage: cargo build --release --features gpu-cuda   (Linux with CUDA)
+#        cargo build --release --features gpu-opencl (Linux with OpenCL)
 
 # CPU Acceleration Features
 cpu-aesni = ["cpufeatures"]

@@ -105,6 +105,14 @@ impl CacheProtectionGuard {
         let mut indices = vec![0usize; self.config.dummy_access_count];
         THREAD_RNG.with(|rng| {
             let mut rng = rng.borrow_mut();
+            // SAFETY: This unsafe block creates a byte slice from a usize vector for random number generation.
+            // Requirements verified:
+            // 1. `indices.as_mut_ptr()` returns a valid, non-null pointer to allocated memory
+            // 2. The calculated length `indices.len() * std::mem::size_of::<usize>()` exactly matches the allocation size
+            // 3. The memory is owned exclusively by `indices` Vec
+            // 4. This slice is used immediately within this function and not stored long-term
+            // 5. After this function returns, the slice is no longer accessed
+            // 6. The memory layout of `usize` is well-defined and consistent on this platform
             let byte_slice = unsafe {
                 std::slice::from_raw_parts_mut(
                     indices.as_mut_ptr() as *mut u8,
