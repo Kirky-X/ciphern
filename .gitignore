@@ -38,8 +38,9 @@ db.sqlite
 secret/
 .trae/
 test_crate
+# Keep temp/ for scripts but ignore temp/target/
 temp/
-.cargo/
+!.cargo/config.toml
 
 # Test coverage reports
 tarpaulin-report.html
