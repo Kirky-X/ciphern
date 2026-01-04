@@ -121,6 +121,9 @@ pub(crate) mod side_channel;
 pub(crate) mod signer;
 pub(crate) mod types;
 
+// API Key Management Module
+pub mod api_key;
+
 #[cfg(feature = "i18n")]
 pub(crate) mod i18n;
 #[cfg(feature = "i18n")]
