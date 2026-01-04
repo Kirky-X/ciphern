@@ -20,8 +20,17 @@
 //!
 //! # Example Usage
 
+#[cfg(feature = "simd")]
 use ciphern::simd;
 
+#[cfg(not(feature = "simd"))]
+fn main() {
+    eprintln!("Error: This example requires the 'simd' feature to be enabled.");
+    eprintln!("Run with: cargo run --example simd_acceleration --features simd");
+    std::process::exit(1);
+}
+
+#[cfg(feature = "simd")]
 fn main() {
     println!("SIMD Acceleration Example\n");
     println!("========================\n");
@@ -32,6 +41,7 @@ fn main() {
     demonstrate_benchmark_comparison();
 }
 
+#[cfg(feature = "simd")]
 fn demonstrate_simd_availability() {
     println!("1. SIMD Availability Check");
     println!("--------------------------");
@@ -45,6 +55,7 @@ fn demonstrate_simd_availability() {
     }
 }
 
+#[cfg(feature = "simd")]
 fn demonstrate_sha256_acceleration() {
     println!("2. SHA256 SIMD Acceleration");
     println!("---------------------------");
@@ -64,6 +75,7 @@ fn demonstrate_sha256_acceleration() {
     println!("  Result: {:x?}\n", result);
 }
 
+#[cfg(feature = "simd")]
 fn demonstrate_sm4_encryption() {
     println!("3. SM4 SIMD Encryption");
     println!("----------------------");
@@ -96,6 +108,7 @@ fn demonstrate_sm4_encryption() {
     );
 }
 
+#[cfg(feature = "simd")]
 fn demonstrate_benchmark_comparison() {
     println!("4. Performance Notes");
     println!("--------------------");
