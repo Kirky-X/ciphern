@@ -24,16 +24,18 @@
 //! let config = RatchetConfig::default();
 //!
 //! // 创建会话（Alice）
-//! let mut alice = DoubleRatchetState::new(config, None).unwrap();
+//! let mut alice = DoubleRatchetState::new(config.clone(), None).unwrap();
 //! let alice_public = alice.generate_dh_keypair().unwrap();
 //!
 //! // 响应方创建会话（Bob）
 //! let mut bob = DoubleRatchetState::new(config, None).unwrap();
-//! bob.initialize(&alice_public, None).unwrap();
+//! // initialize 第三个参数 clear_send_chain: 响应方需要清空发送链，设为 true
+//! bob.initialize(&alice_public, None, true).unwrap();
 //! let bob_public = bob.generate_dh_keypair().unwrap();
 //!
 //! // Alice 初始化响应
-//! alice.initialize(&bob_public, None).unwrap();
+//! // initialize 第三个参数 clear_send_chain: 发起方不需要清空发送链，设为 false
+//! alice.initialize(&bob_public, None, false).unwrap();
 //!
 //! // 加密消息
 //! let plaintext = b"Hello, secure world!";
